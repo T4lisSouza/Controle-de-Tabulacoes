@@ -262,13 +262,24 @@ const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','de
 const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const BL="(sem)";
 const CW=()=>window.innerWidth>=900?880:360;
+/* gviz devolve data como "Date(aaaa,m,d)" com mes 0-indexado */
+function gdate(v){
+  if(v==null)return null;
+  if(v instanceof Date)return isNaN(v)?null:iso(v);
+  const s=String(v).trim();
+  let m=s.match(/^Date\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if(m)return m[1]+'-'+String(+m[2]+1).padStart(2,'0')+'-'+String(+m[3]).padStart(2,'0');
+  m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m)return m[1]+'-'+String(+m[2]).padStart(2,'0')+'-'+String(+m[3]).padStart(2,'0');
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m)return m[3]+'-'+String(+m[2]).padStart(2,'0')+'-'+String(+m[1]).padStart(2,'0');
+  return null}
 
 function empOf(c){const s=String(c||'').trim();if(!s)return'—';
   const m=s.match(/-\s*([A-Za-z0-9]+)\s*$/);return m?m[1].toUpperCase():'—'}
 function kind(t){const s=String(t||'').trim().toLowerCase();
   if(/^pr[eé]\s*-?\s*venda/.test(s))return'o';
   if(/^venda/.test(s))return'g';
-  if(/^fechad/.test(s))return'b';
   if(/negocia/.test(s))return'o';
   if(/desqualific|n[ãa]o atende/.test(s))return'r';
   return's'}
@@ -313,8 +324,8 @@ function agg(rows){const byC={},byT={},byE={};
     const e=empOf(x[0]);if(e!=='—')byE[e]=(byE[e]||0)+x[4]});
   const tot=rows.reduce((s,x)=>s+x[4],0);
   const g=rows.filter(x=>kind(x[1])==='g').reduce((s,x)=>s+x[4],0);
-  const b=rows.filter(x=>kind(x[1])==='b').reduce((s,x)=>s+x[4],0);
-  return{byC,byT,byE,tot,venda:g,fechado:b}}
+  const d=rows.filter(x=>/^discador/i.test(String(x[1]||''))).reduce((s,x)=>s+x[4],0);
+  return{byC,byT,byE,tot,venda:g,disc:d}}
 const srt=o=>Object.entries(o).sort((a,b)=>b[1]-a[1]);
 const uni=i=>[...new Set(CUBE.map(x=>x[i]||BL))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
 
@@ -447,8 +458,8 @@ function vResumo(){
   <div class="kg">
     ${kpi('Leads',live?A.tot:(cur.l||A.tot),delta(cur.l||A.tot,prv.l),'a',spark(leadsSerie.map(x=>x[1]),'var(--accent)'),0)}
     ${kpi('Vendas novas',A.venda,live?delta(cur.v,prv.v):null,'g','',1,live?null:'todo o período')}
-    ${kpi('Já clientes',A.fechado,live?delta(cur.f,prv.f,true):null,'b','',2,live?null:'todo o período')}
-    ${kpi('Conversão',pc(A.venda,A.tot),live&&convPrev?delta(conv,convPrev):null,'',' ',3,live?null:'todo o período')}
+    ${kpi('Conversão',pc(A.venda,A.tot),live&&convPrev?delta(conv,convPrev):null,'','',2,live?null:'todo o período')}
+    ${kpi('No discador',A.disc,null,'','',3,live?null:'todo o período')}
   </div>
   <div class="card wide"><div class="ch"><h3>Entrada de leads</h3><span class="m">${granLabel()}</span></div>
     ${area(leadsSerie,'var(--accent)',160)}
@@ -456,8 +467,7 @@ function vResumo(){
   <div class="card"><div class="ch"><h3>Top campanhas</h3><span class="m">${srt(A.byC).length} no total</span></div>
     ${listRows(srt(A.byC).slice(0,5),A.tot,c=>`<span class="tg s">${esc(empOf(c))}</span>`)}</div>
   <div class="card"><div class="ch"><h3>Qualidade das tabulações</h3></div>
-    ${listRows(srt(A.byT).slice(0,6),A.tot,null,true)}
-    <p class="info"><b>Venda</b> = contratou agora. <b>Fechado</b> = já era cliente e voltou — não é venda nova.</p></div>`;
+    ${listRows(srt(A.byT).slice(0,6),A.tot,null,true)}</div>`;
   return html}
 
 function granLabel(){return gran==='dia'?'por dia':gran==='semana'?'por semana':'por mês'}
@@ -486,23 +496,23 @@ function vLeads(){
 function vCamp(){
   const A=agg(sel());
   const list=srt(A.byC);
-  const rows=sel().reduce((m,x)=>{const c=x[0]||BL;m[c]=m[c]||{t:0,v:0,f:0};m[c].t+=x[4];
-    if(kind(x[1])==='g')m[c].v+=x[4]; if(kind(x[1])==='b')m[c].f+=x[4];return m},{});
-  const tr=list.map(([c,v])=>{const o=rows[c]||{t:0,v:0,f:0};
-    return `<tr><td>${esc(c)}</td><td>${n(v)}</td><td><b>${n(o.v)}</b></td><td>${n(o.f)}</td>
-      <td>${pc(o.v,o.t)}</td></tr>`}).join('');
+  const rows=sel().reduce((m,x)=>{const c=x[0]||BL;m[c]=m[c]||{t:0,v:0,d:0};m[c].t+=x[4];
+    if(kind(x[1])==='g')m[c].v+=x[4]; if(/^discador/i.test(String(x[1]||'')))m[c].d+=x[4];return m},{});
+  const tr=list.map(([c,v])=>{const o=rows[c]||{t:0,v:0,d:0};
+    return `<tr><td>${esc(c)}</td><td>${n(v)}</td><td><b>${n(o.v)}</b></td><td>${pc(o.v,o.t)}</td>
+      <td>${n(o.d)}</td></tr>`}).join('');
   return `${live?'':warnBox()}
   <div class="card"><div class="ch"><h3>Ranking por volume</h3><span class="m">${list.length} campanhas</span></div>
     ${listRows(list,A.tot,c=>`<span class="tg s">${esc(empOf(c))}</span>`,false,true)}</div>
   <div class="card t"><div class="ch" style="padding:15px 16px 8px"><h3>Desempenho</h3></div>
-    <div class="tw"><table><thead><tr><th>Campanha</th><th>Leads</th><th>Vendas</th><th>Já cliente</th><th>Conv.</th></tr></thead>
+    <div class="tw"><table><thead><tr><th>Campanha</th><th>Leads</th><th>Vendas</th><th>Conv.</th><th>Discador</th></tr></thead>
     <tbody>${tr||'<tr><td colspan="5">Sem dados.</td></tr>'}</tbody></table></div></div>`}
 
 function vEmp(){
   const A=agg(sel()),E=srt(A.byE);
   const per=sel().reduce((m,x)=>{const e=empOf(x[0]);if(e==='—')return m;
-    m[e]=m[e]||{t:0,v:0,f:0};m[e].t+=x[4];
-    if(kind(x[1])==='g')m[e].v+=x[4]; if(kind(x[1])==='b')m[e].f+=x[4];return m},{});
+    m[e]=m[e]||{t:0,v:0,d:0};m[e].t+=x[4];
+    if(kind(x[1])==='g')m[e].v+=x[4]; if(/^discador/i.test(String(x[1]||'')))m[e].d+=x[4];return m},{});
   const cols={GWA:'var(--orange)',M12:'var(--gold)',OFF:'var(--slate)'};
   const slices=E.map(([k,v])=>({k,v,c:cols[k]||'var(--blue)'}));
   const cards=E.map(([e,v],i)=>{const o=per[e];
@@ -510,7 +520,7 @@ function vEmp(){
       <h3>${esc(e)}</h3><span class="m">${pc(v,A.tot)} dos leads</span></div>
       <div class="kg" style="margin:0">
         ${kpi('Leads',o.t,null,'a','',0)}${kpi('Vendas novas',o.v,null,'g','',1)}
-        ${kpi('Já clientes',o.f,null,'b','',2)}${kpi('Conversão',pc(o.v,o.t),null,'','',3)}
+        ${kpi('Conversão',pc(o.v,o.t),null,'','',2)}${kpi('No discador',o.d,null,'','',3)}
       </div></div>`}).join('');
   return `${live?'':warnBox()}
   <div class="card"><div class="ch"><h3>Participação por empresa</h3></div>
@@ -526,15 +536,7 @@ function vTab(){
     <div class="dw">${donut(slices,A.tot)}
     <div class="lgd">${slices.map(s=>`<span><i style="background:${s.c}"></i>${esc(s.k)}</span>`).join('')}</div></div></div>
   <div class="card"><div class="ch"><h3>Por tabulação</h3></div>
-    ${listRows(T,A.tot,null,true)}</div>
-  <div class="card wide"><div class="ch"><h3>Venda × Fechado</h3></div>
-    <div class="kg" style="margin:0">
-      ${kpi('Vendas novas',A.venda,null,'g','',0)}
-      ${kpi('Já clientes',A.fechado,null,'b','',1)}
-    </div>
-    <p class="info"><b>Venda</b> é o cliente que contratou agora — é o número que mede aquisição.
-    <b>Fechado</b> é quem já tinha contratado e voltou a entrar em contato. Somar os dois infla o resultado,
-    por isso eles aparecem separados em todo o painel.</p></div>`}
+    ${listRows(T,A.tot,null,true)}</div>`}
 
 function listRows(list,total,tagFn,useKind,click){
   if(!list.length)return '<div class="info">Sem dados no recorte.</div>';
@@ -625,8 +627,7 @@ async function load(){
     CUBE=cube.filter(r=>r[0]!=null).map(r=>[String(r[0]).trim(),r[1]==null?'':String(r[1]).trim(),
       r[2]==null?'':String(r[2]).trim(),r[3]==null?'':String(r[3]).trim(),+r[4]||0]);
     const m={};
-    serie.forEach(r=>{const d=r[0];if(!d)return;
-      const s=(typeof d==='string')?d.slice(0,10):iso(new Date(d));
+    serie.forEach(r=>{const s=gdate(r[0]); if(!s)return;
       const t=r[1]==null?'':String(r[1]).trim(),c=+r[2]||0;
       m[s]=m[s]||[0,0,0]; m[s][0]+=c;
       if(kind(t)==='g')m[s][1]+=c; if(kind(t)==='b')m[s][2]+=c});
