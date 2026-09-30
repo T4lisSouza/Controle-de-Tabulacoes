@@ -233,7 +233,7 @@ td.z{opacity:.35}
     <div class="chips" id="cPer"></div>
     <input type="date" id="d1"><input type="date" id="d2">
     <div class="chips b" id="cEmp"></div>
-    <select id="sOri"></select><select id="sCan"></select>
+    <select id="sCamp"></select><select id="sOri"></select><select id="sCan"></select>
   </div></div>
 </header>
 
@@ -319,6 +319,7 @@ const wh=()=>(d1&&d2)?` where ${DAT} >= date '${d1}' and ${DAT} <= date '${d2}'`
 /* ───── seleção ───── */
 function sel(){let r=CUBE;
   if(fE!=='TODAS')r=r.filter(x=>empOf(x[0])===fE);
+  if(fCamp)r=r.filter(x=>x[0]===fCamp);
   if(fO!=='TODAS')r=r.filter(x=>(x[2]||BL)===fO);
   if(fC!=='TODAS')r=r.filter(x=>(x[3]||BL)===fC);
   return r}
@@ -332,6 +333,9 @@ function agg(rows){const byC={},byT={},byE={};
   return{byC,byT,byE,tot,venda:g,disc:d}}
 const srt=o=>Object.entries(o).sort((a,b)=>b[1]-a[1]);
 const uni=i=>[...new Set(CUBE.map(x=>x[i]||BL))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+/* campanhas disponiveis: so as da empresa escolhida (todas quando empresa=TODAS) */
+const campsDe=()=>[...new Set(CUBE.filter(x=>fE==='TODAS'||empOf(x[0])===fE)
+  .map(x=>x[0]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
 
 /* ───── séries / buckets ───── */
 function inRange(s){return (!d1||s>=d1)&&(!d2||s<=d2)}
@@ -580,6 +584,8 @@ function render(){
     .map(e=>`<button data-e="${esc(e)}" aria-pressed="${fE===e}">${e==='TODAS'?'Todas':esc(e)}</button>`).join('');
   const mk=(id,vals,cur,ph)=>document.getElementById(id).innerHTML=
     `<option value="TODAS">${ph}</option>`+vals.map(v=>`<option value="${esc(v)}"${v===cur?' selected':''}>${esc(v)}</option>`).join('');
+  const cl=campsDe(); if(fCamp&&cl.indexOf(fCamp)<0)fCamp=null;
+  mk('sCamp',cl,fCamp||'TODAS','Campanha: todas');
   mk('sOri',uni(2),fO,'Origem: todas'); mk('sCan',uni(3),fC,'Canal: todos');
   /* tabs */
   document.getElementById('tabs').innerHTML=TABS.map(([k,l,p])=>
@@ -609,6 +615,7 @@ function bind(){
   document.querySelectorAll('.gran button').forEach(b=>b.onclick=()=>{gran=b.dataset.g;render()});
   document.querySelectorAll('.row[data-c]').forEach(b=>b.onclick=()=>{
     const c=b.dataset.c;fCamp=(fCamp===c)?null:c;render()});
+  document.getElementById('sCamp').onchange=e=>{fCamp=e.target.value==='TODAS'?null:e.target.value;render()};
   document.getElementById('sOri').onchange=e=>{fO=e.target.value;render()};
   document.getElementById('sCan').onchange=e=>{fC=e.target.value;render()};
   document.getElementById('d1').onchange=e=>{d1=e.target.value;per='custom';load()};
