@@ -632,6 +632,12 @@ input.nm-in::placeholder{color:var(--ink3)}
 #pv svg:hover .pv-hv:not(:hover){opacity:.55}
 #pv .pv-hit{fill:transparent;cursor:pointer}#pv .pv-hit:hover{fill:rgba(255,255,255,.16);stroke:rgba(255,255,255,.6);stroke-width:1.5}
 .pv-mini .pv-hit,.pv-mini .pv-hv{pointer-events:none}
+.vin-f{display:grid;grid-template-columns:1fr;gap:10px;align-items:end;margin:10px 0 12px}
+@media(min-width:760px){.vin-f{grid-template-columns:1.2fr 1fr auto}}
+.vin-f .cf{margin:0}.vin-f .btn{min-height:42px}
+.vin-l{display:grid;gap:6px}
+.vin-i{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg2)}
+.vin-i b{font-variant-numeric:tabular-nums}.vin-s{color:var(--ink3)}.vin-n{font-size:12px;color:var(--ink3);flex:1}.vin-i .btn{margin-left:auto}
 </style></head><body>
 
 <header class="top">
@@ -690,7 +696,7 @@ const CFG_PADRAO={
   metas:{conv:3,tmedia:15,margem:70,icr:30,roas:4,target:15,churn:85},
   apelidos:{},formNomes:{},
   bmContas:{"CA - GWA INTERNO - 01":"BM INTERNO 01","Gwa Solucoes V4":"BM INTERNO 02"},
-  bmLinhas:{"2837":"BM INTERNO 01","1929":"BM INTERNO 02","4276":"BM1"},
+  bmLinhas:{"2837":"BM INTERNO 01","1929":"BM INTERNO 02","4276":"BM3"},
   tv:{periodo:"mes",vel:"media",zoom:"auto",tema:"dark",telas:[]},
   kpi:{lista:["nv","leads","mld","conv","tmed","lf","cpl","inv","margem","icr","roi","roas","cpa","tk"],
     metas:{"*":{conv:3,tmed:15,margem:70,icr:30,roas:4,tgt:15,churn:85}},custom:[],val:{}}
@@ -2756,6 +2762,7 @@ function bindAdmin(){
   q('aLogCsv',()=>baixaTxt('logs_painel.csv','﻿'+['Quando;Fonte;Consulta;Linhas;Tempo (ms);Resultado;Mensagem',
     ...LOGS.map(l=>[new Date(l.t).toLocaleString('pt-BR'),l.fonte,'"'+l.acao.replace(/"/g,'""')+'"',l.linhas,l.ms,l.ok?'ok':'erro','"'+(l.msg||'').replace(/"/g,'""')+'"'].join(';'))].join('\n'),'text/csv;charset=utf-8'));
   q('aLogLimpa',()=>{LOGS.length=0;try{localStorage.removeItem('gwa.logs')}catch(e){}aviso('Logs limpos');render()});
+  bindVinculo();
   q('aBmSalva',()=>{const c=Object.assign({},CFG.bmContas||{}),l=Object.assign({},CFG.bmLinhas||{});
     /* apagar um valor que vem de fábrica grava '' para ele não voltar ao recarregar */
     document.querySelectorAll('input.bmc').forEach(i=>{const v=i.value.trim().toUpperCase(),k=i.dataset.a;if(v)c[k]=v;else if(CFG_PADRAO.bmContas[k])c[k]='';else delete c[k]});
@@ -2940,9 +2947,10 @@ function bmLead(M,form,canal,mes){
   const f=normT(form);if(f&&M.camp[f])return[[M.camp[f],1,'form']];
   const ls=[];for(const x of f.matchAll(RX_LIN))ls.push(x[1]);
   const d=String(canal==null?'':canal).replace(/\D/g,'');if(d.length>=8)ls.push(d.slice(-4));
+  /* número vinculado à mão na Administração vale antes do que as campanhas citam */
+  for(const l of ls){const b=(CFG.bmLinhas||{})[l];if(b)return[[b,1,'manual']]}
   for(const l of ls){const s=M.linha[mes+'|'+l];if(!s)continue;const e=Object.entries(s),t=e.reduce((q,[,v])=>q+v,0);
     return e.map(([b,v])=>[b,v/t,e.length>1?'rateio':'linha'])}
-  for(const l of ls){const b=(CFG.bmLinhas||{})[l];if(b)return[[b,1,'manual']]}
   return[[SEMBM,1,'sem']]}
 /* consolida leads, vendas, faturamento e custo por BM da empresa fE no período a..b */
 function bmCalc(M,leads,velhos,a,b){
@@ -2967,6 +2975,34 @@ function bmCalc(M,leads,velhos,a,b){
   lista.forEach(x=>{const c=x.inv>0;x.cpl=c&&x.leads?x.inv/x.leads:null;x.cpa=c&&x.nv?x.inv/x.nv:null;x.roas=c?x.fat/x.inv:null;x.margem=c&&x.fat?(x.fat-x.inv)/x.fat:null});
   return{lista,sem,how,linSem,semLead,nVend:vend.length}}
 
+
+/* ── vincular número de WhatsApp ao BM de destino (vale antes do que as campanhas citam) ── */
+const BM_LISTA=()=>{const s=new Set(Object.values(bmMotor(RAW.meta||[]).acc).filter(Boolean));
+  Object.values(CFG.bmLinhas||{}).forEach(b=>b&&s.add(b));['BM1','BM2','BM3','BM4'].forEach(b=>s.add(b));
+  return [...s].sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true}))};
+function numCompleto(l){const c=CUBE.find(x=>String(x[3]||'').replace(/\D/g,'').slice(-4)===l);return c?c[3]:l}
+function vVinculo(){const V=Object.entries(CFG.bmLinhas||{}).filter(([,b])=>b).sort((a,b)=>a[0].localeCompare(b[0]));
+  const M=bmMotor(RAW.meta||[]),mes=mesIso(d2),bms=BM_LISTA();
+  return `<div class="card wide vin"><div class="ch"><h3>Vincular número ao BM</h3><span class="m">usado no slide "Performance por BM"</span></div>
+    <p class="info" style="margin-top:0">Informe o número do WhatsApp (pode ser só o final, ex.: 4276) e o BM de destino. Os leads dessa linha passam a contar para esse BM, mesmo que alguma campanha cite o número.</p>
+    <div class="vin-f"><label class="cf"><span>Número</span><input id="vinNum" inputmode="tel" placeholder="ex.: (11) 97495-4276 ou 4276" autocomplete="off"></label>
+      <label class="cf"><span>BM de destino</span><input id="vinBm" list="vinBms" placeholder="ex.: BM3" autocomplete="off"><datalist id="vinBms">${bms.map(b=>`<option value="${esc(b)}">`).join('')}</datalist></label>
+      <button class="btn pri" id="vinAdd">Vincular</button></div>
+    ${V.length?`<div class="vin-l">${V.map(([l,b])=>{const s=M.linha[mes+'|'+l];const camp=s?Object.keys(s).join(', '):'';
+      return `<div class="vin-i"><b>${esc(numCompleto(l))}</b><span class="vin-s">→</span><span class="tg g">${esc(b)}</span>
+        ${camp&&camp!==b?`<span class="vin-n">campanhas do mês citam ${esc(camp)} — vale o vínculo</span>`:''}
+        <button class="btn sm" data-vrm="${esc(l)}" aria-label="Desvincular ${esc(l)}">✕</button></div>`}).join('')}</div>`
+      :'<p class="info" style="margin:0">Nenhum número vinculado ainda.</p>'}</div>`}
+function bindVinculo(){const g=id=>document.getElementById(id);if(!g('vinAdd'))return;
+  const add=()=>{const d=g('vinNum').value.replace(/\D/g,''),b=g('vinBm').value.trim().toUpperCase().replace(/\s+/g,' ');
+    if(d.length<4){aviso('Digite o número (pelo menos os 4 últimos dígitos)');g('vinNum').focus();return}
+    if(!b){aviso('Escolha o BM de destino');g('vinBm').focus();return}
+    const l=d.slice(-4);CFG.bmLinhas=Object.assign({},CFG.bmLinhas||{},{[l]:b});salvaCfg();if(typeof rnCache!=='undefined')rnCache=null;
+    logEv('Administração','número '+l+' vinculado ao '+b,true);aviso(`Linha ${l} vinculada ao ${b}`);render()};
+  g('vinAdd').onclick=add;['vinNum','vinBm'].forEach(id=>g(id).onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();add()}});
+  document.querySelectorAll('[data-vrm]').forEach(bt=>bt.onclick=()=>{const l=bt.dataset.vrm,c=Object.assign({},CFG.bmLinhas||{});
+    if(CFG_PADRAO.bmLinhas[l])c[l]='';else delete c[l];CFG.bmLinhas=c;salvaCfg();if(typeof rnCache!=='undefined')rnCache=null;
+    logEv('Administração','número '+l+' desvinculado',true);render()})}
 /* ── BM: contas de anúncio e linhas de WhatsApp ── */
 function aBM(){
   const M=bmMotor(RAW.meta||[]);
@@ -2977,18 +3013,18 @@ function aBM(){
     const o=lin[l]||(lin[l]={leads:0,emp:{},num:x[3]});o.leads+=x[4];const e=empOf(x[0]);o.emp[e]=(o.emp[e]||0)+x[4]});
   const mes=mesIso(d2);
   const L=Object.entries(lin).filter(([,o])=>o.leads>0).sort((a,b)=>b[1].leads-a[1].leads);
-  return `<div class="card t wide"><div class="ch" style="padding:15px 16px 8px"><h3>BM — contas de anúncio e linhas de WhatsApp</h3><span class="m">usado no slide "Performance por BM" da Reunião</span></div>
+  return vVinculo()+`<div class="card t wide"><div class="ch" style="padding:15px 16px 8px"><h3>BM — contas de anúncio e linhas de WhatsApp</h3><span class="m">usado no slide "Performance por BM" da Reunião</span></div>
     <p class="info" style="margin:0 16px 10px">Cada conta de anúncio pertence a um BM. O painel lê o BM no nome da conta (ex.: "Grazi - BM3") ou nas campanhas dela; preencha só quando o nome não diz.</p>
     ${contas.length?`<div class="tw"><table class="xl"><thead><tr><th>Conta de anúncio</th><th>Gasto no ano</th><th>BM detectado</th><th>BM (ajuste manual)</th></tr></thead>
     <tbody>${contas.map(([a,o])=>{const au=auto(a);return `<tr><td class="lft"><b>${esc(a)}</b></td><td>${mo(o.v)}</td><td>${au?`<span class="tg s">${esc(au)}</span>`:(CFG.bmContas||{})[a]?'<span class="tg s">pelo ajuste</span>':'<span class="tg o">não identificado</span>'}</td>
       <td><input class="bmc" data-a="${esc(a)}" value="${esc((CFG.bmContas||{})[a]||'')}" placeholder="${esc(au||'ex.: BM2')}" aria-label="BM da conta ${esc(a)}"></td></tr>`}).join('')}</tbody></table></div>`
       :'<p class="info" style="margin:0 16px">As contas aparecem aqui depois que a planilha de custos for lida.</p>'}
-    <p class="info" style="margin:14px 16px 10px">Linhas de WhatsApp: o lead vai para o BM das campanhas que citam a linha no nome naquele mês (ex.: "[WAPP 0608]"). A coluna manual só vale para linhas que nenhuma campanha cita.</p>
-    <div class="tw"><table class="xl"><thead><tr><th>Linha</th><th>Leads no período</th><th>Empresas</th><th>BM pelas campanhas (${esc(mes)})</th><th>BM manual</th></tr></thead>
+    <p class="info" style="margin:14px 16px 10px">Linhas de WhatsApp: o lead vai para o BM vinculado à mão (coluna "BM vinculado"); se a linha não tiver vínculo, vai para o BM das campanhas que citam a linha no nome naquele mês (ex.: "[WAPP 0608]").</p>
+    <div class="tw"><table class="xl"><thead><tr><th>Linha</th><th>Leads no período</th><th>Empresas</th><th>BM pelas campanhas (${esc(mes)})</th><th>BM vinculado</th></tr></thead>
     <tbody>${L.map(([l,o])=>{const s=M.linha[mes+'|'+l];const t=s?Object.values(s).reduce((q,v)=>q+v,0):0;
       return `<tr><td class="lft"><b>${esc(o.num)}</b></td><td>${n(o.leads)}</td><td class="lft">${Object.entries(o.emp).sort((a,b)=>b[1]-a[1]).map(([e])=>esc(e)).join(', ')}</td>
       <td class="lft">${s?Object.entries(s).sort((a,b)=>b[1]-a[1]).map(([b,v])=>`<span class="tg g">${esc(b)}${Object.keys(s).length>1?' '+Math.round(v/t*100)+'%':''}</span>`).join(' '):'<span class="tg o">nenhuma campanha cita</span>'}</td>
-      <td><input class="bml" data-l="${esc(l)}" value="${esc((CFG.bmLinhas||{})[l]||'')}" placeholder="${s?'—':'ex.: BM INTERNO 02'}" aria-label="BM manual da linha ${esc(l)}"></td></tr>`}).join('')}</tbody></table></div>
+      <td><input class="bml" data-l="${esc(l)}" value="${esc((CFG.bmLinhas||{})[l]||'')}" placeholder="${s?'usa o das campanhas':'ex.: BM3'}" aria-label="BM vinculado à linha ${esc(l)}"></td></tr>`}).join('')}</tbody></table></div>
     <div class="acts" style="padding:12px 16px"><button class="btn pri" id="aBmSalva">Salvar BM</button>
       <span class="info" style="margin:0">Linha deixada em branco e sem campanha fica como "sem vínculo" no slide — o painel não chuta.</span></div></div>`}
 
@@ -4138,7 +4174,7 @@ function rnBM(pres,D){
   const lsem=X?Object.entries(X.linSem).filter(([l,v])=>l!=='(sem linha)'&&v>=10).sort((x,y)=>y[1]-x[1]).slice(0,3).map(([l])=>l):[];
   card(pres,s,0.62,6.33,12.11,0.68);
   txt(s,[{text:'Como foi atribuído: ',options:{bold:true,color:K.or}},
-    {text:`custo pela conta de anúncio de cada BM · leads pelo formulário (${pc(H.form)}) ou pela linha de WhatsApp anunciada no mês (${pc((H.linha||0)+(H.rateio||0))})${H.manual?` ou mapa manual (${pc(H.manual)})`:''} · vendas pela chave do card do lead.`,options:{color:'D1D5DB',breakLine:true}},
+    {text:`custo pela conta de anúncio de cada BM · leads pelo formulário (${pc(H.form)}) ou pela linha de WhatsApp anunciada no mês (${pc((H.linha||0)+(H.rateio||0))})${H.manual?` ou pelo número vinculado na Administração (${pc(H.manual)})`:''} · vendas pela chave do card do lead.`,options:{color:'D1D5DB',breakLine:true}},
     {text:'Sem vínculo com BM: ',options:{bold:true,color:K.sub}},
     {text:`${R.int(sem.leads)} leads · ${R.int(sem.nv)} vendas · ${R.m0(sem.fat)} (Google, VOIP, TV e linhas sem campanha Meta${lsem.length?': '+lsem.join(', '):''}).`,options:{color:K.sub}}],
     {x:0.8,y:6.37,w:11.8,h:0.6,fontSize:8.5,valign:'middle'})}
@@ -4184,6 +4220,7 @@ function vReuniao(){
   </div>
   ${vKpis()}
   ${vNomes()}
+  ${vVinculo()}
   <div class="card"><div class="ch"><h3>O que entra na apresentação</h3><span class="m">desmarque o que não quiser</span></div>
     <div class="rn-s">${sec.map(([k,l])=>`<label><input type="checkbox" data-rs="${k}"${rnSecoes[k]?' checked':''}> ${l}</label>`).join('')}</div></div>
   <div class="card"><div class="ch"><h3>Como os números são calculados</h3></div>
@@ -4313,7 +4350,7 @@ function bind(){
     if(g('btReuniao'))g('btReuniao').onclick=()=>gerarReuniao('baixar');
     if(g('btApresentar'))g('btApresentar').onclick=()=>gerarReuniao('apresentar');
     document.querySelectorAll('[data-rs]').forEach(c=>c.onchange=()=>{rnSecoes[c.dataset.rs]=c.checked?1:0});
-    bindKpis();bindNomes()}
+    bindKpis();bindNomes();bindVinculo()}
   if(tab==='admin'&&aTab==='tv'&&admOk())bindTv();
   document.querySelectorAll('#cPer button').forEach(b=>b.onclick=()=>{
     per=b.dataset.p;[d1,d2]=PRE[per][1]();load()});
