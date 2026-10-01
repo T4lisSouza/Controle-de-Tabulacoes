@@ -664,7 +664,7 @@ input.nm-in::placeholder{color:var(--ink3)}
     <input type="date" id="d1" aria-label="Data inicial"><input type="date" id="d2" aria-label="Data final">
     <div class="chips b" id="cEmp" role="group" aria-label="Empresa"></div>
     <select id="sCamp" aria-label="Campanha"></select><select id="sOn" aria-label="Tipo de mídia"></select>
-    <select id="sServ" aria-label="Serviço"></select><select id="sOri" aria-label="Origem"></select><select id="sCan" aria-label="Canal"></select>
+    <select id="sServ" aria-label="Serviço"></select><select id="sSt" aria-label="Status da parcela"></select><select id="sOri" aria-label="Origem"></select><select id="sCan" aria-label="Canal"></select>
     <div class="chips b gran" id="cGran"></div>
     <div class="chips b fbase" id="cBase" role="group" aria-label="Data de referência das vendas"></div>
     <button class="clr" id="btClr" hidden>Limpar filtros</button>
@@ -693,7 +693,7 @@ const CFG_PADRAO={
   leads:{id:"1OcI9x8g8tTOWA4eovtd3raM6SVENR94ED9T-XHFxmoY",aba:"Base de dados Comercial",
     col:{id:"B",data:"F",origem:"J",canal:"N",campanha:"CJ",tabulacao:"CK",form:"M"}},
   fin:{id:"1uusOH-nrI4euiYDdAaJ8QWYC4RfU45TH4K5d2IYCZX8",gid:"0",
-    col:{lanc:"A",servico:"J",valor:"L",parcela:"N",venc:"P",dataLead:"S",midia:"Z",empresa:"AA",confirm:"D",consultor:"R",card:"C"}},
+    col:{lanc:"A",servico:"J",valor:"L",parcela:"N",venc:"P",dataLead:"S",midia:"Z",empresa:"AA",confirm:"D",consultor:"R",card:"C",status:"V"}},
   custos:{id:"1_Q029qNPIE66vVxsgGCA7kHfk5B0Yr0_7Fa2yiXzqEc",abaMeta:"RELATORIO_CAMPANHAS_2026",abaAds:"Custo campanhas Ads",
     abaOff:"Custo OFFLINE",abaAtivas:"CAMPANHAS_ATIVAS",
     meta:{mes:"A",gasto:"I",campanha:"L",empresa:"M",empConta:"F",atualiz:"K",conta:"D",nome:"B"},
@@ -790,7 +790,7 @@ let SERIE=SNAP.serie.map(x=>[x[0],x[1],0,0]); // [data,leads,venda,fechado] — 
 let SER=SNAP.serie.map(x=>[x[0],'','',x[1]]);   // [data,campanha,tabulacao,n] — base diaria detalhada
 let FRESH={},serieErr=false,EXCL={n:0,v:0,porMes:{}};                                     // ultima data de cada fonte
 let fE='TODAS',fO='TODAS',fC='TODAS',fCamp=null,fServ='TODAS',fBase='venda';
-let FIN=[],SALES=[],finLive=false,finErr='';
+let FIN=[],FIN_ALL=[],SALES=[],finLive=false,finErr='',fSt='confirmado';
 let CUSTO=[],ATIVAS=[],cusErr='',cusLive=false,fOn='TODOS',pTab='exec',cSort={k:'inv',d:-1};
 let live=false,busy=false,tab='resumo';
 
@@ -1124,6 +1124,10 @@ function warnBox(){return `<div class="warn"><div><b>Dados salvos.</b> Os totais
 
 /* ═════════ FATURAMENTO ═════════ */
 const ddiff=(a,b)=>(a&&b)?Math.round((parse(b)-parse(a))/864e5):null;
+/* status da parcela (col. V): por padrão só "confirmado"; o seletor do topo troca. Se a planilha não tiver o status, não filtra. */
+const statusLista=()=>[...new Set(FIN_ALL.map(x=>x.st).filter(Boolean))].sort((a,b)=>a==='confirmado'?-1:b==='confirmado'?1:a.localeCompare(b,'pt-BR'));
+function aplicaStatus(){const tem=FIN_ALL.some(x=>x.st);
+  FIN=!tem||fSt==='TODOS'?FIN_ALL.slice():FIN_ALL.filter(x=>x.st===fSt);buildSales()}
 function buildSales(){const m={};
   FIN.forEach(f=>{let o=m[f.id];
     if(!o)o=m[f.id]={id:f.id,e:f.e,mi:f.mi,sv:f.sv,ld:f.ld,vc:f.vc,cs:f.cs,dc:f.dc,ck:f.ck,tot:0,np:0};
@@ -2707,7 +2711,7 @@ function aMapa(){
 /* ── configuração ── */
 function campo(id,rot,val,cls){return `<label class="cf ${cls||''}"><span>${rot}</span><input id="${id}" value="${esc(val)}"></label>`}
 function cols(pref,obj,rot){return `<div class="cfg-c">${Object.keys(obj).map(k=>campo(pref+k,rot[k]||k,obj[k],'c')).join('')}</div>`}
-const ROT={form:'Nome do formulário',conta:'Conta de anúncio (BM)',nome:'Nome da campanha',card:'Chave do card',id:'ID do lead',data:'Data criação',origem:'Origem',canal:'Canal',campanha:'Campanha mapeada',tabulacao:'Tabulação',
+const ROT={form:'Nome do formulário',conta:'Conta de anúncio (BM)',nome:'Nome da campanha',card:'Chave do card',status:'Status da parcela',id:'ID do lead',data:'Data criação',origem:'Origem',canal:'Canal',campanha:'Campanha mapeada',tabulacao:'Tabulação',
   lanc:'Lançamento',servico:'Serviço',valor:'Valor líquido',parcela:'Nº parcela',venc:'Vencimento',dataLead:'Data criação lead',
   midia:'Mídia real',empresa:'Empresa',confirm:'Data confirmação',consultor:'Consultor',mes:'Mês',gasto:'Valor gasto',
   empConta:'Empresa da conta',atualiz:'Última atualização',dia:'Dia',status:'Status',custo:'Custo',orcamento:'Orçamento'};
@@ -4332,7 +4336,7 @@ function render(){
   document.getElementById('cBase').innerHTML=[['venda','Data da venda'],['lead','Entrada do lead']]
     .map(([v,l])=>`<button data-b="${v}" aria-pressed="${fBase===v}">${l}</button>`).join('');
   const cl=campsDe(); if(fCamp&&cl.indexOf(fCamp)<0)fCamp=null;
-  const ativos=(fCamp?1:0)+(fServ!=='TODAS')+(fO!=='TODAS')+(fC!=='TODAS')+(fOn!=='TODOS');
+  const ativos=(fCamp?1:0)+(fServ!=='TODAS')+(fO!=='TODAS')+(fC!=='TODAS')+(fOn!=='TODOS')+(fSt!=='confirmado');
   const bc=document.getElementById('btClr'); bc.hidden=!ativos; bc.textContent=`Limpar filtros (${ativos})`;
   try{localStorage.setItem('gwa.v1',JSON.stringify({tab,fE,gran,fBase,pTab}))}catch(e){}
   mk('sCamp',cl,fCamp||'TODAS','Campanha: todas');
@@ -4340,6 +4344,10 @@ function render(){
     .map(([v,l])=>`<option value="${v}"${fOn===v?' selected':''}>${l}</option>`).join('');
   const sv=servs(); if(fServ!=='TODAS'&&sv.indexOf(fServ)<0)fServ='TODAS';
   mk('sServ',sv,fServ,'Serviço: todos');
+  {const L=statusLista(),cap=t=>t.charAt(0).toUpperCase()+t.slice(1);if(fSt!=='TODOS'&&L.length&&L.indexOf(fSt)<0&&fSt!=='confirmado'){fSt='confirmado';aplicaStatus()}
+    const el=document.getElementById('sSt');el.hidden=!L.length;
+    el.innerHTML=[...(L.indexOf('confirmado')<0?['confirmado']:[]),...L].map(v=>`<option value="${esc(v)}"${v===fSt?' selected':''}>Parcelas: ${esc(cap(v))}</option>`).join('')
+      +`<option value="TODOS"${fSt==='TODOS'?' selected':''}>Parcelas: todos os status</option>`}
   mk('sOri',uni(2),fO,'Origem: todas'); mk('sCan',uni(3),fC,'Canal: todos');
   /* tabs */
   document.getElementById('tabs').innerHTML=TABS.map(([k,l,p])=>
@@ -4387,8 +4395,9 @@ function bind(){
   document.getElementById('sCamp').onchange=e=>{fCamp=e.target.value==='TODAS'?null:e.target.value;render()};
   document.querySelectorAll('#cBase button').forEach(b=>b.onclick=()=>{fBase=b.dataset.b;render()});
   document.getElementById('sOn').onchange=e=>{fOn=e.target.value;render()};
-  document.getElementById('btClr').onclick=()=>{const rec=fO!=='TODAS'||fC!=='TODAS';fCamp=null;fServ='TODAS';fO='TODAS';fC='TODAS';fOn='TODOS';render();if(rec)load();aviso('Filtros limpos')};
+  document.getElementById('btClr').onclick=()=>{const rec=fO!=='TODAS'||fC!=='TODAS';fCamp=null;fServ='TODAS';fO='TODAS';fC='TODAS';fOn='TODOS';if(fSt!=='confirmado'){fSt='confirmado';aplicaStatus()}render();if(rec)load();aviso('Filtros limpos')};
   document.getElementById('sServ').onchange=e=>{fServ=e.target.value;render()};
+  document.getElementById('sSt').onchange=e=>{fSt=e.target.value;aplicaStatus();render()};
   document.querySelectorAll('.ptab button').forEach(b=>b.onclick=()=>{pTab=b.dataset.pt;render();
     window.scrollTo({top:0,behavior:RM?'auto':'smooth'})});
   document.querySelectorAll('.sortb').forEach(b=>b.onclick=()=>{
@@ -4435,9 +4444,10 @@ function ingFin(r){
     id:String(x[0]), sv:String(x[1]||'—').trim()||'—', v:+x[2]||0, np:+x[3]||0,
     vc:gdate(x[4]), ld:gdate(x[5]),
     mi:nc(x[6])||'—', e:String(x[7]||'—').trim().toUpperCase()||'—',
-    dc:gdate(x[8]), cs:String(x[9]||'').trim()||'Sem consultor', ck:x[10]==null?'':String(x[10]).trim()}));
+    dc:gdate(x[8]), cs:String(x[9]||'').trim()||'Sem consultor', ck:x[10]==null?'':String(x[10]).trim(),
+    st:x[11]==null?'':String(x[11]).trim().toLowerCase()}));
   if(!rows.length)return false;
-  FIN=rows;buildSales();finLive=true;finErr='';
+  FIN_ALL=rows;aplicaStatus();finLive=true;finErr='';
   FRESH.fin=rows.reduce((a,x)=>x.dc&&x.dc>a?x.dc:a,'');return true}
 function ingCusto(meta,ads,off,atv){
   const c=buildCusto(meta,ads,off);
@@ -4487,7 +4497,7 @@ async function load(){
 async function loadFin(){
   if(finBusy)return;finBusy=true;
   try{const c=CFG.fin.col;
-    const r=await gvizF(`select ${c.lanc}, ${c.servico}, ${c.valor}, ${c.parcela}, ${c.venc}, ${c.dataLead}, ${c.midia}, ${c.empresa}, ${c.confirm}, ${c.consultor}, ${c.card||'C'}`);
+    const r=await gvizF(`select ${c.lanc}, ${c.servico}, ${c.valor}, ${c.parcela}, ${c.venc}, ${c.dataLead}, ${c.midia}, ${c.empresa}, ${c.confirm}, ${c.consultor}, ${c.card||'C'}, ${c.status||'V'}`);
     if(ingFin(r)){RAW.fin=r;salvaCache();renderAuto()}
   }catch(e){finErr=e&&e.message?e.message:'erro';if(!FIN.length)renderAuto()}
   finally{finBusy=false}}
