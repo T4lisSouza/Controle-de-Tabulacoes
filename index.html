@@ -371,6 +371,35 @@ input.ap{min-width:150px;padding:6px 9px;font-size:12.5px;margin:0}
 .cf.c input{font-family:ui-monospace,Menlo,monospace}
 label.btn{display:inline-flex;align-items:center}
 
+/* ═════ e-mail diário ═════ */
+.em-st{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:2px 0 14px}
+@media(min-width:760px){.em-st{grid-template-columns:repeat(4,1fr)}}
+.em-st>div{background:var(--bg2);border:1px solid var(--line2);border-radius:12px;padding:10px 12px;min-width:0}
+.em-st span{display:block;font-size:11px;color:var(--ink3);font-weight:650;text-transform:uppercase;letter-spacing:.05em}
+.em-st b{display:block;font-size:14px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.em-st b.ok{color:var(--green)} .em-st b.off{color:var(--ink3)} .em-st small{display:block;font-size:11px;margin-top:2px}
+.em-st .bad,.em .bad,table .bad{color:var(--rose);font-weight:650} table .good{color:var(--green);font-weight:650}
+.em-g{display:grid;grid-template-columns:1fr;gap:2px 12px} @media(min-width:760px){.em-g{grid-template-columns:repeat(4,1fr)}.em-w2{grid-column:span 2}}
+.em .cf select,.em .cf input[type=time]{display:block;width:100%;max-width:none;margin-top:5px}
+.em .cf input[type=time]{font:inherit;font-size:14px;color:var(--ink);background:var(--card);border:1px solid var(--line2);border-radius:10px;padding:9px 11px}
+.em .cf small{font-weight:500;color:var(--ink3)}
+.em-at{display:flex!important;align-items:center;gap:8px;align-self:end;min-height:42px;cursor:pointer}
+.em-at input{width:18px!important;height:18px;margin:0!important;accent-color:var(--accent);flex:none}
+.em-dias,.em-emp{display:flex;flex-wrap:wrap;margin-top:6px;align-items:center}
+.em-dias button[aria-pressed=true],.em-emp button[aria-pressed=true]{background:var(--accent);color:#fff}
+.em-dias .lnk{padding:6px 8px;font-size:12px}
+.em-ac{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+.em-tst{display:inline-flex;gap:6px;flex-wrap:wrap}
+.em-tst input{font:inherit;font-size:13.5px;color:var(--ink);background:var(--card);border:1px solid var(--line2);border-radius:10px;padding:8px 10px;min-width:200px}
+.em-dirty{font-size:12px;color:var(--gold);font-weight:650}
+.em-err{background:rgba(220,38,38,.1);color:var(--rose);font-weight:600;font-size:13px;padding:10px 14px;border-radius:12px;margin-bottom:12px}
+.em-spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:emr .8s linear infinite;vertical-align:-1px}
+@keyframes emr{to{transform:rotate(360deg)}}
+.em-pv iframe{display:block;width:100%;height:900px;border:0;border-radius:12px;background:#F4F1EE}
+.em-adv summary{cursor:pointer;font-weight:650;font-size:13px}
+.em-adv .vin-f{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+.em-conta{font-size:13px!important}
+
 /* ═════ acabamento geral ═════ */
 .card{border-radius:18px}
 .ch h3{display:flex;align-items:center;gap:8px}
@@ -2593,20 +2622,21 @@ async function admEntrar(u,s){
   const h=await sha256(String(u||'').trim().toLowerCase()+':'+String(s||''));
   if(h!==ADM_HASH){logEv('Administração','tentativa de login',false,0,0,'usuário ou senha inválidos');return false}
   try{sessionStorage.setItem('gwa.adm',JSON.stringify({ate:Date.now()+8*3600e3}))}catch(e){}
+  await emDerivaChave(u,s);
   logEv('Administração','login',true,0,0,'sessão de 8 horas');return true}
-function admSair(){try{sessionStorage.removeItem('gwa.adm')}catch(e){}logEv('Administração','logout',true);render()}
+function admSair(){try{sessionStorage.removeItem('gwa.adm');sessionStorage.removeItem('gwa.emk')}catch(e){}EM.cfg=null;EM.st='ini';logEv('Administração','logout',true);render()}
 function renderAdminStatus(){if(admOk()&&(aTab==='saude'||aTab==='logs')){quieto=true;document.body.classList.add('quieto');render()}}
 
 function vAdmin(){
   if(!admOk())return `<div class="lg-wrap"><form class="card lg" id="fmLogin" autocomplete="off">
     <div class="lg-ic"><svg viewBox="0 0 24 24"><rect x="4" y="10.5" width="16" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></div>
-    <h2>Administração</h2><p>Área restrita: reunião (apresentação e PowerPoint), modo slide da TV, saúde dos dados, logs, mapeamento e configuração.</p>
+    <h2>Administração</h2><p>Área restrita: reunião (apresentação e PowerPoint), modo slide da TV, e-mail diário, saúde dos dados, logs, mapeamento e configuração.</p>
     <label>Usuário<input name="u" autocapitalize="characters" required></label>
     <label>Senha<input name="s" type="password" required></label>
     <div class="lg-err" id="lgErr" role="alert"></div>
     <button class="btn pri" type="submit">Entrar</button></form></div>`;
-  const T=[['reuniao','Reunião'],['tv','Modo slide'],['saude','Saúde dos dados'],['logs','Logs'],['mapa','Mapeamento'],['config','Configuração']];
-  const f={reuniao:vReuniao,tv:aTv,saude:aSaude,logs:aLogs,mapa:aMapa,config:aConfig}[aTab]||vReuniao;
+  const T=[['reuniao','Reunião'],['tv','Modo slide'],['email','E-mail diário'],['saude','Saúde dos dados'],['logs','Logs'],['mapa','Mapeamento'],['config','Configuração']];
+  const f={reuniao:vReuniao,tv:aTv,email:aEmail,saude:aSaude,logs:aLogs,mapa:aMapa,config:aConfig}[aTab]||vReuniao;
   return `<div class="adm-h"><div><div class="eyebrow">Administração</div><h2>Gestão do painel</h2></div>
     <button class="btn" id="btSair">Sair</button></div>
     <div class="chips atab" role="tablist">${T.map(([k,l])=>`<button data-at="${k}" aria-pressed="${aTab===k}">${l}</button>`).join('')}</div>
@@ -3038,6 +3068,136 @@ function aBM(){
       <td><input class="bml" data-l="${esc(l)}" value="${esc((CFG.bmLinhas||{})[l]||'')}" placeholder="${s?'usa o das campanhas':'ex.: BM3'}" aria-label="BM vinculado à linha ${esc(l)}"></td></tr>`}).join('')}</tbody></table></div>
     <div class="acts" style="padding:12px 16px"><button class="btn pri" id="aBmSalva">Salvar BM</button>
       <span class="info" style="margin:0">Linha deixada em branco e sem campanha fica como "sem vínculo" no slide — o painel não chuta.</span></div></div>`}
+
+/* ═════ E-mail diário (fechamento por empresa) ═════
+   O envio roda num Google Apps Script da conta do Talis (gatilho de 15 em 15 min).
+   Esta aba só lê/grava a configuração do script pelo web app dele (JSONP), usando a chave
+   derivada do login da Administração — a senha não fica guardada em lugar nenhum. */
+const EM_URL_PADRAO='https://script.google.com/macros/s/AKfycbzrUoi01DUXIqYQACByvUIZkOjDI05m7PHhCUxtUAorB5GBmuZVyqW_9JxQsID_6P9TpQ/exec';
+const EM_DIAS=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const EM={st:'ini',cfg:null,log:[],ultimo:'',proximo:'',conta:'',erro:'',msg:'',busy:'',previa:'',dirty:false};
+function emUrl(){return String((CFG.email&&CFG.email.url)||EM_URL_PADRAO||'').trim()}
+function emChave(){try{return sessionStorage.getItem('gwa.emk')||''}catch(e){return ''}}
+async function emDerivaChave(u,s){try{sessionStorage.setItem('gwa.emk',await sha256('gwa-email|'+String(u||'').trim().toLowerCase()+'|'+String(s||'')))}catch(e){}}
+let emSeq=0;
+function emCall(a,extra,ms){return new Promise((ok,nok)=>{
+  const url=emUrl();if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url))return nok(new Error('Endereço do serviço de e-mail não configurado.'));
+  const cb='__gwaEm'+(++emSeq)+'_'+Date.now().toString(36),s=document.createElement('script');let fim=false;
+  const limpa=()=>{fim=true;try{delete window[cb]}catch(e){window[cb]=undefined}s.remove();clearTimeout(t)};
+  const t=setTimeout(()=>{if(!fim){limpa();nok(new Error('O serviço de e-mail não respondeu a tempo.'))}},ms||45000);
+  window[cb]=r=>{limpa();r&&r.ok?ok(r):nok(new Error((r&&r.erro)||'resposta inválida'))};
+  const p=new URLSearchParams(Object.assign({a,callback:cb,k:emChave(),_:Date.now()},extra||{}));
+  s.src=url+(url.indexOf('?')<0?'?':'&')+p.toString();
+  s.onerror=()=>{if(!fim){limpa();nok(new Error('Não consegui falar com o serviço de e-mail (endereço errado ou implantação sem acesso "Qualquer pessoa").'))}};
+  document.head.appendChild(s)})}
+function emCarrega(){if(EM.busy)return;EM.busy='ler';EM.erro='';
+  emCall('ler').then(r=>{Object.assign(EM,{st:'ok',cfg:r.cfg,log:r.log||[],ultimo:r.ultimo||'',proximo:r.proximo||'',conta:r.conta||'',dirty:false});logEv('E-mail diário','configuração lida',true)})
+    .catch(e=>{EM.st='erro';EM.erro=e.message;logEv('E-mail diário','ler configuração',false,0,0,e.message)})
+    .finally(()=>{EM.busy='';if(tab==='admin'&&aTab==='email')render()})}
+const emDataBR=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}:\d{2}))?/);if(!m)return '—';
+  const d=new Date(+m[1],+m[2]-1,+m[3]),dw=['dom','seg','ter','qua','qui','sex','sáb'][d.getDay()];return `${dw}, ${m[3]}/${m[2]}${m[4]?' às '+m[4]:''}`};
+function aEmail(){
+  const url=emUrl(),temK=!!emChave();
+  if(!url)return `<div class="card wide"><div class="ch"><h3>E-mail diário</h3></div><p class="info">O endereço do serviço de e-mail ainda não foi configurado. Cole abaixo a URL do app da web (termina em <b>/exec</b>).</p>${emAvancado()}</div>`;
+  if(!temK)return `<div class="card wide"><div class="ch"><h3>E-mail diário</h3></div>
+    <p class="info" style="margin-top:0">Para mexer no e-mail diário, saia e entre de novo na Administração (a chave do e-mail é liberada no login).</p>
+    <button class="btn pri" id="emRelogar">Sair e entrar de novo</button></div>`;
+  if(EM.st==='ini'&&!EM.busy){setTimeout(emCarrega,0)}
+  if(!EM.cfg)return `<div class="card wide"><div class="ch"><h3>E-mail diário</h3></div>
+    ${EM.st==='erro'?`<div class="em-err" role="alert"><b>Não deu para ler a configuração.</b> ${esc(EM.erro)}</div><button class="btn" id="emTentar">Tentar de novo</button>${emAvancado()}`
+      :`<p class="info" style="margin-top:0"><span class="em-spin"></span> Conectando ao serviço de e-mail…</p>`}</div>`;
+  if(EM.dirty&&document.getElementById('emForm'))EM.cfg=emLeForm();
+  const c=EM.cfg,L=statusLista()||[],sts=[...new Set(['confirmado',...L])];
+  const emps=[...new Set(['GWA','M12','OFF','IND',...CUBE.map(x=>empOf(x[0])).filter(e=>e!=='—')])];
+  const opt=(v,l,cur)=>`<option value="${esc(v)}"${String(cur)===String(v)?' selected':''}>${esc(l)}</option>`;
+  const cap=t=>t.charAt(0).toUpperCase()+t.slice(1);
+  const ult=EM.log.find(x=>/autom|manual/.test(x.tipo));
+  return `<div class="card wide em">
+    <div class="ch"><h3>E-mail diário de fechamento</h3><span class="m">${EM.busy==='ler'?'<span class="em-spin"></span> atualizando…':`<button class="lnk" id="emRecarregar">atualizar</button>`}</span></div>
+    <div class="em-st">
+      <div><span>Situação</span><b class="${c.ativo&&c.para?'ok':'off'}">${c.ativo?(c.para?'● Ativo':'● Sem destinatário'):'● Pausado'}</b></div>
+      <div><span>Próximo envio</span><b>${c.ativo&&EM.proximo?emDataBR(EM.proximo):'—'}</b></div>
+      <div><span>Último envio</span><b>${EM.ultimo?emDataBR(EM.ultimo):'ainda não enviou'}</b>${ult&&!ult.ok?'<small class="bad">a última tentativa falhou</small>':''}</div>
+      <div><span>Sai pela conta</span><b class="em-conta">${esc(EM.conta||'—')}</b></div></div>
+    ${EM.msg?`<div class="okmsg" role="status">${esc(EM.msg)}</div>`:''}${EM.erro?`<div class="em-err" role="alert">${esc(EM.erro)}</div>`:''}
+    <form id="emForm" autocomplete="off">
+    <div class="em-g">
+      <label class="cf em-w2"><span>Para (separe por vírgula)</span><input id="emPara" value="${esc(c.para)}" placeholder="voce@gmail.com, gerente@empresa.com" inputmode="email"></label>
+      <label class="cf em-w2"><span>Cópia (Cc)</span><input id="emCc" value="${esc(c.cc)}" placeholder="opcional" inputmode="email"></label>
+      <label class="cf"><span>Nome de quem envia</span><input id="emRem" value="${esc(c.remetente)}"></label>
+      <label class="cf em-w2"><span>Assunto <small>({data} vira a data do fechamento)</small></span><input id="emAss" value="${esc(c.assunto)}"></label>
+      <label class="cf em-at"><input type="checkbox" id="emAtivo"${c.ativo?' checked':''}> <span>Envio automático ligado</span></label>
+    </div>
+    <div class="cf"><span>Dias da semana</span><div class="chips em-dias" role="group" aria-label="Dias da semana">
+      ${EM_DIAS.map((d,i)=>`<button type="button" data-emd="${i}" aria-pressed="${c.dias.indexOf(i)>=0}">${d}</button>`).join('')}
+      <button type="button" class="lnk" data-emdp="1,2,3,4,5">seg a sex</button><button type="button" class="lnk" data-emdp="1,2,3,4,5,6">seg a sáb</button><button type="button" class="lnk" data-emdp="0,1,2,3,4,5,6">todos</button></div></div>
+    <div class="em-g">
+      <label class="cf"><span>Horário</span><input id="emHora" type="time" step="900" value="${esc(c.hora)}"></label>
+      <label class="cf"><span>Fechamento de</span><select id="emRef">${opt('hoje','Hoje (o dia do envio)',c.ref)}${opt('ontem','Ontem (dia anterior)',c.ref)}</select></label>
+      <label class="cf"><span>Parcelas</span><select id="emSt">${sts.map(s=>opt(s,cap(s),c.status)).join('')}${opt('todos','Todos os status',c.status)}</select></label>
+      <label class="cf em-at"><input type="checkbox" id="emComp"${c.comparar?' checked':''}> <span>Comparar com o mês anterior</span></label>
+    </div>
+    <div class="cf"><span>Empresas no e-mail</span><div class="chips em-emp" role="group" aria-label="Empresas">
+      ${emps.map(e=>`<button type="button" data-eme="${esc(e)}" aria-pressed="${c.empresas.indexOf(e)>=0}">${esc(e)}</button>`).join('')}</div></div>
+    <p class="info">O e-mail sai uma vez por dia, nos dias marcados, até 15 minutos depois do horário (o Google confere de 15 em 15 min).
+      Traz o consolidado e um bloco por empresa com faturamento, vendas, leads, conversão, investimento, CPL, CAC, ticket médio, ROAS, ROI, % ICR e lucro após mídia — dia e mês no mesmo e-mail.</p>
+    <div class="em-ac">
+      <button class="btn pri" type="submit" id="emSalvar"${EM.busy?' disabled':''}>${EM.busy==='salvar'?'<span class="em-spin"></span> Salvando…':'Salvar'}</button>
+      <button class="btn" type="button" id="emPrevia"${EM.busy?' disabled':''}>${EM.busy==='previa'?'<span class="em-spin"></span> Montando…':'Ver prévia'}</button>
+      <span class="em-tst"><input id="emTstPara" placeholder="enviar teste para…" value="${esc(String(c.para||'').split(',')[0].trim())}" aria-label="E-mail do teste">
+      <button class="btn" type="button" id="emTeste"${EM.busy?' disabled':''}>${EM.busy==='teste'?'<span class="em-spin"></span> Enviando…':'Enviar teste agora'}</button></span>
+      ${EM.dirty?'<span class="em-dirty">alterações não salvas</span>':''}
+    </div></form></div>
+  ${EM.previa?`<div class="card wide em-pv"><div class="ch"><h3>Prévia do e-mail</h3><span class="m">com os dados de agora · <button class="lnk" id="emFechaPv">fechar</button></span></div>
+    <iframe id="emPvF" title="Prévia do e-mail" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe></div>`:''}
+  <div class="card wide"><div class="ch"><h3>Histórico do e-mail</h3><span class="m">últimos ${EM.log.length}</span></div>
+    ${EM.log.length?`<div class="tw"><table class="xl"><thead><tr><th>Quando</th><th>O quê</th><th>Resultado</th></tr></thead><tbody>
+      ${EM.log.slice(0,15).map(l=>`<tr><td>${new Date(l.t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td><td class="lft">${esc(l.tipo)}</td><td class="lft"><span class="${l.ok?'good':'bad'}">${l.ok?'ok':'erro'}</span> ${esc(l.msg)}</td></tr>`).join('')}</tbody></table></div>`
+      :'<p class="info" style="margin:0 16px 14px">Nada ainda.</p>'}</div>
+  ${emAvancado()}`}
+function emAvancado(){return `<details class="card wide em-adv"><summary>Serviço de envio (avançado)</summary>
+  <p class="info">Endereço do app da web do Google Apps Script "GWA · Fechamento diário por e-mail". Só mude se o script for implantado de novo com outro endereço.</p>
+  <div class="vin-f"><label class="cf" style="flex:1"><span>URL do serviço</span><input id="emUrl" value="${esc(emUrl())}" placeholder="https://script.google.com/macros/s/…/exec"></label>
+  <button class="btn" id="emUrlSalva" type="button">Usar este endereço</button></div></details>`}
+function emLeForm(){const g=id=>document.getElementById(id),c=Object.assign({},EM.cfg);
+  if(!g('emPara'))return c;
+  c.ativo=g('emAtivo').checked;c.para=g('emPara').value.trim();c.cc=g('emCc').value.trim();c.remetente=g('emRem').value.trim()||'Painel GWA';
+  c.assunto=g('emAss').value.trim()||'Fechamento {data} · GWA Consultoria';c.hora=g('emHora').value||'19:00';c.ref=g('emRef').value;c.status=g('emSt').value;c.comparar=g('emComp').checked;
+  c.dias=[...document.querySelectorAll('[data-emd][aria-pressed="true"]')].map(b=>+b.dataset.emd);
+  c.empresas=[...document.querySelectorAll('[data-eme][aria-pressed="true"]')].map(b=>b.dataset.eme);return c}
+const emMailOk=s=>String(s||'').split(/[,;]/).map(x=>x.trim()).filter(Boolean).every(x=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
+function emAcao(tipo,fn){EM.busy=tipo;EM.erro='';EM.msg='';render();
+  return fn().catch(e=>{EM.erro=e.message;logEv('E-mail diário',tipo,false,0,0,e.message)}).finally(()=>{EM.busy='';if(tab==='admin'&&aTab==='email')render()})}
+function bindEmail(){const g=id=>document.getElementById(id);
+  if(g('emRelogar'))g('emRelogar').onclick=()=>{admSair()};
+  if(g('emTentar'))g('emTentar').onclick=()=>{EM.st='ini';emCarrega();render()};
+  if(g('emRecarregar'))g('emRecarregar').onclick=()=>{EM.msg='';emCarrega();render()};
+  if(g('emUrlSalva'))g('emUrlSalva').onclick=()=>{const v=g('emUrl').value.trim();
+    if(v&&!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(v)){EM.erro='O endereço precisa ser do tipo https://script.google.com/macros/s/…/exec';render();return}
+    CFG.email=Object.assign({},CFG.email,{url:v});salvaCfg();Object.assign(EM,{st:'ini',cfg:null,erro:'',msg:''});render()};
+  const fm=g('emForm');if(!fm)return;
+  const suja=()=>{if(!EM.dirty){EM.dirty=true;const ac=fm.querySelector('.em-ac');if(ac&&!ac.querySelector('.em-dirty'))ac.insertAdjacentHTML('beforeend','<span class="em-dirty">alterações não salvas</span>')}};
+  fm.oninput=suja;fm.onchange=suja;
+  fm.querySelectorAll('[data-emd],[data-eme]').forEach(b=>b.onclick=()=>{b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')!=='true');suja()});
+  fm.querySelectorAll('[data-emdp]').forEach(b=>b.onclick=()=>{const s=b.dataset.emdp.split(',');fm.querySelectorAll('[data-emd]').forEach(x=>x.setAttribute('aria-pressed',s.indexOf(x.dataset.emd)>=0));suja()});
+  fm.onsubmit=e=>{e.preventDefault();const c=emLeForm();
+    if(c.para&&!emMailOk(c.para)){EM.erro='Confira os e-mails em "Para".';render();return}
+    if(c.cc&&!emMailOk(c.cc)){EM.erro='Confira os e-mails em "Cópia".';render();return}
+    if(c.ativo&&!c.para){EM.erro='Coloque pelo menos um e-mail em "Para" para o envio automático.';render();return}
+    if(c.ativo&&!c.dias.length){EM.erro='Marque pelo menos um dia da semana.';render();return}
+    if(!c.empresas.length){EM.erro='Marque pelo menos uma empresa.';render();return}
+    EM.cfg=c;emAcao('salvar',()=>emCall('salvar',{cfg:JSON.stringify(c)}).then(r=>{EM.cfg=r.cfg;EM.proximo=r.proximo||'';EM.dirty=false;
+      EM.msg=r.cfg.ativo&&r.proximo?'Salvo. Próximo envio: '+emDataBR(r.proximo)+'.':'Salvo.';logEv('E-mail diário','configuração salva',true);
+      return emCall('ler').then(x=>{EM.log=x.log||[];EM.ultimo=x.ultimo||''}).catch(()=>{})}))};
+  g('emPrevia').onclick=()=>{if(EM.dirty)EM.cfg=emLeForm();
+    emAcao('previa',()=>emCall('previa',{},90000).then(r=>{EM.previa=r.html;
+      EM.msg=EM.dirty?'A prévia usa a configuração salva — salve para ver as mudanças.':'';logEv('E-mail diário','prévia',true)}))};
+  g('emTeste').onclick=()=>{const p=g('emTstPara').value.trim();
+    if(!p||!emMailOk(p)){EM.erro='Coloque um e-mail válido para o teste.';render();return}
+    emAcao('teste',()=>emCall('teste',{para:p},120000).then(r=>{EM.msg='Teste enviado para '+r.para+' (assunto começa com [TESTE]). Pode levar 1 minuto para chegar.';
+      logEv('E-mail diário','teste enviado',true);return emCall('ler').then(x=>{EM.log=x.log||[]}).catch(()=>{})}))};
+  if(g('emFechaPv'))g('emFechaPv').onclick=()=>{EM.previa='';render()};
+  const f=g('emPvF');if(f&&EM.previa){f.srcdoc=EM.previa.replace(/<a /g,'<a target="_blank" ');f.onload=()=>{try{f.style.height=(f.contentDocument.documentElement.scrollHeight+10)+'px'}catch(e){}}}}
 
 /* ═════ Modo slide (TV) ═════
    Passa pelas telas do painel em tela cheia, com os dados ao vivo. Telas compridas descem
@@ -4385,6 +4545,7 @@ function bind(){
     document.querySelectorAll('[data-rs]').forEach(c=>c.onchange=()=>{rnSecoes[c.dataset.rs]=c.checked?1:0});
     bindKpis();bindNomes();bindVinculo()}
   if(tab==='admin'&&aTab==='tv'&&admOk())bindTv();
+  if(tab==='admin'&&aTab==='email'&&admOk())bindEmail();
   document.querySelectorAll('#cPer button').forEach(b=>b.onclick=()=>{
     per=b.dataset.p;[d1,d2]=PRE[per][1]();load()});
   document.querySelectorAll('#cEmp button').forEach(b=>b.onclick=()=>{fE=b.dataset.e;fCamp=null;render()});
