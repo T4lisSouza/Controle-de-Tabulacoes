@@ -400,6 +400,9 @@ label.btn{display:inline-flex;align-items:center}
 .em-adv .vin-f{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
 .em-conta{font-size:13px!important}
 
+.oa-t td{vertical-align:top}.oa-c{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;padding:2px 0}.oa-c span{min-width:150px}.oa-c em{font-size:11px;color:var(--ink3);font-style:normal}
+.oa-tag{font-size:10.5px;font-weight:700;color:var(--accent);background:var(--bg2);border:1px solid var(--line2);border-radius:999px;padding:1px 7px;margin-left:4px}
+.oa-f{display:flex;gap:8px;align-items:end;flex-wrap:wrap}.oa-f .cf{margin:0}.oa-f input[type=month]{font:inherit;font-size:14px;color:var(--ink);background:var(--card);border:1px solid var(--line2);border-radius:10px;padding:9px 11px;display:block;margin-top:5px}
 /* ═════ acabamento geral ═════ */
 .card{border-radius:18px}
 .ch h3{display:flex;align-items:center;gap:8px}
@@ -1464,34 +1467,61 @@ function buildCusto(meta,ads,off){
     out.push({d,camp,emp,val,src:'ADS',canal:String(r[2]||'Google').trim(),
       estado:String(r[1]||'').trim(),budget:+r[4]||0,apx:false});
   });
-  /* 3. OFFLINE (pivot): linha cabecalho com os dias, linhas de campanha com insercoes, X custo unitario */
-  if(off&&off.length){
-    const A=i=>String(off[i]&&off[i][0]!=null?off[i][0]:'').trim();
-    let hdr=-1,fim=off.length,mesTxt='';
-    off.forEach((r,i)=>{const a=A(i);
-      if(hdr<0&&/CAMPANHA\s+PADRON/i.test(a))hdr=i;
-      if(hdr>=0&&fim===off.length&&i>hdr&&/^TOTAL/i.test(a))fim=i;
-      if(/M.S\s+DA\s+PROGRAMA/i.test(a))mesTxt=String(r[1]||'').trim()});
-    let my=null,mm=null;
-    const t=mesTxt.toLowerCase().match(/([a-zç]{3})\.?\s*\/\s*(\d{4})/);
-    if(t&&MESPT[t[1]]){mm=MESPT[t[1]];my=+t[2]}
-    if(hdr>=0){
-      const H=off[hdr]||[];
-      const dias=[];
-      for(let c=1;c<22;c++){const v=H[c]; if(v==null||v==='')continue;
-        const num=Number(v);
-        if(isFinite(num)&&num>40000){const s=serial(num); if(s)dias.push([c,s])}
-        else if(isFinite(num)&&num>=1&&num<=31&&my)dias.push([c,`${my}-${String(mm).padStart(2,'0')}-${String(num).padStart(2,'0')}`]);
-      }
-      for(let i=hdr+1;i<fim;i++){
-        const camp=nc(A(i)); if(!camp||/^TOTAL/i.test(camp))continue;
-        const unit=+(off[i][23])||0; if(!unit)continue;
-        dias.forEach(([c,s])=>{const q=+(off[i][c])||0; if(q>0)
-          out.push({d:s,camp,emp:empOf(camp),val:q*unit,src:'OFFLINE',canal:'Offline',ins:q,apx:false})});
-      }
-    }
-  }
+  /* 3. OFFLINE: grade de inserções do mês da planilha, só até "Atualizado em" e ajustada para bater com a
+     coluna AA (custo realizado até hoje). Meses anteriores vêm do histórico gravado no serviço (a aba só tem o mês corrente). */
+  const OP=offParseD(off,iso(hoje));
+  if(OP)Object.keys(OP.c).forEach(camp=>Object.keys(OP.c[camp]).forEach(d=>{const p=OP.c[camp][d];
+    out.push({d,camp,emp:empOf(camp),val:p.v,src:'OFFLINE',canal:'Offline',ins:p.q,apx:false})}));
+  OFF_MES=OP?OP.mes:'';OFF_CORTE=OP?OP.corte:'';OFF_INFO=OP?{tot:OP.tot,prog:OP.prog}:null;
+  offLinhasD(OP?OP.mes:null).forEach(x=>out.push({d:x.d,camp:x.camp,emp:empOf(x.camp),val:x.val,src:'OFFLINE',canal:'Offline',apx:false,
+    obs:x.fonte==='manual'?'Offline lançado na Administração (rateado por dia)':'Offline gravado no histórico'}));
   return out}
+
+/* ── custo offline: leitura da aba (coluna AA) e histórico gravado no serviço ── */
+let OFF_MES='',OFF_CORTE='',OFF_INFO=null,OFFH=null,offhBusy=false,offhFalha=0;
+try{const c=JSON.parse(localStorage.getItem('gwa.offh')||'null');if(c&&c.meses)OFFH=c}catch(e){}
+function offParseD(off,hojeIso){
+  if(!off||!off.length)return null;
+  const A=i=>String(off[i]&&off[i][0]!=null?off[i][0]:'').trim();
+  let hdr=-1,fim=off.length,mesTxt='',upd=null;
+  off.forEach((r,i)=>{const a=A(i);
+    if(hdr<0&&/CAMPANHA\s+PADRON/i.test(a))hdr=i;
+    if(hdr>=0&&fim===off.length&&i>hdr&&/^TOTAL/i.test(a))fim=i;
+    if(/M.S\s+DA\s+PROGRAMA/i.test(a))mesTxt=String(r[1]||'').trim();
+    if(!mesTxt&&/^M.s\s*:/i.test(a))mesTxt=a.replace(/^M.s\s*:\s*/i,'');
+    (r||[]).forEach(v=>{const m=String(v==null?'':v).match(/Atualizado\s+em:?\s*(\d{1,2})\/(\d{1,2})/i);if(m)upd=m})});
+  const t=mesTxt.toLowerCase().match(/([a-zç]{3})[a-zç]*\.?\s*\/\s*(\d{4})/);if(!t||!MESPT[t[1]]||hdr<0)return null;
+  const y=+t[2],mo=MESPT[t[1]],mes=y+'-'+String(mo).padStart(2,'0'),ult=new Date(y,mo,0).getDate();
+  let corte=mes+'-'+String(ult).padStart(2,'0');
+  if(upd&&+upd[2]===mo)corte=mes+'-'+String(Math.min(+upd[1],ult)).padStart(2,'0');
+  else if(hojeIso&&hojeIso.slice(0,7)===mes)corte=hojeIso;
+  const H=off[hdr]||[],dias=[];
+  for(let c=1;c<22;c++){const v=H[c];if(v==null||v==='')continue;const n=Number(v),g=gdate(v);
+    if(g)dias.push([c,g]);else if(isFinite(n)&&n>40000){const s=serial(n);if(s)dias.push([c,s])}
+    else if(isFinite(n)&&n>=1&&n<=31)dias.push([c,mes+'-'+String(n).padStart(2,'0')])}
+  const out={mes,corte,c:{},tot:0,prog:0};
+  for(let i=hdr+1;i<fim;i++){const camp=nc(A(i));if(!camp||/^TOTAL/i.test(camp))continue;
+    const unit=+(off[i][23])||0,pv=off[i][26],parc=pv===''||pv==null?null:(+pv||0);
+    out.prog+=+(off[i][24])||0;
+    const pts=dias.filter(([c,s])=>s<=corte&&(+(off[i][c])||0)>0).map(([c,s])=>[s,+(off[i][c])||0,(+(off[i][c])||0)*unit]);
+    const base=pts.reduce((q,p)=>q+p[2],0),alvo=parc==null?base:parc;if(!(alvo>0))continue;
+    const m=out.c[camp]={};out.tot+=alvo;
+    if(base>0)pts.forEach(([s,q,v])=>{m[s]={v:v*alvo/base,q}});else m[corte]={v:alvo,q:0}}
+  return out}
+function offLinhasD(pular){const out=[],M=(OFFH&&OFFH.meses)||{};
+  Object.keys(M).forEach(mes=>{if(mes===pular)return;const o=M[mes],man=(o.manual&&o.manual.c)||{},pl=(o.planilha&&o.planilha.c)||{};
+    Object.keys(pl).forEach(cp=>{if(man[cp]!=null)return;Object.keys(pl[cp]).forEach(d=>out.push({d,camp:cp,val:+pl[cp][d]||0,fonte:'gravado'}))});
+    const y=+mes.slice(0,4),mo=+mes.slice(5,7),nd=new Date(y,mo,0).getDate();
+    Object.keys(man).forEach(cp=>{const v=+man[cp]||0;if(!v)return;
+      for(let d=1;d<=nd;d++)out.push({d:mes+'-'+String(d).padStart(2,'0'),camp:cp,val:v/nd,fonte:'manual'})})});
+  return out}
+function offhAplica(meses){OFFH={t:Date.now(),meses:meses||{}};try{localStorage.setItem('gwa.offh',JSON.stringify(OFFH))}catch(e){}
+  if(RAW.meta||RAW.ads||RAW.off){if(ingCusto(RAW.meta||[],RAW.ads||[],RAW.off||[],RAW.atv||[]))renderAuto()}}
+function offhCarrega(forcar){
+  if(offhBusy||!emUrl())return;if(!forcar&&OFFH&&Date.now()-OFFH.t<30*60e3)return;
+  if(!forcar&&Date.now()-offhFalha<5*60e3)return;offhBusy=true;
+  emCall('offline',{},20000).then(r=>{offhAplica(r.meses);logEv('Custos · histórico offline','lido',true,Object.keys(r.meses||{}).length)})
+    .catch(e=>{offhFalha=Date.now();logEv('Custos · histórico offline','ler histórico',false,0,0,e.message)}).finally(()=>{offhBusy=false})}
 
 /* mapa campanha -> online/offline (campanha so com custo offline conta como offline) */
 let CAMPON={};
@@ -2589,7 +2619,7 @@ function gerarXlsx(){
   const s8=[['Data','Campanha','Empresa','Origem','Canal','Valor','Observação'].map(h)];
   CUSTO.filter(x=>x.d>=D.a&&x.d<=D.b&&dsOkC(x)).sort((x,y)=>x.d.localeCompare(y.d)||y.val-x.val)
     .forEach(x=>s8.push([tx(dc(x.d)),tx(x.camp),tx(x.emp),tx(SRCLAB[x.src]||x.src),tx(x.canal),c(x.val,S.money),
-      tx(x.apx?'Meta mensal rateado por dia':x.ins?x.ins+' inserção(ões)':'')]));
+      tx(x.obs?x.obs:x.apx?'Meta mensal rateado por dia':x.ins?x.ins+' inserção(ões)':'')]));
 
   /* 9 leads por dia */
   const ld={};SER.forEach(r=>{if(r[0]>=D.a&&r[0]<=D.b&&dsOkL(r[1])){const o=ld[r[0]]||(ld[r[0]]={l:0,v:0});o.l+=r[3];if(kind(r[2])==='g')o.v+=r[3]}});
@@ -2635,8 +2665,8 @@ function vAdmin(){
     <label>Senha<input name="s" type="password" required></label>
     <div class="lg-err" id="lgErr" role="alert"></div>
     <button class="btn pri" type="submit">Entrar</button></form></div>`;
-  const T=[['reuniao','Reunião'],['tv','Modo slide'],['email','E-mail diário'],['saude','Saúde dos dados'],['logs','Logs'],['mapa','Mapeamento'],['config','Configuração']];
-  const f={reuniao:vReuniao,tv:aTv,email:aEmail,saude:aSaude,logs:aLogs,mapa:aMapa,config:aConfig}[aTab]||vReuniao;
+  const T=[['reuniao','Reunião'],['tv','Modo slide'],['email','E-mail diário'],['offline','Custo offline'],['saude','Saúde dos dados'],['logs','Logs'],['mapa','Mapeamento'],['config','Configuração']];
+  const f={reuniao:vReuniao,tv:aTv,email:aEmail,offline:aOffline,saude:aSaude,logs:aLogs,mapa:aMapa,config:aConfig}[aTab]||vReuniao;
   return `<div class="adm-h"><div><div class="eyebrow">Administração</div><h2>Gestão do painel</h2></div>
     <button class="btn" id="btSair">Sair</button></div>
     <div class="chips atab" role="tablist">${T.map(([k,l])=>`<button data-at="${k}" aria-pressed="${aTab===k}">${l}</button>`).join('')}</div>
@@ -3143,9 +3173,9 @@ function aEmail(){
       Traz o consolidado e um bloco por empresa com faturamento, vendas, leads, conversão, investimento, CPL, CAC, ticket médio, ROAS, ROI, % ICR e lucro após mídia — dia e mês no mesmo e-mail.</p>
     <div class="em-ac">
       <button class="btn pri" type="submit" id="emSalvar"${EM.busy?' disabled':''}>${EM.busy==='salvar'?'<span class="em-spin"></span> Salvando…':'Salvar'}</button>
-      <button class="btn" type="button" id="emPrevia"${EM.busy?' disabled':''}>${EM.busy==='previa'?'<span class="em-spin"></span> Montando…':'Ver prévia'}</button>
+      <button class="btn" type="button" id="emPrevia"${EM.busy?' disabled':''}>${EM.busy==='previa'?'<span class="em-spin"></span> Montando… (até 3 min)':'Ver prévia'}</button>
       <span class="em-tst"><input id="emTstPara" placeholder="enviar teste para…" value="${esc(String(c.para||'').split(',')[0].trim())}" aria-label="E-mail do teste">
-      <button class="btn" type="button" id="emTeste"${EM.busy?' disabled':''}>${EM.busy==='teste'?'<span class="em-spin"></span> Enviando…':'Enviar teste agora'}</button></span>
+      <button class="btn" type="button" id="emTeste"${EM.busy?' disabled':''}>${EM.busy==='teste'?'<span class="em-spin"></span> Enviando… (até 3 min)':'Enviar teste agora'}</button></span>
       ${EM.dirty?'<span class="em-dirty">alterações não salvas</span>':''}
     </div></form></div>
   ${EM.previa?`<div class="card wide em-pv"><div class="ch"><h3>Prévia do e-mail</h3><span class="m">com os dados de agora · <button class="lnk" id="emFechaPv">fechar</button></span></div>
@@ -3190,14 +3220,71 @@ function bindEmail(){const g=id=>document.getElementById(id);
       EM.msg=r.cfg.ativo&&r.proximo?'Salvo. Próximo envio: '+emDataBR(r.proximo)+'.':'Salvo.';logEv('E-mail diário','configuração salva',true);
       return emCall('ler').then(x=>{EM.log=x.log||[];EM.ultimo=x.ultimo||''}).catch(()=>{})}))};
   g('emPrevia').onclick=()=>{if(EM.dirty)EM.cfg=emLeForm();
-    emAcao('previa',()=>emCall('previa',{},90000).then(r=>{EM.previa=r.html;
+    emAcao('previa',()=>emCall('previa',{},240000).then(r=>{EM.previa=r.html;
       EM.msg=EM.dirty?'A prévia usa a configuração salva — salve para ver as mudanças.':'';logEv('E-mail diário','prévia',true)}))};
   g('emTeste').onclick=()=>{const p=g('emTstPara').value.trim();
     if(!p||!emMailOk(p)){EM.erro='Coloque um e-mail válido para o teste.';render();return}
-    emAcao('teste',()=>emCall('teste',{para:p},120000).then(r=>{EM.msg='Teste enviado para '+r.para+' (assunto começa com [TESTE]). Pode levar 1 minuto para chegar.';
+    emAcao('teste',()=>emCall('teste',{para:p},240000).then(r=>{EM.msg='Teste enviado para '+r.para+' (assunto começa com [TESTE]). Pode levar 1 minuto para chegar.';
       logEv('E-mail diário','teste enviado',true);return emCall('ler').then(x=>{EM.log=x.log||[]}).catch(()=>{})}))};
   if(g('emFechaPv'))g('emFechaPv').onclick=()=>{EM.previa='';render()};
   const f=g('emPvF');if(f&&EM.previa){f.srcdoc=EM.previa.replace(/<a /g,'<a target="_blank" ');f.onload=()=>{try{f.style.height=(f.contentDocument.documentElement.scrollHeight+10)+'px'}catch(e){}}}}
+
+/* ═════ Administração · Custo offline (histórico gravado) ═════ */
+const OA={busy:'',msg:'',erro:''};
+const mesBR=m=>{const [y,mo]=String(m).split('-');return (MESC_P?MESC_P[+mo-1]:mo)+'/'+y};
+function aOffline(){
+  if(!OFFH&&!offhBusy)setTimeout(()=>offhCarrega(true),0);
+  const M=(OFFH&&OFFH.meses)||{},ks=Object.keys(M).sort().reverse(),temK=!!emChave();
+  const live=CUSTO.filter(x=>x.src==='OFFLINE'&&OFF_MES&&x.d.slice(0,7)===OFF_MES&&!x.obs);
+  const liveTot=live.reduce((q,x)=>q+x.val,0),porC={};live.forEach(x=>porC[x.camp]=(porC[x.camp]||0)+x.val);
+  const camps=[...new Set([...CUSTO.filter(x=>x.src==='OFFLINE').map(x=>x.camp),...Object.values(M).flatMap(o=>[...Object.keys((o.planilha&&o.planilha.c)||{}),...Object.keys((o.manual&&o.manual.c)||{})])])].sort();
+  const somaPl=o=>Object.values((o&&o.c)||{}).reduce((q,m)=>q+Object.values(m).reduce((a,b)=>a+(+b||0),0),0);
+  const linhaMes=k=>{const o=M[k],pl=(o.planilha&&o.planilha.c)||{},man=(o.manual&&o.manual.c)||{};
+    const cs=[...new Set([...Object.keys(pl),...Object.keys(man)])].sort();
+    const tot=cs.reduce((q,cp)=>q+(man[cp]!=null?+man[cp]:Object.values(pl[cp]||{}).reduce((a,b)=>a+(+b||0),0)),0);
+    return `<tr><td class="lft"><b>${esc(mesBR(k))}</b>${k===OFF_MES?' <span class="oa-tag">na planilha agora</span>':''}</td>
+      <td class="lft">${cs.map(cp=>`<div class="oa-c"><span>${esc(cp)}</span><b>${mo2(man[cp]!=null?+man[cp]:Object.values(pl[cp]||{}).reduce((a,b)=>a+(+b||0),0))}</b>
+        ${man[cp]!=null?`<em>manual</em>${temK?`<button class="lnk" data-oarm="${esc(k)}|${esc(cp)}" aria-label="Remover lançamento manual">remover</button>`:''}`:'<em>gravado da planilha</em>'}</div>`).join('')||'—'}</td>
+      <td><b>${mo2(tot)}</b></td><td>${o.planilha?esc(dc(o.planilha.upd)+(o.planilha.corte?' · até '+dc(o.planilha.corte):'')):'—'}</td></tr>`};
+  return `<div class="card wide oa">
+    <div class="ch"><h3>Custo offline</h3><span class="m">${offhBusy?'<span class="em-spin"></span> lendo histórico…':`<button class="lnk" id="oaRecarrega">atualizar</button>`}</span></div>
+    <p class="info" style="margin-top:0">A aba <b>Custo OFFLINE</b> só tem o mês corrente e é apagada depois que o mês é pago. Por isso o serviço de e-mail grava, de hora em hora,
+      o custo <b>realizado</b> (coluna AA, até a data de "Atualizado em") de cada campanha. O painel usa a planilha para o mês dela e o histórico gravado para os meses anteriores.</p>
+    ${OA.msg?`<div class="okmsg" role="status">${esc(OA.msg)}</div>`:''}${OA.erro?`<div class="em-err" role="alert">${esc(OA.erro)}</div>`:''}
+    <div class="em-st">
+      <div><span>Mês na planilha</span><b>${OFF_MES?esc(mesBR(OFF_MES)):'—'}</b></div>
+      <div><span>Realizado até</span><b>${OFF_CORTE?esc(dc(OFF_CORTE)):'—'}</b></div>
+      <div><span>Realizado (coluna AA)</span><b>${mo2(liveTot)}</b></div>
+      <div><span>Programado no mês</span><b>${OFF_INFO&&OFF_INFO.prog?mo2(OFF_INFO.prog):'—'}</b></div></div>
+    ${Object.keys(porC).length?`<p class="info" style="margin:0 0 10px">${Object.entries(porC).map(([c,v])=>esc(c)+': <b>'+mo2(v)+'</b>').join(' · ')}</p>`:''}
+    <div class="em-ac" style="margin-top:4px"><button class="btn" id="oaGravar"${!temK||OA.busy?' disabled':''}>${OA.busy==='gravar'?'<span class="em-spin"></span> Gravando…':'Gravar o mês da planilha agora'}</button>
+      ${temK?'':'<span class="info" style="margin:0">Para gravar ou lançar, saia e entre de novo na Administração.</span>'}</div></div>
+  <div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Meses gravados</h3><span class="m">${ks.length} ${ks.length===1?'mês':'meses'}</span></div>
+    ${ks.length?`<div class="tw"><table class="xl oa-t"><thead><tr><th>Mês</th><th>Campanhas</th><th>Total</th><th>Gravado em</th></tr></thead><tbody>${ks.map(linhaMes).join('')}</tbody></table></div>`
+      :'<p class="info" style="margin:0 16px 14px">Nenhum mês gravado ainda.</p>'}</div>
+  <div class="card wide"><div class="ch"><h3>Lançar custo offline de um mês</h3><span class="m">para meses que já saíram da planilha</span></div>
+    <p class="info" style="margin-top:0">Use quando um mês sumiu da planilha antes de ser gravado (ex.: setembro). O valor total da campanha é rateado igualmente pelos dias do mês
+      e substitui o que estiver gravado para aquela campanha naquele mês. Deixe o valor vazio para remover.</p>
+    <form class="vin-f oa-f" id="oaForm" autocomplete="off">
+      <label class="cf"><span>Mês</span><input id="oaMes" type="month" value="${esc(oaMesPadrao())}"></label>
+      <label class="cf" style="flex:1"><span>Campanha (padronizada)</span><input id="oaCamp" list="oaCamps" placeholder="ex.: JOGO ABERTO-OFF"><datalist id="oaCamps">${camps.map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label>
+      <label class="cf"><span>Valor total do mês (R$)</span><input id="oaVal" inputmode="decimal" placeholder="ex.: 47.009,97"></label>
+      <button class="btn pri" type="submit"${!temK||OA.busy?' disabled':''}>${OA.busy==='manual'?'<span class="em-spin"></span> Salvando…':'Salvar'}</button></form></div>`}
+function oaMesPadrao(){const d=new Date(hoje.getFullYear(),hoje.getMonth()-1,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function oaAcao(tipo,a,extra,msg){OA.busy=tipo;OA.erro='';OA.msg='';render();
+  emCall(a,extra,60000).then(r=>{offhAplica(r.meses);OA.msg=typeof msg==='function'?msg(r):msg;logEv('Custos · histórico offline',tipo,true)})
+    .catch(e=>{OA.erro=e.message;logEv('Custos · histórico offline',tipo,false,0,0,e.message)})
+    .finally(()=>{OA.busy='';if(tab==='admin'&&aTab==='offline')render()})}
+function bindOffline(){const g=id=>document.getElementById(id);
+  if(g('oaRecarrega'))g('oaRecarrega').onclick=()=>{OA.msg='';offhCarrega(true);render()};
+  if(g('oaGravar'))g('oaGravar').onclick=()=>oaAcao('gravar','offGravar',{},r=>r.r?`Gravado: ${mesBR(r.r.mes)} até ${dc(r.r.corte)} — ${mo2(r.r.tot)}.`:'Planilha lida; nada novo para gravar.');
+  document.querySelectorAll('[data-oarm]').forEach(b=>b.onclick=()=>{const [m,c]=b.dataset.oarm.split('|');
+    oaAcao('manual','offManual',{mes:m,camp:c,valor:''},`Lançamento manual de ${c} em ${mesBR(m)} removido.`)});
+  const f=g('oaForm');if(f)f.onsubmit=e=>{e.preventDefault();const m=g('oaMes').value,c=g('oaCamp').value.trim(),v=g('oaVal').value.trim();
+    if(!/^\d{4}-\d{2}$/.test(m)){OA.erro='Escolha o mês.';render();return}
+    if(!c){OA.erro='Informe a campanha (como está na planilha, ex.: JOGO ABERTO-OFF).';render();return}
+    if(OFF_MES&&m===OFF_MES){OA.erro='Esse mês ainda está na planilha — o valor dele vem da coluna AA.';render();return}
+    oaAcao('manual','offManual',{mes:m,camp:c,valor:v},v?`Salvo: ${nc(c)} em ${mesBR(m)}.`:`Removido: ${nc(c)} em ${mesBR(m)}.`)}}
 
 /* ═════ Modo slide (TV) ═════
    Passa pelas telas do painel em tela cheia, com os dados ao vivo. Telas compridas descem
@@ -4546,6 +4633,7 @@ function bind(){
     bindKpis();bindNomes();bindVinculo()}
   if(tab==='admin'&&aTab==='tv'&&admOk())bindTv();
   if(tab==='admin'&&aTab==='email'&&admOk())bindEmail();
+  if(tab==='admin'&&aTab==='offline'&&admOk())bindOffline();
   document.querySelectorAll('#cPer button').forEach(b=>b.onclick=()=>{
     per=b.dataset.p;[d1,d2]=PRE[per][1]();load()});
   document.querySelectorAll('#cEmp button').forEach(b=>b.onclick=()=>{fE=b.dataset.e;fCamp=null;render()});
@@ -4682,7 +4770,7 @@ function metaSuspeita(meta,ant){
       if((N[k]||0)<v*0.1)return `gasto de ${k.replace('|',' · ')} caiu de ${Math.round(v)} para ${Math.round(N[k]||0)}`}}
   return ''}
 async function loadCusto(){
-  if(cusBusy)return;cusBusy=true;
+  if(cusBusy)return;cusBusy=true;offhCarrega(false);
   try{const m=CFG.custos.meta,a=CFG.custos.ads;
     let [meta,ads,off,atv]=await Promise.all([
       gvizK(SH_META,`select ${m.mes}, ${m.gasto}, ${m.campanha}, ${m.empresa}, ${m.empConta}, ${m.atualiz}, ${m.conta||'D'}, ${m.nome||'B'}`).catch(()=>null),
