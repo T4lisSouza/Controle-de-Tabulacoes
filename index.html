@@ -3211,14 +3211,14 @@ function aEmail(){
       <button type="button" class="lnk" data-emdp="1,2,3,4,5">seg a sex</button><button type="button" class="lnk" data-emdp="1,2,3,4,5,6">seg a sáb</button><button type="button" class="lnk" data-emdp="0,1,2,3,4,5,6">todos</button></div></div>
     <div class="em-g">
       <label class="cf"><span>Horário</span><input id="emHora" type="time" step="900" value="${esc(c.hora)}"></label>
-      <label class="cf"><span>Fechamento de</span><select id="emRef">${opt('hoje','Hoje (o dia do envio)',c.ref)}${opt('ontem','Ontem (dia anterior)',c.ref)}</select></label>
+      <label class="cf"><span>Fechamento de</span><select id="emRef">${opt('hoje','Mês até hoje (dia do envio)',c.ref)}${opt('ontem','Mês até ontem',c.ref)}</select></label>
       <label class="cf"><span>Parcelas</span><select id="emSt">${sts.map(s=>opt(s,cap(s),c.status)).join('')}${opt('todos','Todos os status',c.status)}</select></label>
       <label class="cf em-at"><input type="checkbox" id="emComp"${c.comparar?' checked':''}> <span>Comparar com o mês anterior</span></label>
     </div>
     <div class="cf"><span>Empresas no e-mail</span><div class="chips em-emp" role="group" aria-label="Empresas">
       ${emps.map(e=>`<button type="button" data-eme="${esc(e)}" aria-pressed="${c.empresas.indexOf(e)>=0}">${esc(e)}</button>`).join('')}</div></div>
     <p class="info">O e-mail sai uma vez por dia, nos dias marcados, até 15 minutos depois do horário (o Google confere de 15 em 15 min).
-      Traz o consolidado e um bloco por empresa com faturamento, vendas, leads, conversão, investimento, CPL, CAC, ticket médio, ROAS, ROI, % ICR e lucro após mídia — dia e mês no mesmo e-mail.</p>
+      Traz o consolidado e um bloco por empresa com faturamento, vendas, leads, conversão, investimento, CPL, CAC, ticket médio, ROAS, ROI, % ICR e lucro após mídia — só os números do mês (do dia 1 até a data do fechamento), comparados com o mesmo trecho do mês anterior.</p>
     <div class="em-ac">
       <button class="btn pri" type="submit" id="emSalvar"${EM.busy?' disabled':''}>${EM.busy==='salvar'?'<span class="em-spin"></span> Salvando…':'Salvar'}</button>
       <button class="btn" type="button" id="emPrevia"${EM.busy?' disabled':''}>${EM.busy==='previa'?'<span class="em-spin"></span> Montando… (até 3 min)':'Ver prévia'}</button>
