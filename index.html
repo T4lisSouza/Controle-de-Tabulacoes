@@ -736,13 +736,14 @@ const CFG_PADRAO={
     col:{lanc:"A",servico:"J",valor:"L",parcela:"N",venc:"P",dataLead:"S",midia:"Z",empresa:"AA",confirm:"D",consultor:"R",card:"C",status:"V"}},
   custos:{id:"1_Q029qNPIE66vVxsgGCA7kHfk5B0Yr0_7Fa2yiXzqEc",abaMeta:"RELATORIO_CAMPANHAS_2026",abaAds:"Custo campanhas Ads",
     abaOff:"Custo OFFLINE",abaAtivas:"CAMPANHAS_ATIVAS",
-    meta:{mes:"A",gasto:"I",campanha:"L",empresa:"M",empConta:"F",atualiz:"K",conta:"D",nome:"B"},
+    meta:{mes:"A",gasto:"I",campanha:"L",empresa:"M",empConta:"F",atualiz:"K",conta:"D",nome:"B",bm:"N"},
+    ativas:{conta:"A",status:"E",empresa:"L",bm:"O"},
     ads:{dia:"A",status:"E",canal:"F",custo:"K",orcamento:"P",campanha:"Q",empresa:"R"}},
   refresh:60,
   faixas:{roasBom:3,roasOk:1,margemBoa:60,margemOk:30,icrBom:25,icrOk:40,roiBom:150},
   metas:{conv:3,tmedia:15,margem:70,icr:30,roas:4,target:15,churn:85},
   apelidos:{},formNomes:{},
-  bmContas:{"CA - GWA INTERNO - 01":"BM INTERNO 01","Gwa Solucoes V4":"BM INTERNO 02"},
+  bmContas:{},   /* vazio: o BM das contas vem da coluna BM da planilha; aqui só ficam correções feitas à mão */
   bmLinhas:{"2837":"BM INTERNO 01","1929":"BM INTERNO 02","4276":"BM3"},
   empLinhas:{"2837":"GWA","1929":"GWA","4276":"M12"},
   tv:{periodo:"mes",vel:"media",zoom:"auto",tema:"dark",telas:[]},
@@ -1532,6 +1533,12 @@ function offhCarrega(forcar){
   emCall('offline',{},20000).then(r=>{offhAplica(r.meses);logEv('Custos · histórico offline','lido',true,Object.keys(r.meses||{}).length)})
     .catch(e=>{offhFalha=Date.now();logEv('Custos · histórico offline','ler histórico',false,0,0,e.message)}).finally(()=>{offhBusy=false})}
 
+/* ajuste manual que repete o que a planilha já diz é apagado: assim, se o BM mudar lá, o painel acompanha */
+function limpaBmManual(){const man=CFG.bmContas||{};if(!Object.keys(man).length)return;
+  const pl=bmMotor(RAW.meta||[],ATIVAS).plBM||{},c=Object.assign({},man);let mudou=false;
+  Object.keys(man).forEach(a=>{if(man[a]&&pl[a]&&String(pl[a]).toUpperCase()===String(man[a]).toUpperCase()){delete c[a];mudou=true}});
+  if(mudou){CFG.bmContas=c;salvaCfg();logEv('Administração','ajuste de BM redundante removido (igual à planilha)',true,Object.keys(man).length-Object.keys(c).length)}}
+
 /* mapa campanha -> online/offline (campanha so com custo offline conta como offline) */
 let CAMPON={};
 function buildCampOn(){CAMPON={};
@@ -1979,7 +1986,7 @@ function estrutura(){
   const fat=Object.values(bc).reduce((a,o)=>a+o.fat,0);
   const lds=Object.values(bc).reduce((a,o)=>a+o.leads,0);
   const nv=Object.values(bc).reduce((a,o)=>a+o.nv,0);
-  const est={};ATIVAS.forEach(r=>{const s=String(r[0]||'').trim()||'—';est[s]=(est[s]||0)+1});
+  const est={};ATIVAS.forEach(r=>{const s=String(r[1]||'').trim()||'—';est[s]=(est[s]||0)+1});
   const emps=new Set(Object.keys(byEmp()));
   const adsEst={};cRows().forEach(x=>{if(x.estado)adsEst[x.estado]=1});
   return statRow([['Campanhas com movimento no período',n(k.length),1],
@@ -3011,20 +3018,30 @@ const normT=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toUp
 const RX_LIN=/(?:WHATSAPP|WAPP|WPP|ZAP)\s*(\d{4})(?!\d)/g;
 const mesTxt=v=>{const m=String(v==null?'':v).trim().match(/^(\d{1,2})\s*\/\s*(\d{4})$/);return m?m[1].padStart(2,'0')+'/'+m[2]:''};
 const mesIso=d=>d?d.slice(5,7)+'/'+d.slice(0,4):'';
-function bmMotor(meta){
-  const man=CFG.bmContas||{},acc={},votos={};
+function bmMotor(meta,atv){
+  /* ordem: ajuste manual do admin > coluna BM da planilha (RELATORIO col. N e CAMPANHAS_ATIVAS col. O)
+     > BM escrito no nome da conta > BM citado pelas campanhas da conta */
+  const man=CFG.bmContas||{},acc={},src={},pl={},votos={};
+  const anota=(c,b,peso)=>{const a=String(c==null?'':c).trim(),k=String(b==null?'':b).trim().toUpperCase();
+    if(!a||!k)return;const o=pl[a]||(pl[a]={});o[k]=(o[k]||0)+(+peso||0)+1e-6};
+  (meta||[]).forEach(r=>anota(r[6],r[8],+r[1]||0));
+  (atv||(typeof ATIVAS!=='undefined'?ATIVAS:[])||[]).forEach(r=>anota(r[0],r[3],1));
+  const plBM={};Object.entries(pl).forEach(([a,o])=>{plBM[a]=Object.entries(o).sort((x,y)=>y[1]-x[1])[0][0]});
   (meta||[]).forEach(r=>{const a=String(r[6]==null?'':r[6]).trim();if(!a||acc[a])return;
-    if(man[a]){acc[a]=man[a];return}
-    const m=a.match(/\bBM\s*(\d+)\b/i);if(m){acc[a]='BM'+m[1];return}
+    if(man[a]){acc[a]=man[a];src[a]='manual';return}
+    if(plBM[a]){acc[a]=plBM[a];src[a]='planilha';return}
+    const m=a.match(/\bBM\s*(\d+)\b/i);if(m){acc[a]='BM'+m[1];src[a]='nome';return}
     const c=String(r[7]||'').match(/\bBM\s*(\d+)\b/i);if(c)(votos[a]=votos[a]||{})['BM'+c[1]]=1});
-  Object.entries(votos).forEach(([a,o])=>{const k=Object.keys(o);if(!acc[a]&&k.length===1)acc[a]=k[0]});
+  Object.entries(votos).forEach(([a,o])=>{const k=Object.keys(o);if(!acc[a]&&k.length===1){acc[a]=k[0];src[a]='campanhas'}});
+  /* contas que só aparecem nas campanhas ativas (ainda sem gasto no relatório) */
+  Object.keys(plBM).forEach(a=>{if(acc[a])return;acc[a]=man[a]||plBM[a];src[a]=man[a]?'manual':'planilha'});
   const camp={},cv={},linha={},contas={};
   (meta||[]).forEach(r=>{const a=String(r[6]==null?'':r[6]).trim(),v=+r[1]||0,mes=mesTxt(r[0]);if(!a)return;
     const bm=acc[a]||'';const o=contas[a]||(contas[a]={bm,v:0});o.v+=v;
     if(!bm||!v||!mes)return;
     const nm=normT(r[7]);if(nm&&(!cv[nm]||v>cv[nm])){camp[nm]=bm;cv[nm]=v}
     for(const x of String(r[7]||'').toUpperCase().matchAll(RX_LIN)){const k=mes+'|'+x[1];const q=linha[k]||(linha[k]={});q[bm]=(q[bm]||0)+v}});
-  return{acc,camp,linha,contas}}
+  return{acc,src,plBM,camp,linha,contas}}
 function bmLead(M,form,canal,mes){
   const f=normT(form);if(f&&M.camp[f])return[[M.camp[f],1,'form']];
   const ls=[];for(const x of f.matchAll(RX_LIN))ls.push(x[1]);
@@ -3132,18 +3149,26 @@ function bindVinculo(){const g=id=>document.getElementById(id);if(!g('vinAdd'))r
 /* ── BM: contas de anúncio e linhas de WhatsApp ── */
 function aBM(){
   const M=bmMotor(RAW.meta||[]);
-  const contas=Object.entries(M.contas).filter(([,o])=>o.v>0).sort((a,b)=>b[1].v-a[1].v);
-  const auto=a=>{const m=a.match(/\bBM\s*(\d+)\b/i);if(m)return'BM'+m[1];const c=clone(CFG.bmContas||{});delete c[a];
-    const sv=CFG.bmContas;CFG.bmContas=c;const r=bmMotor(RAW.meta||[]).acc[a]||'';CFG.bmContas=sv;return r};
+  const lista={};Object.entries(M.contas).forEach(([a,o])=>{lista[a]={v:o.v}});
+  Object.keys(M.plBM).forEach(a=>{if(!lista[a])lista[a]={v:0}});
+  const contas=Object.entries(lista).filter(([a,o])=>o.v>0||M.plBM[a]).sort((a,b)=>b[1].v-a[1].v||a[0].localeCompare(b[0]));
+  const semMan=a=>{const c=clone(CFG.bmContas||{});delete c[a];const sv=CFG.bmContas;CFG.bmContas=c;
+    const r=bmMotor(RAW.meta||[]);CFG.bmContas=sv;return [r.acc[a]||'',r.src[a]||'']};
+  const ORI={planilha:['g','coluna BM da planilha'],nome:['s','nome da conta'],campanhas:['s','campanhas da conta'],manual:['o','ajuste manual']};
   const lin={};CUBE.forEach(x=>{const d=String(x[3]||'').replace(/\D/g,'');if(d.length<8)return;const l=d.slice(-4);
     const o=lin[l]||(lin[l]={leads:0,emp:{},num:x[3]});o.leads+=x[4];const e=empOf(x[0]);o.emp[e]=(o.emp[e]||0)+x[4]});
   const mes=mesIso(d2);
   const L=Object.entries(lin).filter(([,o])=>o.leads>0).sort((a,b)=>b[1].leads-a[1].leads);
   return vVinculo()+`<div class="card t wide"><div class="ch" style="padding:15px 16px 8px"><h3>BM — contas de anúncio</h3><span class="m">usado no slide "Performance por BM" da Reunião</span></div>
-    <p class="info" style="margin:0 16px 10px">Cada conta de anúncio pertence a um BM. O painel lê o BM no nome da conta (ex.: "Grazi - BM3") ou nas campanhas dela; preencha só quando o nome não diz.</p>
-    ${contas.length?`<div class="tw"><table class="xl"><thead><tr><th>Conta de anúncio</th><th>Gasto no ano</th><th>BM detectado</th><th>BM (ajuste manual)</th></tr></thead>
-    <tbody>${contas.map(([a,o])=>{const au=auto(a);return `<tr><td class="lft"><b>${esc(a)}</b></td><td>${mo(o.v)}</td><td>${au?`<span class="tg s">${esc(au)}</span>`:(CFG.bmContas||{})[a]?'<span class="tg s">pelo ajuste</span>':'<span class="tg o">não identificado</span>'}</td>
-      <td><input class="bmc" data-a="${esc(a)}" value="${esc((CFG.bmContas||{})[a]||'')}" placeholder="${esc(au||'ex.: BM2')}" aria-label="BM da conta ${esc(a)}"></td></tr>`}).join('')}</tbody></table></div>`
+    <p class="info" style="margin:0 16px 10px">Cada conta de anúncio pertence a um BM. O painel usa primeiro a <b>coluna BM da planilha</b> (RELATORIO_CAMPANHAS_2026 col. N e CAMPANHAS_ATIVAS col. O).
+      Quando a planilha não diz, ele lê o BM no nome da conta (ex.: "Grazi - BM3") ou nas campanhas dela. O ajuste manual abaixo vale acima de tudo — use só para corrigir.</p>
+    ${contas.length?`<div class="tw"><table class="xl"><thead><tr><th>Conta de anúncio</th><th>Gasto no ano</th><th>BM na planilha</th><th>BM usado</th><th>De onde veio</th><th>BM (ajuste manual)</th></tr></thead>
+    <tbody>${contas.map(([a,o])=>{const [au,ori]=semMan(a),man=(CFG.bmContas||{})[a]||'',usa=man||au,fonte=man?'manual':ori,F=ORI[fonte];
+      return `<tr><td class="lft"><b>${esc(a)}</b></td><td>${o.v?mo(o.v):'—'}</td>
+      <td>${M.plBM[a]?`<span class="tg g">${esc(M.plBM[a])}</span>`:'<span class="tg o">em branco</span>'}</td>
+      <td>${usa?`<span class="tg s">${esc(usa)}</span>`:'<span class="tg r">não identificado</span>'}</td>
+      <td class="lft">${F?esc(F[1]):'—'}${man&&au&&man!==au?` <span class="tg r">planilha diz ${esc(au)}</span>`:''}</td>
+      <td><input class="bmc" data-a="${esc(a)}" value="${esc(man)}" placeholder="${esc(au||'ex.: BM2')}" aria-label="BM da conta ${esc(a)}"></td></tr>`}).join('')}</tbody></table></div>`
       :'<p class="info" style="margin:0 16px">As contas aparecem aqui depois que a planilha de custos for lida.</p>'}
     <div class="acts" style="padding:12px 16px"><button class="btn pri" id="aBmSalva">Salvar BM das contas</button></div></div>`}
 
@@ -4750,7 +4775,7 @@ function ingFin(r){
 function ingCusto(meta,ads,off,atv){
   const c=buildCusto(meta,ads,off);
   if(!c.length)return false;
-  CUSTO=c;ATIVAS=atv||[];buildCampOn();cusLive=true;cusErr='';
+  CUSTO=c;ATIVAS=atv||[];buildCampOn();limpaBmManual();cusLive=true;cusErr='';
   FRESH.meta=(meta||[]).reduce((a,r)=>{const d=gdate(r[5]);return d&&d>a?d:a},'');
   FRESH.metaHora=(meta||[]).reduce((a,r)=>{const t=String(r[5]==null?'':r[5]);const d=gdate(t);if(!d)return a;const k=d+' '+((t.match(/(\d{1,2}:\d{2})/)||[,''])[1]);return k>a?k:a},'');
   FRESH.ads=(ads||[]).reduce((a,r)=>{const d=gdate(r[0]);return d&&d>a?d:a},'');return true}
@@ -4820,12 +4845,12 @@ function metaSuspeita(meta,ant){
   return ''}
 async function loadCusto(){
   if(cusBusy)return;cusBusy=true;offhCarrega(false);
-  try{const m=CFG.custos.meta,a=CFG.custos.ads;
+  try{const m=CFG.custos.meta,a=CFG.custos.ads,t=CFG.custos.ativas||{};
     let [meta,ads,off,atv]=await Promise.all([
-      gvizK(SH_META,`select ${m.mes}, ${m.gasto}, ${m.campanha}, ${m.empresa}, ${m.empConta}, ${m.atualiz}, ${m.conta||'D'}, ${m.nome||'B'}`).catch(()=>null),
+      gvizK(SH_META,`select ${m.mes}, ${m.gasto}, ${m.campanha}, ${m.empresa}, ${m.empConta}, ${m.atualiz}, ${m.conta||'D'}, ${m.nome||'B'}, ${m.bm||'N'}`).catch(()=>null),
       gvizK(SH_ADS,`select ${a.dia}, ${a.status}, ${a.canal}, ${a.custo}, ${a.orcamento}, ${a.campanha}, ${a.empresa}`).catch(()=>null),
       gvizK(SH_OFF,"select *",0).catch(()=>null),
-      gvizK(SH_ATV,"select E, L").catch(()=>null)
+      gvizK(SH_ATV,`select ${t.conta||'A'}, ${t.status||'E'}, ${t.empresa||'L'}, ${t.bm||'O'}`).catch(()=>null)
     ]);
     if(meta){const sus=metaSuspeita(meta,RAW.meta);
       if(sus&&metaTent<3){metaTent++;cusAviso=sus;
