@@ -3880,7 +3880,7 @@ const RN_LOGO='iVBORw0KGgoAAAANSUhEUgAAAF4AAAAmCAYAAABNoyzCAAAACXBIWXMAAAsTAAALE
 /* ═════════ REUNIÃO — apresentação .pptx no padrão "Reunião Online" ═════════ */
 const PPTX_CDN=['https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js',
   'https://unpkg.com/pptxgenjs@4.0.1/dist/pptxgen.bundle.js'];
-let rnBusy=false, rnMsg='', rnSecoes={capa:1,camp:1,aprov:1,target:1,linha:1,balanc:1,form:1,qual:1,custos:1,ticket:1,semanal:1,bm:1,fim:1};
+let rnBusy=false, rnMsg='', rnSecoes={capa:1,mes:1,leads:1,camp:1,aprov:1,target:1,linha:1,balanc:1,form:1,qual:1,vmes:1,tempo:1,custos:1,ticket:1,semanal:1,bm:1,fim:1};
 function carregaPptx(){
   if(window.PptxGenJS)return Promise.resolve();
   return PPTX_CDN.reduce((pr,url)=>pr.catch(()=>new Promise((res,rej)=>{const s=document.createElement('script');
@@ -3899,6 +3899,7 @@ const R={
   m0:v=>v==null||!isFinite(v)?'—':'R$ '+NF.format(Math.round(v)),
   x2:v=>v==null||!isFinite(v)?'—':v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),
   sg:v=>(v>0?'+':v<0?'−':'')};
+const mesDe=d=>d?MESC[parse(d).getMonth()]:'—';
 const MESC=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MES3=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 /* variação no formato "+85 (+212,5%)" */
@@ -3999,7 +4000,7 @@ async function gerarReuniao(modo){
     pres.author='GWA Consultoria';pres.company='GWA Consultoria';
     pres.title=`Reunião Online - ${fE} - ${dc(d1)} a ${dc(d2)}`;
     const D=rnDados(extra);
-    const passos=[['capa',rnCapa]];
+    const passos=[['capa',rnCapa],['mes',rnMes],['leads',rnLeads]];
     D.camps.forEach((c,i)=>{
       passos.push(['camp',p=>rnKpis(p,D,c)],['camp',p=>rnTabs(p,D,c)]);
       if(i===0)passos.push(['aprov',p=>rnAprov(p,D,c)]);
@@ -4007,7 +4008,7 @@ async function gerarReuniao(modo){
       if(i===0&&D.linhas.length>=1)passos.push(['linha',p=>rnLinha(p,D,c)])});
     passos.push(['balanc',rnBalanc]);
     D.forms.forEach(f=>passos.push(['form',p=>rnForm(p,D,f)]));
-    passos.push(['qual',rnQual],['custos',rnCustos],['ticket',rnTicket],['semanal',rnSemanal]);
+    passos.push(['qual',rnQual],['vmes',rnVendaMes],['tempo',rnTempo],['custos',rnCustos],['ticket',rnTicket],['semanal',rnSemanal]);
     if(D.bms.length)passos.push(['bm',rnBM]);
     passos.push(['fim',rnFim]);
     let feitos=0;
@@ -4062,9 +4063,15 @@ function rnDados(X){
   const top=camps[0];const lm={};
   if(top)CUBE.forEach(x=>{if(x[0]!==top.k)return;const ln=x[3]||'(sem canal)';const o=lm[ln]||(lm[ln]={rec:0,nt:0,sr:0,q:0,v:0});
     o.rec+=x[4];const t=x[1];if(ehSemTrab(t))o.nt+=x[4];else if(ehNaoAt(t))o.sr+=x[4];if(ehTarget(t))o.q+=x[4];if(kind(t)==='g')o.v+=x[4]});
-  const linhas=Object.entries(lm).filter(([k,o])=>o.rec>=20).sort((x,y)=>y[1].rec-x[1].rec).slice(0,6).map(([k,o])=>{
-    const tr=o.rec-o.nt,rs=tr-o.sr;return{nome:(String(k).match(/(\d{4})\D*$/)||[,k])[1],canal:k,rec:o.rec,tr,nt:o.nt,rs,sr:o.sr,q:o.q,v:o.v,
-      pResp:tr?rs/tr:null,pQ:o.rec?o.q/o.rec:null,pV:o.rec?o.v/o.rec:null,aprov:o.rec?tr/o.rec:null}});
+  const mkLinha=(k,o,extra)=>{const tr=o.rec-o.nt,rs=tr-o.sr;
+    return Object.assign({nome:(String(k).match(/(\d{4})\D*$/)||[,k])[1],canal:k,rec:o.rec,tr,nt:o.nt,rs,sr:o.sr,q:o.q,v:o.v,
+      pResp:tr?rs/tr:null,pQ:o.rec?o.q/o.rec:null,pV:o.rec?o.v/o.rec:null,aprov:o.rec?tr/o.rec:null},extra||{})};
+  const ordL=Object.entries(lm).sort((x,y)=>y[1].rec-x[1].rec);
+  const grandes=ordL.filter(([,o])=>o.rec>=20).slice(0,6),peq=ordL.filter(x=>grandes.indexOf(x)<0);
+  const linhas=grandes.map(([k,o])=>mkLinha(k,o));
+  /* as linhas pequenas entram somadas numa única linha, para o total bater com os leads da mídia */
+  if(peq.length){const o=peq.reduce((a,[,x])=>({rec:a.rec+x.rec,nt:a.nt+x.nt,sr:a.sr+x.sr,q:a.q+x.q,v:a.v+x.v}),{rec:0,nt:0,sr:0,q:0,v:0});
+    if(o.rec>0)linhas.push(mkLinha('outras',o,{nome:`Outras (${peq.length})`,outras:true}))}
   /* formulários dos cadastros da empresa */
   const agF=rows=>{const m={};rows.forEach(r=>{const c=nc(r[0]);if(empOf(c)!==fE)return;const f=String(r[1]||'(sem formulário)').trim();
     const o=m[f]||(m[f]={camp:c,t:0,tab:{}});const t=(r[2]&&r[2]!=='-')?String(r[2]).trim():'Sem tabulação';o.tab[t]=(o.tab[t]||0)+(+r[3]||0);o.t+=(+r[3]||0)});return m};
@@ -4079,7 +4086,40 @@ function rnDados(X){
     const fimE=mm===mf?b:fim;const s=SALES.filter(x=>{const d=finDate(x);return d&&d>=ini&&d<=fimE&&dsOkF(x)});
     tk.push({m:mm,v:s.length?s.reduce((q,x)=>q+x.tot,0)/s.length:null,n:s.length})}
   const W=dsSemanas(a,b);
-  return{a,b,pa,pb,T,P,C,CP,dias,diasP,camps,tgtTot,linhas,forms,bms,BMR,tk,W,
+  /* a 1ª semana do mês compara com a última semana fechada do mês anterior */
+  if(W.length&&parse(a).getDate()===1){
+    const fimAnt=iso(new Date(parse(a).getTime()-864e5)),iniAnt=iso(new Date(parse(fimAnt).getTime()-6*864e5));
+    const ult=dsTot(iniAnt,fimAnt);ult.n='Últ. semana '+MES3[parse(fimAnt).getMonth()];ult.ini=iniAnt;ult.fim=fimAnt;ult.ant=true;ult.st='MÊS ANT.';
+    const w0=W[0];w0.vL=vr(w0.leads,ult.leads);w0.vF=vr(w0.fat,ult.fat);w0.vR=vr(w0.roas,ult.roas);
+    w0.st=w0.parcial?'PARCIAL':(w0.vR==null?'ESTÁVEL':w0.vR>.1?'ALTA':w0.vR<-.1?'QUEDA':'ESTÁVEL');
+    W.unshift(ult)}
+  /* vendas tabuladas em leads que entraram no período (base rotativa, tabulação "Venda") */
+  const vendaTab=t=>/^\s*venda/i.test(String(t||''));
+  const vm={tot:0,camp:{},lin:{}};
+  CUBE.forEach(x=>{if(!dsOkL(x[0])||empOf(x[0])!==fE)return;const k=x[0]||BL,ln=x[3]||'(sem linha)';
+    const c=vm.camp[k]||(vm.camp[k]={leads:0,v:0}),l=vm.lin[ln]||(vm.lin[ln]={leads:0,v:0});
+    c.leads+=x[4];l.leads+=x[4];if(vendaTab(x[1])){c.v+=x[4];l.v+=x[4];vm.tot+=x[4]}});
+  const fin=k=>{const vs=SALES.filter(x=>finOk(x)&&x.e===fE&&x.mi===k&&finDate(x)&&finDate(x)>=a&&finDate(x)<=b);
+    return{fat:vs.reduce((q,x)=>q+x.tot,0),ticket:vs.length?vs.reduce((q,x)=>q+x.tot,0)/vs.length:null}};
+  const vmes={tot:vm.tot,
+    porCamp:Object.entries(vm.camp).filter(([,o])=>o.leads>0).sort((x,y)=>y[1].v-x[1].v||y[1].leads-x[1].leads)
+      .map(([k,o])=>Object.assign({k,nome:nomeCamp(k),leads:o.leads,v:o.v},fin(k))),
+    porLinha:Object.entries(vm.lin).filter(([,o])=>o.v>0).sort((x,y)=>y[1].v-x[1].v)
+      .map(([k,o])=>({nome:k==='(sem linha)'?'Sem linha':(String(k).match(/(\d{4})\D*$/)||[,k])[1],leads:o.leads,v:o.v}))};
+  /* tempo entre a entrada do lead e a venda */
+  const VS=SALES.filter(x=>finOk(x)&&x.e===fE&&finDate(x)&&finDate(x)>=a&&finDate(x)<=b);
+  const dd=VS.map(x=>({d:ddiff(x.ld,x.vc),mi:x.mi})).filter(o=>o.d!=null&&o.d>=0);
+  const ds=dd.map(o=>o.d).sort((x,y)=>x-y);
+  const porCampT={};dd.forEach(o=>{const k=o.mi||BL;const c=porCampT[k]||(porCampT[k]={n:0,sum:0,d0:0,d7:0,d30:0});
+    c.n++;c.sum+=o.d;if(o.d===0)c.d0++;if(o.d<=7)c.d7++;if(o.d>30)c.d30++});
+  const tempo={n:ds.length,med:ds.length?ds.reduce((q,v)=>q+v,0)/ds.length:null,
+    mediana:ds.length?(ds.length%2?ds[(ds.length-1)/2]:(ds[ds.length/2-1]+ds[ds.length/2])/2):null,
+    rapidas:ds.filter(d=>d<=3).length,lentas:ds.filter(d=>d>30).length,
+    faixas:[['Mesmo dia',ds.filter(d=>d===0).length,K.gr],['1 a 3 dias',ds.filter(d=>d>=1&&d<=3).length,K.gr],
+      ['4 a 7 dias',ds.filter(d=>d>=4&&d<=7).length,K.bl],['8 a 15 dias',ds.filter(d=>d>=8&&d<=15).length,K.pu],
+      ['16 a 30 dias',ds.filter(d=>d>=16&&d<=30).length,K.am],['Mais de 30 dias',ds.filter(d=>d>30).length,K.rd]],
+    porCamp:Object.entries(porCampT).sort((x,y)=>y[1].n-x[1].n).map(([k,c])=>({nome:nomeCamp(k),n:c.n,med:c.n?c.sum/c.n:null,d0:c.d0,d7:c.d7,d30:c.d30}))};
+  return{a,b,pa,pb,T,P,C,CP,dias,diasP,camps,tgtTot,linhas,forms,bms,BMR,tk,W,vmes,tempo,
     periodo:`${parse(a).getDate()} a ${parse(b).getDate()}/${MESC[parse(b).getMonth()]}`,
     periodoC:`${String(parse(a).getDate()).padStart(2,'0')}-${String(parse(b).getDate()).padStart(2,'0')} ${MESC[parse(b).getMonth()]}`,
     mesAno:`${MESC[parse(b).getMonth()]} ${parse(b).getFullYear()}`,mes:MESC[parse(b).getMonth()],
@@ -4290,7 +4330,8 @@ function rnLinha(pres,D,c){
   const nL=Ls.length,rh=nL>4?0.28:0.36,tH=(nL+1)*rh,cardH=0.5+tH+0.42;
   card(pres,s,0.62,2.6,12.11,cardH,'0B0F14','1F2937');
   txt(s,'Detalhamento Executivo por Linha',{x:0.85,y:2.72,w:5,h:0.28,fontSize:11.5,bold:true,color:'D1D5DB'});
-  const best=Ls.slice().sort((a,b)=>(b.pResp||0)-(a.pResp||0))[0];
+  const nomead=Ls.filter(l=>!l.outras);
+  const best=nomead.slice().sort((a,b)=>(b.pResp||0)-(a.pResp||0))[0];
   const rows=[['Linha','Receb.','Trab.','Ñ Trab.','Resps.','S/ Resp.','Vendas','% Resp','% Qualif','% Venda','Aproveit.'].map((h,i)=>({text:h,options:{bold:true,fontSize:8,color:i===3?K.rd:i===6?K.gr:i===8?K.am:K.sub}})),
     ...Ls.map(l=>[{text:(l===best?'★ ':'')+l.nome,options:{bold:true,color:l===best?K.gr:K.txt}},R.int(l.rec),R.int(l.tr),{text:R.int(l.nt),options:{color:'F87171'}},
       R.int(l.rs),R.int(l.sr),{text:R.int(l.v),options:{bold:true,color:K.gr}},R.p1(l.pResp),{text:R.p1(l.pQ),options:{bold:true,color:'FCD34D'}},R.p1(l.pV),
@@ -4300,15 +4341,15 @@ function rnLinha(pres,D,c){
      border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'});
   txt(s,'Linhas = coluna CANAL da base · Trabalhados = recebidos menos Discador/sem tabulação · Respostas = trabalhados menos "Não atende" · Qualificados = Negociando + Pré-venda + Venda.',
     {x:0.85,y:3.08+tH+0.1,w:11.65,h:0.22,fontSize:7,color:K.mut});
-  const lider=Ls[0],yb=2.6+cardH+0.2,hb=Math.max(1.1,7.02-yb);
+  const lider=nomead[0],yb=2.6+cardH+0.2,hb=Math.max(1.1,7.02-yb);
   caixaTexto(pres,s,0.62,yb,6.2,hb,`Destaque Operacional: ${best?best.nome:'—'}${lider&&best&&lider!==best?' e '+lider.nome:''}`,
     `${best?`A linha ${best.nome} lidera em taxa de resposta (${R.p1(best.pResp)}) e qualificação (${R.p1(best.pQ)}).`:''} ${lider?`A linha ${lider.nome} é o motor da operação: absorveu ${R.p1(S.rec?lider.rec/S.rec:null)} dos leads (${R.int(lider.rec)}) e ${R.p1(S.v?lider.v/S.v:null)} das vendas tabuladas (${R.int(lider.v)}).`:''}`,K.gr);
   card(pres,s,7.0,yb,5.73,hb);
   txt(s,'Comparativo: Taxa de Resposta (%)',{x:7.2,y:yb+0.12,w:5,h:0.25,fontSize:10,bold:true,color:K.sub});
-  s.addChart(pres.charts.BAR,[{name:'% Resp',labels:Ls.map(l=>'Linha '+l.nome),values:Ls.map(l=>+((l.pResp||0)*100).toFixed(1))}],
-    {x:7.15,y:yb+0.42,w:5.43,h:hb-0.55,barDir:'bar',chartColors:Ls.map(l=>l===best?K.gr:'4B5563'),showValue:true,dataLabelColor:'FFFFFF',dataLabelFontSize:8,
+  s.addChart(pres.charts.BAR,[{name:'% Resp',labels:nomead.map(l=>'Linha '+l.nome),values:nomead.map(l=>+((l.pResp||0)*100).toFixed(1))}],
+    {x:7.15,y:yb+0.42,w:5.43,h:hb-0.55,barDir:'bar',chartColors:nomead.map(l=>l===best?K.gr:'4B5563'),showValue:true,dataLabelColor:'FFFFFF',dataLabelFontSize:8,
      dataLabelFormatCode:'0.0"%"',catAxisLabelColor:'D1D5DB',catAxisLabelFontSize:8,valAxisHidden:true,valGridLine:{style:'none'},catGridLine:{style:'none'},
-     catAxisLineShow:false,valAxisLineShow:false,showLegend:false,barGapWidthPct:60,valAxisMinVal:0,valAxisMaxVal:Math.min(100,Math.ceil(Math.max(...Ls.map(l=>(l.pResp||0)*100))*1.25/10)*10||100)})}
+     catAxisLineShow:false,valAxisLineShow:false,showLegend:false,barGapWidthPct:60,valAxisMinVal:0,valAxisMaxVal:Math.min(100,Math.ceil(Math.max(...nomead.map(l=>(l.pResp||0)*100))*1.25/10)*10||100)})}
 
 function rnBalanc(pres,D){
   const s=slideBase(pres,'Balanceador','Contratos '+fE,`Análise de peso por campanha e consolidação Target/Churn (${D.periodoC})`);
@@ -4495,18 +4536,25 @@ function rnSemanal(pres,D){
 
 function rnBM(pres,D){
   const T=D.T,P=D.P,B=D.bms,X=D.BMR,s=slideBase(pres,'Performance por BM','Business Manager',`Análise de performance por conta publicitária (${D.periodo})`,'GWA CONSULTORIA | BM ANALYSIS');
-  [['Total Leads',R.int(T.leads),vr(T.leads,P.leads)],['Total Vendas',R.int(T.nv),vr(T.nv,P.nv)],['Custo Total',R.m0(T.inv),vr(T.inv,P.inv)],['ROAS Médio',R.x2(T.roas)+'x',vr(T.roas,P.roas)]].forEach(([l,v,dv],i)=>{
+  const somaBM=(X?X.lista:[]).reduce((q,b)=>q+b.nv,0),semNv=X?X.sem.nv:0;
+  [['Total Leads',R.int(T.leads),vr(T.leads,P.leads),''],['Total Vendas',R.int(T.nv),vr(T.nv,P.nv),`${R.int(somaBM)} nos BMs + ${R.int(semNv)} sem vínculo`],
+   ['Custo Total',R.m0(T.inv),vr(T.inv,P.inv),''],['ROAS Médio',R.x2(T.roas)+'x',vr(T.roas,P.roas),'']].forEach(([l,v,dv,nota],i)=>{
     const x=0.62+i*3.05;card(pres,s,x,1.35,2.9,0.82);txt(s,l,{x:x+0.15,y:1.43,w:2,h:0.2,fontSize:8,color:K.sub});txt(s,v,{x:x+0.15,y:1.63,w:2.2,h:0.42,fontSize:18,bold:true});
     txt(s,dv==null?'—':R.sg(dv)+R.d1(Math.abs(dv*100))+'%',{x:x+1.9,y:1.5,w:0.9,h:0.2,fontSize:8,bold:true,color:dv==null?K.mut:dv>=0?K.gr:K.rd,align:'right'});
-    txt(s,'vs período ant.',{x:x+1.7,y:1.72,w:1.1,h:0.2,fontSize:7,color:K.mut,align:'right'})});
-  const n=Math.max(1,B.length),w=Math.min(4.6,(12.11-(n-1)*0.18)/n),x0=0.62+(12.11-(n*w+(n-1)*0.18))/2,fx=CFG.faixas||{};
+    txt(s,nota||'vs período ant.',{x:x+1.1,y:1.72,w:1.7,h:0.2,fontSize:7,color:nota?K.sub:K.mut,align:'right'})});
+  /* o card "sem vínculo" entra junto para a soma dos cards bater com o total do slide */
+  const semX=X?X.sem:null,temSem=semX&&(semX.leads>0||semX.nv>0||semX.inv>0||semX.fat>0);
+  const Bc=temSem?B.slice(0,4).concat([Object.assign({bm:'SEM VÍNCULO',semv:true},semX,
+    {cpl:semX.inv&&semX.leads?semX.inv/semX.leads:null,cpa:semX.inv&&semX.nv?semX.inv/semX.nv:null,
+     roas:semX.inv?semX.fat/semX.inv:null,margem:semX.fat?(semX.fat-semX.inv)/semX.fat:null})]):B.slice(0,4);
+  const n=Math.max(1,Bc.length),w=Math.min(4.6,(12.11-(n-1)*0.18)/n),x0=0.62+(12.11-(n*w+(n-1)*0.18))/2,fx=CFG.faixas||{};
   const st=b=>b.inv<=0?['SEM CUSTO',K.mut]:(b.roas||0)>=(fx.roasBom||3)?['FORTE',K.gr]:(b.roas||0)>=2?['SAUDÁVEL',K.bl]:(b.roas||0)>=(fx.roasOk||1)?['ATENÇÃO',K.am]:['CRÍTICO',K.rd];
   const ord=['Principal','Secundária','Terciária','Quarta'];
-  B.forEach((b,i)=>{const x=x0+i*(w+0.18),[stt,cor]=st(b),ab=b.bm.replace(/^BM\s*INTERNO\s*/i,'BI').replace(/\s+/g,'').slice(0,4);
+  Bc.forEach((b,i)=>{const x=x0+i*(w+0.18),[stt0,cor0]=st(b),stt=b.semv?'FORA DO BM':stt0,cor=b.semv?K.sl:cor0,ab=b.semv?'S/V':b.bm.replace(/^BM\s*INTERNO\s*/i,'BI').replace(/\s+/g,'').slice(0,4);
     card(pres,s,x,2.33,w,3.9);
     s.addShape(pres.shapes.OVAL,{x:x+0.18,y:2.46,w:0.44,h:0.44,fill:{color:'0F172A'},line:{color:cor}});
     txt(s,ab,{x:x+0.18,y:2.46,w:0.44,h:0.44,fontSize:7.5,bold:true,color:cor,align:'center',valign:'middle'});
-    txt(s,b.bm,{x:x+0.7,y:2.46,w:w-2.25,h:0.24,fontSize:10,bold:true,fit:'shrink'});txt(s,ord[i]||'',{x:x+0.7,y:2.7,w:w-2.25,h:0.18,fontSize:7.5,color:K.mut});
+    txt(s,b.bm,{x:x+0.7,y:2.46,w:w-2.25,h:0.24,fontSize:10,bold:true,fit:'shrink'});txt(s,b.semv?'Google, VOIP, TV…':(ord[i]||''),{x:x+0.7,y:2.7,w:w-2.25,h:0.18,fontSize:7.5,color:K.mut});
     s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:x+w-1.42,y:2.53,w:1.26,h:0.28,rectRadius:0.14,fill:{color:K.card},line:{color:cor}});
     txt(s,stt,{x:x+w-1.42,y:2.53,w:1.26,h:0.28,fontSize:7.5,bold:true,color:cor,align:'center',valign:'middle'});
     [['Leads',R.int(b.leads)],['Vendas',R.int(b.nv)],['Conversão',R.p1(b.leads?b.nv/b.leads:null)],['Faturamento',R.m0(b.fat)]].forEach(([l,v],j)=>{
@@ -4527,6 +4575,154 @@ function rnBM(pres,D){
     {text:'Sem vínculo com BM: ',options:{bold:true,color:K.sub}},
     {text:`${R.int(sem.leads)} leads · ${R.int(sem.nv)} vendas · ${R.m0(sem.fat)} (Google, VOIP, TV e linhas sem campanha Meta${lsem.length?': '+lsem.join(', '):''}).`,options:{color:K.sub}}],
     {x:0.8,y:6.37,w:11.8,h:0.6,fontSize:8.5,valign:'middle'})}
+
+/* ═════ Comparativo geral: mesmo trecho do mês passado × este mês ═════ */
+function rnMes(pres,D){
+  const T=D.T,P=D.P,s=slideBase(pres,'Comparativo Mensal',`${mesDe(D.pa)} × ${mesDe(D.b)}`,
+    `Mesmo trecho dos dois meses — ${brd(D.pa)} a ${brd(D.pb)} contra ${brd(D.a)} a ${brd(D.b)}`,'GWA CONSULTORIA | MÊS A MÊS');
+  txt(s,'Mês anterior',{x:9.9,y:0.3,w:1.3,h:0.18,fontSize:7.5,color:K.mut,align:'center'});
+  txt(s,R.m0(P.fat),{x:9.6,y:0.48,w:1.9,h:0.34,fontSize:14,bold:true,color:K.sub,align:'center'});
+  txt(s,'Mês atual',{x:11.5,y:0.3,w:1.2,h:0.18,fontSize:7.5,color:K.mut,align:'center'});
+  txt(s,R.m0(T.fat),{x:11.2,y:0.48,w:1.5,h:0.34,fontSize:14,bold:true,color:K.or2,align:'center'});
+  /* tabela: indicador | mês passado | mês atual | variação */
+  const L=[['Leads','leads','int',true],['Vendas','nv','int',true],['Faturamento','fat','m0',true],
+    ['Investimento','inv','m0',null],['Conversão','conv','p2',true],['CPL','cpl','m2',false],
+    ['CAC','cac','m2',false],['Ticket médio','ticket','m2',true],['ROAS','roas','x',true],
+    ['ROI','roi','p0',true],['% ICR','icr','p1',false],['Lucro após mídia','lucro','m0',true]];
+  const val=(o,k)=>k==='lucro'?(o.fat-o.inv):k==='roi'?(o.inv?(o.fat-o.inv)/o.inv:null):k==='icr'?(o.inv&&o.fat?o.inv/o.fat:null):o[k];
+  const fmt=(v,t)=>t==='int'?R.int(v):t==='m0'?R.m0(v):t==='m2'?R.m2(v):t==='p1'?R.p1(v):t==='p2'?R.p2(v):t==='p0'?R.p0(v):v==null?'—':R.x2(v)+'x';
+  card(pres,s,0.62,1.3,7.5,5.72);
+  txt(s,'Indicadores no mesmo trecho do mês',{x:0.85,y:1.4,w:5,h:0.28,fontSize:11,bold:true,color:'D1D5DB'});
+  const rows=[[`Indicador`,mesDe(D.pa),mesDe(D.b),'Variação'].map((h,i)=>({text:h,options:{bold:true,fontSize:8,color:i===2?K.or:K.sub}})),
+    ...L.map(([rot,k,t,bom])=>{const a=val(P,k),b=val(T,k),v=vr(b,a);
+      return [{text:rot,options:{bold:true,color:'D1D5DB'}},{text:fmt(a,t),options:{color:K.sub}},{text:fmt(b,t),options:{bold:true,color:K.txt}},
+        {text:v==null?'—':R.sg(v)+R.d1(Math.abs(v*100))+'%',options:{bold:true,color:v==null||bom==null?K.mut:(v>=0)===bom?K.gr:K.rd}}]})];
+  s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:'D1D5DB'}}:c)),{x:0.8,y:1.76,w:7.14,colW:[2.3,1.6,1.6,1.64],rowH:0.39,fontFace:FT,fontSize:9,align:'center',
+    border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'});
+  /* gráfico: leads e vendas lado a lado */
+  card(pres,s,8.26,1.3,4.47,2.72);
+  txt(s,'Volume',{x:8.46,y:1.4,w:3,h:0.24,fontSize:10,bold:true});
+  s.addChart(pres.charts.BAR,[{name:mesDe(D.pa),labels:['Leads','Vendas'],values:[P.leads,P.nv]},{name:mesDe(D.b),labels:['Leads','Vendas'],values:[T.leads,T.nv]}],
+    {x:8.32,y:1.68,w:4.35,h:2.26,chartColors:[K.sl,K.or2],showValue:true,dataLabelColor:'FFFFFF',dataLabelFontSize:8,showLegend:true,legendPos:'b',legendColor:K.sub,legendFontSize:7,
+     catAxisLabelColor:'D1D5DB',catAxisLabelFontSize:8,valAxisHidden:true,valGridLine:{style:'none'},catGridLine:{style:'none'},catAxisLineShow:false,valAxisLineShow:false,barGapWidthPct:60});
+  /* três destaques */
+  const kpi=[['Faturamento',R.m0(T.fat),vr(T.fat,P.fat),true],['Conversão',R.p2(T.conv),vr(T.conv,P.conv),true],['ROAS',T.roas==null?'—':R.x2(T.roas)+'x',vr(T.roas,P.roas),true]];
+  kpi.forEach(([l,v,dv,bom],i)=>{const y=4.16+i*0.6;card(pres,s,8.26,y,4.47,0.52,'0D0D0D');
+    txt(s,l,{x:8.44,y:y+0.06,w:1.9,h:0.4,fontSize:8.5,color:K.sub,valign:'middle'});
+    txt(s,v,{x:10.1,y:y+0.06,w:1.5,h:0.4,fontSize:11,bold:true,align:'right',valign:'middle'});
+    txt(s,dv==null?'—':R.sg(dv)+R.d1(Math.abs(dv*100))+'%',{x:11.6,y:y+0.06,w:0.95,h:0.4,fontSize:8.5,bold:true,align:'right',valign:'middle',color:dv==null?K.mut:(dv>=0)===bom?K.gr:K.rd})});
+  const dFat=vr(T.fat,P.fat),dL=vr(T.leads,P.leads),dC=vr(T.conv,P.conv);
+  const frase=dFat==null?'Sem base do mês anterior para comparar.'
+    :`Faturamento ${dFat>=0?'subiu':'caiu'} ${R.d1(Math.abs(dFat*100))}%`
+      +(dL==null?'':`, com ${dL>=0?'mais':'menos'} ${R.d1(Math.abs(dL*100))}% de leads`)
+      +(dC==null?'.':` e conversão ${Math.abs(dC)<0.005?'estável':dC>0?'melhor':'pior'}${Math.abs(dC)<0.005?'':' em '+R.d1(Math.abs(dC*100))+'%'}.`);
+  caixaTexto(pres,s,8.26,6.0,4.47,1.02,'Leitura do mês',frase,K.or2)}
+
+/* ═════ Leads do mês: de onde vieram, com os números ═════ */
+function rnLeads(pres,D){
+  const T=D.T,P=D.P,s=slideBase(pres,'Leads do Mês',D.mesAno,`Volume de leads por mídia, linha e formulário (${D.periodo})`,'GWA CONSULTORIA | VOLUME DE LEADS');
+  [['Leads no período',R.int(T.leads),vr(T.leads,P.leads),K.bl],['Média por dia',R.int(D.dias?T.leads/D.dias:null),null,K.pu],
+   ['Vendas',R.int(T.nv),vr(T.nv,P.nv),K.gr],['Conversão',R.p2(T.conv),vr(T.conv,P.conv),K.am]].forEach(([l,v,dv,cor],i)=>{
+    const x=0.62+i*3.05;card(pres,s,x,1.32,2.9,0.92);s.addShape(pres.shapes.RECTANGLE,{x,y:1.32,w:2.9,h:0.04,fill:{color:cor},line:{color:cor}});
+    txt(s,l,{x:x+0.15,y:1.44,w:2.1,h:0.2,fontSize:8,color:K.sub});
+    txt(s,v,{x:x+0.15,y:1.64,w:2.2,h:0.42,fontSize:18,bold:true});
+    txt(s,dv==null?'':R.sg(dv)+R.d1(Math.abs(dv*100))+'%',{x:x+1.75,y:1.74,w:1.0,h:0.24,fontSize:8.5,bold:true,align:'right',color:dv==null?K.mut:dv>=0?K.gr:K.rd})});
+  const tabela=(x,y,w,h,tit,sub,rows,colW)=>{card(pres,s,x,y,w,h);
+    txt(s,tit,{x:x+0.2,y:y+0.1,w:w-2.4,h:0.26,fontSize:10.5,bold:true});
+    txt(s,sub,{x:x+w-2.5,y:y+0.13,w:2.3,h:0.22,fontSize:7.5,color:K.mut,align:'right'});
+    s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:'D1D5DB'}}:c)),{x:x+0.18,y:y+0.44,w:w-0.36,colW,rowH:Math.min(0.34,(h-0.6)/rows.length),fontFace:FT,fontSize:8.5,align:'center',
+      border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'})};
+  const hd=a=>a.map((t,i)=>({text:t,options:{bold:true,fontSize:8,color:i?K.sub:K.or}}));
+  /* por mídia (campanha) */
+  const mid=D.camps.slice(0,5).map(c=>[{text:c.nome,options:{bold:true,color:'D1D5DB'}},{text:R.int(c.o.leads),options:{bold:true}},
+    R.p1(T.leads?c.o.leads/T.leads:null),R.int(c.o.nv),R.p2(c.o.leads?c.o.nv/c.o.leads:null),{text:R.int(c.p?c.p.leads:null),options:{color:K.sub}}]);
+  tabela(0.62,2.42,6.2,2.3,'Por mídia','leads · % · vendas · conv.',[hd(['Mídia','Leads','%','Vendas','Conv','Mês ant.']),...mid],[1.5,0.8,0.7,0.8,0.8,0.9]);
+  /* por linha de WhatsApp */
+  const ln=D.linhas.slice(0,5).map(l=>[{text:l.nome,options:{bold:true,color:l.outras?K.mut:'D1D5DB'}},{text:R.int(l.rec),options:{bold:true}},
+    R.p1(T.leads?l.rec/T.leads:null),R.int(l.q),R.int(l.v)]);
+  tabela(7.02,2.42,5.71,2.3,'Por linha de WhatsApp','recebidos · qualificados · vendas',[hd(['Linha','Leads','%','Qualif.','Vendas']),...(ln.length?ln:[[{text:'Sem linha com volume',options:{color:K.mut}},'—','—','—','—']])],[1.4,0.9,0.8,0.95,0.95]);
+  /* por formulário */
+  const fm=(D.forms||[]).slice(0,5).map(f=>{const v=Object.entries(f.tab).filter(([t])=>/^venda/i.test(t)).reduce((q,[,n])=>q+n,0);
+    return [{text:nomeForm(f.f),options:{bold:true,color:'D1D5DB',fit:'shrink'}},{text:R.int(f.t),options:{bold:true}},R.p1(T.leads?f.t/T.leads:null),R.int(v),{text:f.ant?R.int(f.ant.t):'—',options:{color:K.sub}}]});
+  tabela(0.62,4.88,6.2,2.14,'Por formulário de cadastro','volume no período',[hd(['Formulário','Leads','%','Vendas','Mês ant.']),...(fm.length?fm:[[{text:'Sem formulário com volume',options:{color:K.mut}},'—','—','—','—']])],[2.2,0.85,0.75,0.85,0.95]);
+  /* por semana */
+  const sem=(D.W||[]).filter(w=>!w.ant).map(w=>[{text:w.n.replace('Semana ','S'),options:{bold:true,color:K.or}},{text:R.int(w.leads),options:{bold:true}},R.int(w.nv),R.p2(w.conv)]);
+  tabela(7.02,4.88,5.71,2.14,'Por semana','leads · vendas · conversão',[hd(['Semana','Leads','Vendas','Conv']),...sem],[1.4,1.2,1.1,1.25])}
+
+/* ═════ Vendas fechadas dentro do próprio mês (tabulação Venda na base) ═════ */
+function rnVendaMes(pres,D){
+  const s=slideBase(pres,'Vendas no Mês','Fechadas dentro do período',`Leads que entraram e fecharam no mesmo período (${D.periodo})`,'GWA CONSULTORIA | VENDAS DO MÊS');
+  const V=D.vmes;
+  [['Vendas na base (tabulação)',R.int(V.tot),'leads com tabulação Venda',K.gr],
+   ['Conversão do período',R.p2(D.T.leads?V.tot/D.T.leads:null),'sobre os leads que entraram',K.am],
+   ['Vendas no financeiro',R.int(D.T.nv),`${R.int(D.T.nv-D.T.velho)} de leads do período`,K.or2],
+   ['Leads de meses anteriores',R.int(D.T.velho),'fecharam agora, entraram antes',K.pu]].forEach(([l,v,sub,cor],i)=>{
+    const x=0.62+i*3.05;card(pres,s,x,1.32,2.9,1.04);s.addShape(pres.shapes.RECTANGLE,{x,y:1.32,w:2.9,h:0.04,fill:{color:cor},line:{color:cor}});
+    txt(s,l,{x:x+0.15,y:1.44,w:2.6,h:0.2,fontSize:8,color:K.sub,fit:'shrink'});
+    txt(s,v,{x:x+0.15,y:1.64,w:2.6,h:0.42,fontSize:18,bold:true,color:cor});
+    txt(s,sub,{x:x+0.15,y:2.06,w:2.6,h:0.2,fontSize:7.5,color:K.mut})});
+  const nL2=Math.min(7,V.porCamp.length)+1,hCard=Math.max(2.2,0.5+Math.min(0.42,3.4/Math.max(2,nL2))*nL2+0.42);
+  card(pres,s,0.62,2.56,7.3,hCard);
+  txt(s,'Onde fecharam as vendas do período',{x:0.85,y:2.68,w:5,h:0.28,fontSize:11,bold:true,color:'D1D5DB'});
+  const rows=[['Mídia','Leads','Vendas','Conv %','Ticket médio','Faturamento'].map((h,i)=>({text:h,options:{bold:true,fontSize:8,color:i?K.sub:K.or}})),
+    ...V.porCamp.slice(0,7).map(c=>[{text:c.nome,options:{bold:true,color:'D1D5DB',fit:'shrink'}},R.int(c.leads),{text:R.int(c.v),options:{bold:true,color:K.gr}},
+      {text:R.p2(c.leads?c.v/c.leads:null),options:{bold:true,color:K.am}},R.m2(c.ticket),R.m0(c.fat)])];
+  s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:'D1D5DB'}}:c)),{x:0.8,y:3.0,w:6.94,colW:[1.74,0.86,0.86,0.9,1.3,1.28],rowH:Math.min(0.42,3.4/Math.max(2,rows.length)),fontFace:FT,fontSize:8.5,align:'center',
+    border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'});
+  txt(s,'Vendas na base = leads do período com tabulação "Venda". O financeiro conta a venda pela data da 1ª parcela, por isso os dois números podem diferir.',
+    {x:0.8,y:2.56+hCard-0.36,w:6.9,h:0.3,fontSize:7,color:K.mut});
+  /* por linha */
+  card(pres,s,8.12,2.56,4.61,2.1);
+  txt(s,'Vendas por linha',{x:8.32,y:2.66,w:3,h:0.26,fontSize:10.5,bold:true});
+  const lr=[['Linha','Leads','Vendas','Conv'].map(h=>({text:h,options:{bold:true,fontSize:8,color:K.sub}})),
+    ...V.porLinha.slice(0,4).map(l=>[{text:l.nome,options:{bold:true,color:'D1D5DB'}},R.int(l.leads),{text:R.int(l.v),options:{bold:true,color:K.gr}},R.p2(l.leads?l.v/l.leads:null)])];
+  s.addTable((lr.length>1?lr:[...lr,[{text:'Sem vendas por linha',options:{color:K.mut}},'—','—','—']]).map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:'D1D5DB'}}:c)),
+    {x:8.3,y:2.98,w:4.25,colW:[1.3,0.95,0.95,1.05],rowH:0.32,fontFace:FT,fontSize:8.5,align:'center',border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'});
+  const topC=V.porCamp[0],melhor=V.porCamp.filter(c=>c.leads>=20).sort((a,b)=>(b.v/b.leads)-(a.v/a.leads))[0];
+  caixaTexto(pres,s,8.12,4.82,4.61,2.2,'Leitura das vendas do mês',
+    `${V.tot?`${R.int(V.tot)} ${V.tot===1?'venda foi tabulada':'vendas foram tabuladas'} em leads que entraram no período (${R.p2(D.T.leads?V.tot/D.T.leads:null)} dos leads).`:'Nenhuma venda tabulada em leads do período.'} ${topC?`${topC.nome} concentra o volume (${R.int(topC.v)} ${topC.v===1?'venda':'vendas'}).`:''} ${melhor&&topC&&melhor.nome!==topC.nome?`A melhor conversão é de ${melhor.nome} (${R.p2(melhor.v/melhor.leads)}).`:''} ${D.T.velho?`Outras ${R.int(D.T.velho)} vendas do financeiro vieram de leads de meses anteriores.`:''}`,K.gr)}
+
+/* ═════ Tempo até o fechamento ═════ */
+function rnTempo(pres,D){
+  const Z=D.tempo,s=slideBase(pres,'Tempo até a Venda','Velocidade de fechamento',`Quanto tempo o lead leva para virar venda (${D.periodo})`,'GWA CONSULTORIA | CICLO DE VENDA');
+  [['Tempo médio',Z.med==null?'—':R.d1(Z.med)+' d','da entrada do lead à venda',K.bl],
+   ['Mediana',Z.mediana==null?'—':R.d1(Z.mediana)+' d','metade fecha até aqui',K.pu],
+   ['Fecham em até 3 dias',R.p1(Z.n?Z.rapidas/Z.n:null),`${R.int(Z.rapidas)} de ${R.int(Z.n)} vendas`,K.gr],
+   ['Levam mais de 30 dias',R.p1(Z.n?Z.lentas/Z.n:null),`${R.int(Z.lentas)} vendas`,K.rd]].forEach(([l,v,sub,cor],i)=>{
+    const x=0.62+i*3.05;card(pres,s,x,1.32,2.9,1.04);s.addShape(pres.shapes.RECTANGLE,{x,y:1.32,w:2.9,h:0.04,fill:{color:cor},line:{color:cor}});
+    txt(s,l,{x:x+0.15,y:1.44,w:2.6,h:0.2,fontSize:8,color:K.sub});
+    txt(s,v,{x:x+0.15,y:1.64,w:2.6,h:0.42,fontSize:18,bold:true,color:cor});
+    txt(s,sub,{x:x+0.15,y:2.06,w:2.6,h:0.2,fontSize:7.5,color:K.mut})});
+  /* faixas de tempo */
+  card(pres,s,0.62,2.56,6.0,2.5);
+  txt(s,'Quando a venda acontece',{x:0.82,y:2.66,w:4,h:0.26,fontSize:10.5,bold:true});
+  const fxR=Z.faixas.slice().reverse();
+  s.addChart(pres.charts.BAR,[{name:'Vendas',labels:fxR.map(f=>f[0]),values:fxR.map(f=>f[1])}],
+    {x:0.7,y:2.96,w:5.84,h:2.0,barDir:'bar',chartColors:fxR.map(f=>f[2]),showValue:true,dataLabelColor:'FFFFFF',dataLabelFontSize:8,
+     catAxisLabelColor:'D1D5DB',catAxisLabelFontSize:7.5,valAxisHidden:true,valGridLine:{style:'none'},catGridLine:{style:'none'},
+     catAxisLineShow:false,valAxisLineShow:false,showLegend:false,barGapWidthPct:50});
+  /* origem das vendas */
+  card(pres,s,6.82,2.56,5.91,2.5);
+  txt(s,'Origem das vendas do período',{x:7.02,y:2.66,w:4,h:0.26,fontSize:10.5,bold:true});
+  const ori=[['Leads que entraram no período',R.int(D.T.nv-D.T.velho),R.p1(D.T.nv?(D.T.nv-D.T.velho)/D.T.nv:null),K.gr],
+    ['Leads de meses anteriores',R.int(D.T.velho),R.p1(D.T.nv?D.T.velho/D.T.nv:null),K.pu],
+    ['Conversão dentro do período',R.p2(D.T.leads?(D.T.nv-D.T.velho)/D.T.leads:null),'',K.am],
+    ['Conversão global',R.p2(D.T.conv),'',K.bl]];
+  ori.forEach(([l,v,p,cor],i)=>{const y=3.02+i*0.47;
+    s.addShape(pres.shapes.RECTANGLE,{x:7.02,y:y+0.06,w:0.05,h:0.3,fill:{color:cor},line:{color:cor}});
+    txt(s,l,{x:7.2,y:y,w:3.1,h:0.42,fontSize:9,color:'D1D5DB',valign:'middle'});
+    txt(s,v,{x:10.3,y:y,w:1.3,h:0.42,fontSize:11,bold:true,align:'right',valign:'middle'});
+    txt(s,p,{x:11.6,y:y,w:0.95,h:0.42,fontSize:8.5,color:K.sub,align:'right',valign:'middle'})});
+  /* tempo médio por campanha */
+  card(pres,s,0.62,5.22,12.11,1.8);
+  txt(s,'Tempo médio por mídia',{x:0.82,y:5.32,w:4,h:0.26,fontSize:10.5,bold:true});
+  txt(s,`Empresa ${fE}: ${Z.med==null?'—':R.d1(Z.med)+' dias'} em média`,{x:9.0,y:5.34,w:3.5,h:0.24,fontSize:8,color:K.or,align:'right'});
+  const rows=[['Mídia','Vendas','Tempo médio','Mesmo dia','Até 7 dias','Mais de 30'].map((h,i)=>({text:h,options:{bold:true,fontSize:8,color:i?K.sub:K.or}})),
+    ...Z.porCamp.slice(0,5).map(c=>[{text:c.nome,options:{bold:true,color:'D1D5DB',fit:'shrink'}},R.int(c.n),
+      {text:c.med==null?'—':R.d1(c.med)+' d',options:{bold:true,color:c.med!=null&&Z.med!=null&&c.med<=Z.med?K.gr:K.am}},
+      R.p1(c.n?c.d0/c.n:null),R.p1(c.n?c.d7/c.n:null),{text:R.p1(c.n?c.d30/c.n:null),options:{color:c.d30?K.rd:K.sub}}])];
+  s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:'D1D5DB'}}:c)),{x:0.8,y:5.62,w:11.75,colW:[3.0,1.4,1.9,1.8,1.8,1.85],rowH:Math.min(0.3,1.2/Math.max(1,rows.length-1)),fontFace:FT,fontSize:8.5,align:'center',
+    border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'})}
 
 function rnFim(pres,D){
   const s=pres.addSlide();s.background={color:'0A0705'};
@@ -4549,9 +4745,10 @@ function vReuniao(){
   const temEmp=fE!=='TODAS';
   let camps=[];
   if(temEmp){camps=comEmpresa(fE,()=>Object.entries(dsAgg(d1,d2,K_CAMP)).filter(([k,o])=>empOf(k)===fE&&(o.leads>0||o.nv>0)).sort((a,b)=>b[1].leads-a[1].leads).map(([k,o])=>[k,o]))}
-  const sec=[['capa','Capa com os 4 indicadores'],['camp','Por campanha: KPIs vs Meta GWA e Tabulações e Funil'],['aprov','Indicadores de Aproveitamento (campanha principal)'],
+  const sec=[['capa','Capa com os 4 indicadores'],['mes','Comparativo com o mesmo trecho do mês passado'],['leads','Leads do mês (mídia, linha, formulário, semana)'],['camp','Por campanha: KPIs vs Meta GWA e Tabulações e Funil'],['aprov','Indicadores de Aproveitamento (campanha principal)'],
     ['target','Target e Churn (campanhas com 50+ leads)'],['linha','Performance por Linha (canais da campanha principal)'],['balanc','Balanceador de contratos'],
-    ['form','Análise de Formulário (cadastros)'],['qual','Qualidade Operacional por mídia'],['custos','Custos vs Receita e peso temporal'],
+    ['form','Análise de Formulário (cadastros)'],['qual','Qualidade Operacional por mídia'],
+    ['vmes','Vendas fechadas dentro do mês'],['tempo','Tempo até a venda (por mídia)'],['custos','Custos vs Receita e peso temporal'],
     ['ticket','Evolução do Ticket Médio no ano'],['semanal','Performance Semanal'],['bm','Performance por BM (contas Meta)'],['fim','Encerramento']];
   const dis=!temEmp||rnBusy?' disabled':'';
   return `
@@ -4592,7 +4789,7 @@ function carregaForms(){const k=d1+'|'+d2;if(FORMLST.carregando||(FORMLST.rows&&
     .catch(e=>{FORMLST.carregando=false;FORMLST.erro=e.message||'erro'})
     .finally(()=>{if(tab==='admin'&&aTab==='reuniao'&&!rnBusy)render()})}
 function vNomes(){carregaForms();
-  const emp=fE,F={};(FORMLST.rows||[]).forEach(r=>{const f=String(r[0]==null?'':r[0]).trim();if(!f)return;const c=nc(r[1]);if(emp!=='TODAS'&&empOf(c)!==emp)return;
+  const emp=fE,F={};(FORMLST.rows||[]).forEach(r=>{const f=String(r[0]==null?'':r[0]).trim()||'(sem formulário)';const c=nc(r[1]);if(emp!=='TODAS'&&empOf(c)!==emp)return;
     const o=F[f]||(F[f]={n:0,camps:{}});o.n+=+r[2]||0;o.camps[c]=1});
   const forms=Object.entries(F).sort((a,b)=>b[1].n-a[1].n);
   const camps=[...new Set(CUBE.map(x=>x[0]).filter(c=>c&&c!==BL&&(emp==='TODAS'||empOf(c)===emp)))].sort();
