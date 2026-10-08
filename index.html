@@ -746,6 +746,9 @@ const CFG_PADRAO={
   bmContas:{},   /* vazio: o BM das contas vem da coluna BM da planilha; aqui só ficam correções feitas à mão */
   bmLinhas:{"2837":"BM INTERNO 01","1929":"BM INTERNO 02","4276":"BM3"},
   empLinhas:{"2837":"GWA","1929":"GWA","4276":"M12"},
+  bmEmp:{},      /* BM -> empresa dona (quando a planilha não deixa claro) */
+  bmRedir:{},    /* "EMPRESA|BM de origem" -> BM de destino: soma tudo no destino */
+  linNomes:{},   /* linha de WhatsApp -> nome na reunião; SEMCANAL = leads que vieram sem número */
   tv:{periodo:"mes",vel:"media",zoom:"auto",tema:"dark",telas:[]},
   kpi:{lista:["nv","leads","mld","conv","tmed","lf","cpl","inv","margem","icr","roi","roas","cpa","tk"],
     metas:{"*":{conv:3,tmed:15,margem:70,icr:30,roas:4,tgt:15,churn:85}},custom:[],val:{}}
@@ -2851,7 +2854,7 @@ function bindAdmin(){
   q('aLogCsv',()=>baixaTxt('logs_painel.csv','﻿'+['Quando;Fonte;Consulta;Linhas;Tempo (ms);Resultado;Mensagem',
     ...LOGS.map(l=>[new Date(l.t).toLocaleString('pt-BR'),l.fonte,'"'+l.acao.replace(/"/g,'""')+'"',l.linhas,l.ms,l.ok?'ok':'erro','"'+(l.msg||'').replace(/"/g,'""')+'"'].join(';'))].join('\n'),'text/csv;charset=utf-8'));
   q('aLogLimpa',()=>{LOGS.length=0;try{localStorage.removeItem('gwa.logs')}catch(e){}aviso('Logs limpos');render()});
-  bindVinculo();
+  bindVinculo();bindBmEmp();
   q('aBmSalva',()=>{const c=Object.assign({},CFG.bmContas||{}),l=Object.assign({},CFG.bmLinhas||{});
     /* apagar um valor que vem de fábrica grava '' para ele não voltar ao recarregar */
     document.querySelectorAll('input.bmc').forEach(i=>{const v=i.value.trim().toUpperCase(),k=i.dataset.a;if(v)c[k]=v;else if(CFG_PADRAO.bmContas[k])c[k]='';else delete c[k]});
@@ -3045,7 +3048,7 @@ function bmMotor(meta,atv){
 function bmLead(M,form,canal,mes){
   const f=normT(form);if(f&&M.camp[f])return[[M.camp[f],1,'form']];
   const ls=[];for(const x of f.matchAll(RX_LIN))ls.push(x[1]);
-  const d=String(canal==null?'':canal).replace(/\D/g,'');if(d.length>=8)ls.push(d.slice(-4));
+  const d=String(canal==null?'':canal).replace(/\D/g,'');ls.push(d.length>=8?d.slice(-4):SEMCANAL);
   /* número vinculado à mão na Administração vale antes do que as campanhas citam */
   for(const l of ls){const b=(CFG.bmLinhas||{})[l];if(b)return[[b,1,'manual']]}
   for(const l of ls){const s=M.linha[mes+'|'+l];if(!s)continue;const e=Object.entries(s),t=e.reduce((q,[,v])=>q+v,0);
@@ -3054,7 +3057,9 @@ function bmLead(M,form,canal,mes){
 /* consolida leads, vendas, faturamento e custo por BM da empresa fE no período a..b */
 function bmCalc(M,leads,velhos,a,b){
   const R={},how={form:0,linha:0,rateio:0,manual:0,sem:0},linSem={};
-  const g=k=>R[k]||(R[k]={bm:k,inv:0,leads:0,nv:0,fat:0});
+  /* o admin pode mandar um BM (ou o "sem vínculo") somar dentro de outro BM da empresa */
+  const RD=CFG.bmRedir||{},rd=k=>{const t=RD[fE+'|'+k];return t&&t!==k?t:k};
+  const g=k=>{k=rd(k);return R[k]||(R[k]={bm:k,inv:0,leads:0,nv:0,fat:0})};
   const card=new Map();
   leads.forEach(x=>card.set(x.ck,x));(velhos||[]).forEach(x=>{if(!card.has(x.ck))card.set(x.ck,x)});
   const atr=x=>x._bm||(x._bm=bmLead(M,x.form,x.canal,mesIso(x.d)));
@@ -3069,6 +3074,7 @@ function bmCalc(M,leads,velhos,a,b){
     at.forEach(([k,w])=>g(k).fat+=p.v*w)});
   let invSem=0;
   CUSTO.forEach(x=>{if(x.src!=='META'||x.emp!==fE||x.d<a||x.d>b)return;const k=M.acc[x.conta];if(k)g(k).inv+=x.val;else invSem+=x.val});
+  if(rd(SEMBM)!==SEMBM&&invSem){g(SEMBM).inv+=invSem;invSem=0}
   const sem=R[SEMBM]||{bm:SEMBM,inv:0,leads:0,nv:0,fat:0};delete R[SEMBM];sem.inv=invSem;
   const lista=Object.values(R).filter(x=>x.inv>0||x.leads>=1||x.nv>0).sort((x,y)=>y.inv-x.inv||y.leads-x.leads);
   lista.forEach(x=>{const c=x.inv>0;x.cpl=c&&x.leads?x.inv/x.leads:null;x.cpa=c&&x.nv?x.inv/x.nv:null;x.roas=c?x.fat/x.inv:null;x.margem=c&&x.fat?(x.fat-x.inv)/x.fat:null});
@@ -3078,7 +3084,20 @@ function bmCalc(M,leads,velhos,a,b){
 /* ── vincular número de WhatsApp ao BM de destino (vale antes do que as campanhas citam) ── */
 const BM_LISTA=()=>{const s=new Set(Object.values(bmMotor(RAW.meta||[]).acc).filter(Boolean));
   Object.values(CFG.bmLinhas||{}).forEach(b=>b&&s.add(b));['BM1','BM2','BM3','BM4'].forEach(b=>s.add(b));
+  Object.keys(CFG.bmEmp||{}).forEach(b=>b&&s.add(b));Object.values(CFG.bmRedir||{}).forEach(b=>b&&s.add(b));
   return [...s].sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true}))};
+const SEMCANAL='SEMCANAL';
+/* nome da linha de WhatsApp na reunião (SEMCANAL = leads sem número: Google, site, VOIP…) */
+function linNome(k,padrao){const a=((CFG.linNomes||{})[k]||'').trim();if(a)return a;
+  return padrao||(k===SEMCANAL?'(sem canal)':String(k))}
+/* empresa dona de cada BM: ajuste manual do admin > empresa que mais gastou nas contas daquele BM */
+function bmEmpMapa(M){const o={},man=CFG.bmEmp||{},BE=bmEmpresas(M||bmMotor(RAW.meta||[]));
+  Object.entries(BE).forEach(([bm,e])=>{const t=Object.entries(e).sort((x,y)=>y[1]-x[1]);if(t.length)o[bm]=t[0][0]});
+  Object.entries(CFG.bmLinhas||{}).forEach(([l,bm])=>{const e=(CFG.empLinhas||{})[l];if(bm&&e&&!o[bm])o[bm]=e});
+  Object.entries(man).forEach(([bm,e])=>{if(e)o[bm]=e;else delete o[bm]});
+  return o}
+/* só os BMs daquela empresa (para os seletores da Administração) */
+function bmsDaEmp(emp,M){const mp=bmEmpMapa(M);return BM_LISTA().filter(b=>mp[b]===emp)}
 function numCompleto(l){const c=CUBE.find(x=>String(x[3]||'').replace(/\D/g,'').slice(-4)===l);return c?c[3]:l}
 /* empresas que gastam em cada BM (pelas contas de anúncio da planilha de custos) */
 function bmEmpresas(M){const o={};(RAW.meta||[]).forEach(r=>{const a=String(r[6]==null?'':r[6]).trim(),bm=M.acc[a];if(!bm||!(+r[1]>0))return;
@@ -3087,9 +3106,11 @@ let vinFiltro='todos';
 /* todas as linhas de WhatsApp: leads do período (por empresa das campanhas), empresa definida, BM e alertas */
 function vinLinhas(){
   const M=bmMotor(RAW.meta||[]),mes=mesIso(d2),BE=bmEmpresas(M),EL=CFG.empLinhas||{},BL=CFG.bmLinhas||{},lin={};
-  CUBE.forEach(x=>{const d=String(x[3]||'').replace(/\D/g,'');if(d.length<8)return;const l=d.slice(-4);
-    const o=lin[l]||(lin[l]={leads:0,emp:{},num:x[3]});o.leads+=x[4];const e=empOf(x[0]);o.emp[e]=(o.emp[e]||0)+x[4]});
-  [...Object.keys(EL),...Object.keys(BL)].forEach(l=>{if((EL[l]||BL[l])&&!lin[l]){const nc2=numCompleto(l);lin[l]={leads:0,emp:{},num:nc2===l?'…'+l:nc2}}});
+  CUBE.forEach(x=>{const d=String(x[3]||'').replace(/\D/g,'');const sc=d.length<8,l=sc?SEMCANAL:d.slice(-4);
+    const o=lin[l]||(lin[l]={leads:0,emp:{},num:sc?'(sem canal)':x[3],sc});o.leads+=x[4];const e=empOf(x[0]);o.emp[e]=(o.emp[e]||0)+x[4]});
+  [...Object.keys(EL),...Object.keys(BL),...Object.keys(CFG.linNomes||{})].forEach(l=>{if(lin[l]||!(EL[l]||BL[l]||(CFG.linNomes||{})[l]))return;
+    if(l===SEMCANAL){lin[l]={leads:0,emp:{},num:'(sem canal)',sc:true};return}
+    const nc2=numCompleto(l);lin[l]={leads:0,emp:{},num:nc2===l?'…'+l:nc2}});
   return Object.entries(lin).map(([l,o])=>{
     const emps=Object.entries(o.emp).sort((a,b)=>b[1]-a[1]),dom=emps.length?emps[0][0]:'',domP=o.leads&&emps.length?emps[0][1]/o.leads:0;
     const s=M.linha[mes+'|'+l],sE=s?Object.entries(s).sort((a,b)=>b[1]-a[1]):[],sT=sE.reduce((q,[,v])=>q+v,0);
@@ -3101,7 +3122,7 @@ function vinLinhas(){
     if(o.leads&&!bmFinal)al.push(['o','sem BM — conta como "sem vínculo"']);
     if(bmFinal&&alvo&&BE[bmFinal]&&!BE[bmFinal][alvo])al.push(['r',`${bmFinal} só tem gasto de ${Object.keys(BE[bmFinal]).join(', ')}`]);
     if(o.leads===0)al.push(['s','sem leads no período']);
-    return{l,num:o.num,leads:o.leads,emps,dom,empDef,sE,sT,bmMan,bmCamp,bmFinal,al,ok:!al.some(a=>a[0]!=='s')}})
+    return{l,num:o.num,sc:!!o.sc,nome:((CFG.linNomes||{})[l]||''),leads:o.leads,emps,dom,empDef,sE,sT,bmMan,bmCamp,bmFinal,al,ok:!al.some(a=>a[0]!=='s')}})
     .sort((a,b)=>(a.ok-b.ok)||(b.leads-a.leads)||a.l.localeCompare(b.l))}
 function vVinculo(){
   const R=vinLinhas(),bms=BM_LISTA(),mes=mesIso(d2),nAl=R.filter(r=>!r.ok).length;
@@ -3110,15 +3131,16 @@ function vVinculo(){
   const optE=cur=>`<option value="">—</option>`+EMPS.map(e=>`<option value="${esc(e)}"${cur===e?' selected':''}>${esc(e)}</option>`).join('');
   return `<div class="card wide vin t"><div class="ch" style="padding:15px 16px 6px"><h3>Números de WhatsApp — empresa e BM</h3><span class="m">usado no slide "Performance por BM" · período ${esc(dc(d1))} a ${esc(dc(d2))}</span></div>
     <p class="info" style="margin:0 16px 8px">Defina a empresa e o BM de cada número. A tabela mostra <b>todos</b> os números que receberam leads no período, para quais empresas os leads deles estão indo
-      (pela campanha mapeada na planilha) e qual BM eles recebem. O BM vinculado aqui vale antes do que as campanhas citam. A empresa definida aqui serve para conferir: se os leads estiverem caindo em outra empresa, o mapeamento da campanha na planilha precisa ser ajustado.</p>
+      (pela campanha mapeada na planilha) e qual BM eles recebem. O <b>nome na reunião</b> é o que aparece nos slides no lugar dos 4 dígitos. O BM vinculado aqui vale antes do que as campanhas citam. A empresa definida aqui serve para conferir: se os leads estiverem caindo em outra empresa, o mapeamento da campanha na planilha precisa ser ajustado.</p>
     <div class="vin-f" style="margin:6px 16px 12px"><label class="cf"><span>Número</span><input id="vinNum" inputmode="tel" placeholder="ex.: (11) 97495-4276 ou 4276" autocomplete="off"></label>
       <label class="cf"><span>Empresa</span><select id="vinEmp">${optE('')}</select></label>
       <label class="cf"><span>BM de destino</span><input id="vinBm" list="vinBms" placeholder="ex.: BM3" autocomplete="off"><datalist id="vinBms">${bms.map(b=>`<option value="${esc(b)}">`).join('')}</datalist></label>
       <button class="btn pri" id="vinAdd">Salvar número</button></div>
     <div class="chips vin-fl" role="group" aria-label="Filtrar números" style="margin:0 16px 10px"><button data-vf="todos" aria-pressed="${vinFiltro==='todos'}">Todos (${R.length})</button>
       <button data-vf="alertas" aria-pressed="${vinFiltro==='alertas'}">Com alerta (${nAl})</button></div>
-    ${ver.length?`<div class="tw"><table class="xl vin-t"><thead><tr><th>Número</th><th>Leads</th><th>Leads indo para</th><th>Empresa do número</th><th>BM pelas campanhas (${esc(mes)})</th><th>BM vinculado</th><th>Situação</th><th></th></tr></thead>
-    <tbody>${ver.map(r=>`<tr class="${r.ok?'':'vin-al'}"><td class="lft"><b>${esc(r.num)}</b></td><td>${n(r.leads)}</td>
+    ${ver.length?`<div class="tw"><table class="xl vin-t"><thead><tr><th>Número</th><th>Nome na reunião</th><th>Leads</th><th>Leads indo para</th><th>Empresa do número</th><th>BM pelas campanhas (${esc(mes)})</th><th>BM vinculado</th><th>Situação</th><th></th></tr></thead>
+    <tbody>${ver.map(r=>`<tr class="${r.ok?'':'vin-al'}"><td class="lft"><b>${esc(r.num)}</b>${r.sc?'<div class="kp-h">leads que chegaram sem número (Google, site, VOIP…)</div>':''}</td>
+      <td><input class="vnome" data-l="${esc(r.l)}" value="${esc(r.nome)}" placeholder="${esc(r.sc?'ex.: Google / Site':r.num)}" maxlength="40" aria-label="Nome na reunião de ${esc(r.num)}"></td><td>${n(r.leads)}</td>
       <td class="lft">${r.emps.length?r.emps.map(([e,v])=>`<span class="tg ${r.empDef&&e!==r.empDef?'r':'s'}">${esc(e)}${r.emps.length>1?' '+Math.round(v/r.leads*100)+'%':''}</span>`).join(' '):'—'}</td>
       <td><select class="vemp" data-l="${esc(r.l)}" aria-label="Empresa do número ${esc(r.num)}">${optE(r.empDef)}</select></td>
       <td class="lft">${r.sE.length?r.sE.map(([b,v])=>`<span class="tg g">${esc(b)}${r.sE.length>1?' '+Math.round(v/r.sT*100)+'%':''}</span>`).join(' '):'<span class="tg o">nenhuma cita</span>'}</td>
@@ -3127,12 +3149,13 @@ function vVinculo(){
       <td>${r.bmMan||r.empDef?`<button class="btn sm" data-vrm="${esc(r.l)}" aria-label="Limpar empresa e BM do número ${esc(r.num)}">✕</button>`:''}</td></tr>`).join('')}</tbody></table></div>`
       :`<p class="info" style="margin:0 16px 12px">${vinFiltro==='alertas'?'Nenhum número com alerta. ✓':'Nenhum número com leads no período.'}</p>`}
     <div class="acts" style="padding:12px 16px"><button class="btn pri" id="vinSalvaTudo">Salvar alterações da tabela</button>
-      <span class="info" style="margin:0">Leads sem número de WhatsApp (Google, site, VOIP…) não aparecem aqui.</span></div></div>`}
-function vinGrava(l,emp,bm){
-  const E=Object.assign({},CFG.empLinhas||{}),B=Object.assign({},CFG.bmLinhas||{});
+      <span class="info" style="margin:0">A linha <b>(sem canal)</b> junta os leads que chegaram sem número (Google, site, VOIP…): dê um nome a ela e, se quiser, um BM.</span></div></div>`}
+function vinGrava(l,emp,bm,nome){
+  const E=Object.assign({},CFG.empLinhas||{}),B=Object.assign({},CFG.bmLinhas||{}),N=Object.assign({},CFG.linNomes||{});
   const put=(o,pad,v)=>{if(v)o[l]=v;else if(pad&&pad[l])o[l]='';else delete o[l]};
   if(emp!==undefined)put(E,CFG_PADRAO.empLinhas,emp);if(bm!==undefined)put(B,CFG_PADRAO.bmLinhas,bm);
-  CFG.empLinhas=E;CFG.bmLinhas=B}
+  if(nome!==undefined){if(nome)N[l]=nome;else delete N[l]}
+  CFG.empLinhas=E;CFG.bmLinhas=B;CFG.linNomes=N}
 function bindVinculo(){const g=id=>document.getElementById(id);if(!g('vinAdd'))return;
   const fim=msg=>{salvaCfg();if(typeof rnCache!=='undefined')rnCache=null;logEv('Administração',msg,true);aviso(msg);render()};
   const add=()=>{const d=g('vinNum').value.replace(/\D/g,''),b=g('vinBm').value.trim().toUpperCase().replace(/\s+/g,' '),e=g('vinEmp').value;
@@ -3144,8 +3167,49 @@ function bindVinculo(){const g=id=>document.getElementById(id);if(!g('vinAdd'))r
   if(g('vinSalvaTudo'))g('vinSalvaTudo').onclick=()=>{let k=0;
     document.querySelectorAll('select.vemp').forEach(s=>{const l=s.dataset.l,v=s.value;if(v!==((CFG.empLinhas||{})[l]||'')){vinGrava(l,v,undefined);k++}});
     document.querySelectorAll('input.vbm').forEach(i=>{const l=i.dataset.l,v=i.value.trim().toUpperCase().replace(/\s+/g,' ');if(v!==((CFG.bmLinhas||{})[l]||'')){vinGrava(l,undefined,v);k++}});
+    document.querySelectorAll('input.vnome').forEach(i=>{const l=i.dataset.l,v=i.value.trim();if(v!==((CFG.linNomes||{})[l]||'')){vinGrava(l,undefined,undefined,v);k++}});
     fim(k?`${k} ${k===1?'alteração salva':'alterações salvas'} nos números`:'Nada mudou nos números')};
-  document.querySelectorAll('[data-vrm]').forEach(bt=>bt.onclick=()=>{const l=bt.dataset.vrm;vinGrava(l,'','');fim('Número '+l+' sem empresa e BM definidos')})}
+  document.querySelectorAll('[data-vrm]').forEach(bt=>bt.onclick=()=>{const l=bt.dataset.vrm;vinGrava(l,'','','');fim('Número '+l+' sem empresa, BM e nome definidos')})}
+
+/* ── BM por empresa: de quem é cada BM e para onde somar o que não é dela ── */
+function vBmEmp(){
+  const M=bmMotor(RAW.meta||[]),mapa=bmEmpMapa(M),BE=bmEmpresas(M),RD=CFG.bmRedir||{},MAN=CFG.bmEmp||{};
+  const EMPS=[...new Set(['GWA','M12','OFF','IND',...CUBE.map(x=>empOf(x[0])).filter(e=>e!=='—')])];
+  const emp=fE,temEmp=emp!=='TODAS';
+  /* gasto do período por BM, só da empresa escolhida */
+  const gasto={};CUSTO.forEach(x=>{if(x.src!=='META'||(temEmp&&x.emp!==emp)||!inRange(x.d))return;
+    const b=M.acc[x.conta];gasto[b||SEMBM]=(gasto[b||SEMBM]||0)+x.val});
+  const daEmp=temEmp?BM_LISTA().filter(b=>mapa[b]===emp):[];
+  const linhasEmp={};Object.entries(CFG.bmLinhas||{}).forEach(([l,b])=>{if(!b)return;(linhasEmp[b]=linhasEmp[b]||[]).push(l)});
+  const todos=[...BM_LISTA(),SEMBM];
+  const optE=cur=>`<option value="">— pela planilha</option>`+EMPS.map(e=>`<option value="${esc(e)}"${cur===e?' selected':''}>${esc(e)}</option>`).join('');
+  const optR=(bm,cur)=>`<option value="">— manter separado</option>`+daEmp.filter(b=>b!==bm).map(b=>`<option value="${esc(b)}"${cur===b?' selected':''}>somar em ${esc(b)}</option>`).join('');
+  const linha=bm=>{const sv=bm===SEMBM,dono=sv?'':(mapa[bm]||''),man=sv?'':(MAN[bm]||'');
+    const red=RD[emp+'|'+bm]||'',g=gasto[bm]||0,fora=temEmp&&!sv&&dono&&dono!==emp;
+    const sit=sv?['o','fora de qualquer BM']:fora?['r','é da '+dono]:dono===emp?['g','é da '+emp]:dono?['s','é da '+dono]:['o','sem empresa definida'];
+    return `<tr class="${red?'vin-al':''}"><td class="lft"><b>${esc(sv?'SEM VÍNCULO':bm)}</b>
+      <div class="kp-h">${sv?'Google, site, VOIP, TV e números sem campanha':(BE[bm]?'gasta: '+Object.keys(BE[bm]).join(', '):'sem gasto na planilha')}${linhasEmp[bm]?' · números '+linhasEmp[bm].join(', '):''}</div></td>
+      <td>${g?mo2(g):'—'}</td>
+      <td>${sv?'<span class="tg o">—</span>':`<select class="bme" data-b="${esc(bm)}" aria-label="Empresa dona do ${esc(bm)}">${optE(man)}</select>`}</td>
+      <td class="lft"><span class="tg ${sit[0]}">${esc(sit[1])}</span></td>
+      <td>${temEmp?`<select class="bmr" data-b="${esc(bm)}" aria-label="Somar ${esc(bm)} em outro BM">${optR(bm,red)}</select>`:'<span class="tg o">escolha uma empresa</span>'}</td></tr>`};
+  return `<div class="card wide t"><div class="ch" style="padding:15px 16px 6px"><h3>BM por empresa</h3>
+      <span class="m">${temEmp?esc(emp)+' · período '+esc(dc(d1))+' a '+esc(dc(d2)):'escolha a empresa no filtro de cima'}</span></div>
+    <p class="info" style="margin:0 16px 10px">Diga de qual empresa é cada BM. No slide "Performance por BM" podem aparecer BMs de outra empresa (ou o bloco <b>SEM VÍNCULO</b>)
+      quando o lead veio de um número ou formulário que o painel não conseguiu ligar. Use a última coluna para <b>somar esses leads, vendas e custo dentro de um BM da própria empresa</b> —
+      a lista só mostra os BMs ${temEmp?'da '+esc(emp):'da empresa escolhida'}.</p>
+    ${temEmp&&!daEmp.length?`<p class="warn" style="margin:0 16px 10px">Nenhum BM está marcado como da ${esc(emp)}. Defina a empresa na coluna "Empresa dona" e salve — depois escolha para onde somar.</p>`:''}
+    <div class="tw"><table class="xl"><thead><tr><th>BM</th><th>Gasto no período</th><th>Empresa dona</th><th>Situação</th><th>Na reunião da ${esc(temEmp?emp:'empresa')}</th></tr></thead>
+      <tbody>${todos.map(linha).join('')}</tbody></table></div>
+    <div class="acts" style="padding:12px 16px"><button class="btn pri" id="bmeSalva">Salvar BM por empresa</button>
+      <span class="info" style="margin:0">Vale para a próxima apresentação gerada.</span></div></div>`}
+function bindBmEmp(){const b=document.getElementById('bmeSalva');if(!b)return;
+  b.onclick=()=>{const E=Object.assign({},CFG.bmEmp||{}),R=Object.assign({},CFG.bmRedir||{});
+    document.querySelectorAll('select.bme').forEach(sl=>{const k=sl.dataset.b,v=sl.value;if(v)E[k]=v;else delete E[k]});
+    document.querySelectorAll('select.bmr').forEach(sl=>{const k=fE+'|'+sl.dataset.b,v=sl.value;if(v&&v!==sl.dataset.b)R[k]=v;else delete R[k]});
+    CFG.bmEmp=E;CFG.bmRedir=R;salvaCfg();if(typeof rnCache!=='undefined')rnCache=null;
+    logEv('Administração','BM por empresa salvo',true,Object.keys(E).length+Object.keys(R).length);
+    aviso('BM por empresa salvo');render()}}
 /* ── BM: contas de anúncio e linhas de WhatsApp ── */
 function aBM(){
   const M=bmMotor(RAW.meta||[]);
@@ -3159,7 +3223,7 @@ function aBM(){
     const o=lin[l]||(lin[l]={leads:0,emp:{},num:x[3]});o.leads+=x[4];const e=empOf(x[0]);o.emp[e]=(o.emp[e]||0)+x[4]});
   const mes=mesIso(d2);
   const L=Object.entries(lin).filter(([,o])=>o.leads>0).sort((a,b)=>b[1].leads-a[1].leads);
-  return vVinculo()+`<div class="card t wide"><div class="ch" style="padding:15px 16px 8px"><h3>BM — contas de anúncio</h3><span class="m">usado no slide "Performance por BM" da Reunião</span></div>
+  return vVinculo()+vBmEmp()+`<div class="card t wide"><div class="ch" style="padding:15px 16px 8px"><h3>BM — contas de anúncio</h3><span class="m">usado no slide "Performance por BM" da Reunião</span></div>
     <p class="info" style="margin:0 16px 10px">Cada conta de anúncio pertence a um BM. O painel usa primeiro a <b>coluna BM da planilha</b> (RELATORIO_CAMPANHAS_2026 col. N e CAMPANHAS_ATIVAS col. O).
       Quando a planilha não diz, ele lê o BM no nome da conta (ex.: "Grazi - BM3") ou nas campanhas dela. O ajuste manual abaixo vale acima de tudo — use só para corrigir.</p>
     ${contas.length?`<div class="tw"><table class="xl"><thead><tr><th>Conta de anúncio</th><th>Gasto no ano</th><th>BM na planilha</th><th>BM usado</th><th>De onde veio</th><th>BM (ajuste manual)</th></tr></thead>
@@ -4063,8 +4127,11 @@ function rnDados(X){
   const top=camps[0];const lm={};
   if(top)CUBE.forEach(x=>{if(x[0]!==top.k)return;const ln=x[3]||'(sem canal)';const o=lm[ln]||(lm[ln]={rec:0,nt:0,sr:0,q:0,v:0});
     o.rec+=x[4];const t=x[1];if(ehSemTrab(t))o.nt+=x[4];else if(ehNaoAt(t))o.sr+=x[4];if(ehTarget(t))o.q+=x[4];if(kind(t)==='g')o.v+=x[4]});
+  /* o nome da linha é o apelido dado na Administração; sem apelido, os 4 últimos dígitos */
+  const nomeLin=k=>{const d=String(k).replace(/\D/g,'');const ch=d.length>=8?d.slice(-4):SEMCANAL;
+    return linNome(ch,ch===SEMCANAL?'(sem canal)':ch)};
   const mkLinha=(k,o,extra)=>{const tr=o.rec-o.nt,rs=tr-o.sr;
-    return Object.assign({nome:(String(k).match(/(\d{4})\D*$/)||[,k])[1],canal:k,rec:o.rec,tr,nt:o.nt,rs,sr:o.sr,q:o.q,v:o.v,
+    return Object.assign({nome:nomeLin(k),canal:k,rec:o.rec,tr,nt:o.nt,rs,sr:o.sr,q:o.q,v:o.v,
       pResp:tr?rs/tr:null,pQ:o.rec?o.q/o.rec:null,pV:o.rec?o.v/o.rec:null,aprov:o.rec?tr/o.rec:null},extra||{})};
   const ordL=Object.entries(lm).sort((x,y)=>y[1].rec-x[1].rec);
   const grandes=ordL.filter(([,o])=>o.rec>=20).slice(0,6),peq=ordL.filter(x=>grandes.indexOf(x)<0);
@@ -4558,21 +4625,25 @@ function rnBM(pres,D){
   const n=Math.max(1,Bc.length),w=Math.min(4.6,(12.11-(n-1)*0.18)/n),x0=0.62+(12.11-(n*w+(n-1)*0.18))/2,fx=CFG.faixas||{};
   const st=b=>b.inv<=0?['SEM CUSTO',K.mut]:(b.roas||0)>=(fx.roasBom||3)?['FORTE',K.gr]:(b.roas||0)>=2?['SAUDÁVEL',K.bl]:(b.roas||0)>=(fx.roasOk||1)?['ATENÇÃO',K.am]:['CRÍTICO',K.rd];
   const ord=['Principal','Secundária','Terciária','Quarta'];
+  /* cabeçalho em duas linhas (sigla + selo em cima, nome embaixo): com 5 cartões o nome não cabe ao lado do selo */
+  const pw=Math.max(0.9,Math.min(1.26,w-0.9)),lw=Math.min(1.5,w*0.52),vw=Math.min(1.72,w-0.42);
   Bc.forEach((b,i)=>{const x=x0+i*(w+0.18),[stt0,cor0]=st(b),stt=b.semv?'FORA DO BM':stt0,cor=b.semv?K.sl:cor0,ab=b.semv?'S/V':b.bm.replace(/^BM\s*INTERNO\s*/i,'BI').replace(/\s+/g,'').slice(0,4);
     card(pres,s,x,2.33,w,3.9);
     s.addShape(pres.shapes.OVAL,{x:x+0.18,y:2.46,w:0.44,h:0.44,fill:{color:'0F172A'},line:{color:cor}});
     txt(s,ab,{x:x+0.18,y:2.46,w:0.44,h:0.44,fontSize:7.5,bold:true,color:cor,align:'center',valign:'middle'});
-    txt(s,b.bm,{x:x+0.7,y:2.46,w:w-2.25,h:0.24,fontSize:10,bold:true,fit:'shrink'});txt(s,b.semv?'Google, VOIP, TV…':(ord[i]||''),{x:x+0.7,y:2.7,w:w-2.25,h:0.18,fontSize:7.5,color:K.mut});
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:x+w-1.42,y:2.53,w:1.26,h:0.28,rectRadius:0.14,fill:{color:K.card},line:{color:cor}});
-    txt(s,stt,{x:x+w-1.42,y:2.53,w:1.26,h:0.28,fontSize:7.5,bold:true,color:cor,align:'center',valign:'middle'});
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:x+w-0.18-pw,y:2.53,w:pw,h:0.28,rectRadius:0.14,fill:{color:K.card},line:{color:cor}});
+    txt(s,stt,{x:x+w-0.18-pw,y:2.53,w:pw,h:0.28,fontSize:7.5,bold:true,color:cor,align:'center',valign:'middle'});
+    txt(s,b.bm,{x:x+0.18,y:2.98,w:w-0.36,h:0.26,fontSize:10.5,bold:true,fit:'shrink'});
+    txt(s,b.semv?'Google, VOIP, TV…':(ord[i]||''),{x:x+0.18,y:3.26,w:w-0.36,h:0.18,fontSize:7.5,color:K.mut});
     [['Leads',R.int(b.leads)],['Vendas',R.int(b.nv)],['Conversão',R.p1(b.leads?b.nv/b.leads:null)],['Faturamento',R.m0(b.fat)]].forEach(([l,v],j)=>{
-      txt(s,l,{x:x+0.18,y:3.05+j*0.29,w:1.5,h:0.24,fontSize:8.5,color:K.sub});txt(s,v,{x:x+w-1.9,y:3.05+j*0.29,w:1.72,h:0.24,fontSize:8.5,bold:true,color:j===2?cor:K.txt,align:'right'})});
-    card(pres,s,x+0.18,4.3,w-0.36,1.15,'0D0D0D');
-    [['Custo',R.m2(b.inv)],['CPL',R.m2(b.cpl)],['CPA',R.m2(b.cpa)],['ROAS',b.roas==null?'—':R.x2(b.roas)+'x']].forEach(([l,v],j)=>{const xx=x+0.32+(j%2)*((w-0.6)/2),yy=4.38+Math.floor(j/2)*0.53;
-      txt(s,l,{x:xx,y:yy,w:1.6,h:0.18,fontSize:7.5,color:K.mut});txt(s,v,{x:xx,y:yy+0.18,w:(w-0.64)/2,h:0.26,fontSize:9.5,bold:true,color:l==='ROAS'?cor:K.txt,fit:'shrink'})});
-    txt(s,'Margem',{x:x+0.18,y:5.6,w:1.5,h:0.2,fontSize:8,color:K.mut});txt(s,R.p1(b.margem),{x:x+w-1.3,y:5.6,w:1.12,h:0.2,fontSize:8.5,bold:true,color:cor,align:'right'});
-    s.addShape(pres.shapes.RECTANGLE,{x:x+0.18,y:5.9,w:w-0.36,h:0.06,fill:{color:'1F2937'},line:{color:'1F2937'}});
-    s.addShape(pres.shapes.RECTANGLE,{x:x+0.18,y:5.9,w:Math.max(0.02,(w-0.36)*Math.max(0,Math.min(1,b.margem||0))),h:0.06,fill:{color:cor},line:{color:cor}})});
+      txt(s,l,{x:x+0.18,y:3.56+j*0.285,w:lw,h:0.24,fontSize:8.5,color:K.sub});
+      txt(s,v,{x:x+w-0.18-vw,y:3.56+j*0.285,w:vw,h:0.24,fontSize:8.5,bold:true,color:j===2?cor:K.txt,align:'right',fit:'shrink'})});
+    card(pres,s,x+0.18,4.74,w-0.36,1.08,'0D0D0D');
+    [['Custo',R.m2(b.inv)],['CPL',R.m2(b.cpl)],['CPA',R.m2(b.cpa)],['ROAS',b.roas==null?'—':R.x2(b.roas)+'x']].forEach(([l,v],j)=>{const xx=x+0.3+(j%2)*((w-0.6)/2),yy=4.80+Math.floor(j/2)*0.52;
+      txt(s,l,{x:xx,y:yy,w:(w-0.64)/2,h:0.17,fontSize:7.5,color:K.mut});txt(s,v,{x:xx,y:yy+0.17,w:(w-0.64)/2,h:0.26,fontSize:9.5,bold:true,color:l==='ROAS'?cor:K.txt,fit:'shrink'})});
+    txt(s,'Margem',{x:x+0.18,y:5.92,w:lw,h:0.2,fontSize:8,color:K.mut});txt(s,R.p1(b.margem),{x:x+w-0.18-vw,y:5.92,w:vw,h:0.2,fontSize:8.5,bold:true,color:cor,align:'right'});
+    s.addShape(pres.shapes.RECTANGLE,{x:x+0.18,y:6.13,w:w-0.36,h:0.06,fill:{color:'1F2937'},line:{color:'1F2937'}});
+    s.addShape(pres.shapes.RECTANGLE,{x:x+0.18,y:6.13,w:Math.max(0.02,(w-0.36)*Math.max(0,Math.min(1,b.margem||0))),h:0.06,fill:{color:cor},line:{color:cor}})});
   /* rodapé: como foi atribuído e o que ficou sem vínculo */
   const H=X?X.how:{},tl=Object.values(H).reduce((q,v)=>q+v,0)||1,pc=v=>R.p0((v||0)/tl);
   const sem=X?X.sem:{leads:0,nv:0,fat:0};
@@ -4785,6 +4856,7 @@ function vReuniao(){
   ${vKpis()}
   ${vNomes()}
   ${vVinculo()}
+  ${vBmEmp()}
   <div class="card"><div class="ch"><h3>O que entra na apresentação</h3><span class="m">desmarque o que não quiser</span></div>
     <div class="rn-s">${sec.map(([k,l])=>`<label><input type="checkbox" data-rs="${k}"${rnSecoes[k]?' checked':''}> ${l}</label>`).join('')}</div></div>
   <div class="card"><div class="ch"><h3>Como os números são calculados</h3></div>
@@ -4922,7 +4994,7 @@ function bind(){
     if(g('btReuniao'))g('btReuniao').onclick=()=>gerarReuniao('baixar');
     if(g('btApresentar'))g('btApresentar').onclick=()=>gerarReuniao('apresentar');
     document.querySelectorAll('[data-rs]').forEach(c=>c.onchange=()=>{rnSecoes[c.dataset.rs]=c.checked?1:0});
-    bindKpis();bindNomes();bindVinculo()}
+    bindKpis();bindNomes();bindVinculo();bindBmEmp()}
   if(tab==='admin'&&aTab==='tv'&&admOk())bindTv();
   if(tab==='admin'&&aTab==='email'&&admOk())bindEmail();
   if(tab==='admin'&&aTab==='offline'&&admOk())bindOffline();
