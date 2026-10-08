@@ -749,6 +749,7 @@ const CFG_PADRAO={
   bmEmp:{},      /* BM -> empresa dona (quando a planilha não deixa claro) */
   bmRedir:{},    /* "EMPRESA|BM de origem" -> BM de destino: soma tudo no destino */
   linNomes:{},   /* linha de WhatsApp -> nome na reunião; SEMCANAL = leads que vieram sem número */
+  semCanal:{},   /* empresa -> número (4 dígitos) que recebe os leads que chegaram sem canal */
   tv:{periodo:"mes",vel:"media",zoom:"auto",tema:"dark",telas:[]},
   kpi:{lista:["nv","leads","mld","conv","tmed","lf","cpl","inv","margem","icr","roi","roas","cpa","tk"],
     metas:{"*":{conv:3,tmed:15,margem:70,icr:30,roas:4,tgt:15,churn:85}},custom:[],val:{}}
@@ -2854,7 +2855,7 @@ function bindAdmin(){
   q('aLogCsv',()=>baixaTxt('logs_painel.csv','﻿'+['Quando;Fonte;Consulta;Linhas;Tempo (ms);Resultado;Mensagem',
     ...LOGS.map(l=>[new Date(l.t).toLocaleString('pt-BR'),l.fonte,'"'+l.acao.replace(/"/g,'""')+'"',l.linhas,l.ms,l.ok?'ok':'erro','"'+(l.msg||'').replace(/"/g,'""')+'"'].join(';'))].join('\n'),'text/csv;charset=utf-8'));
   q('aLogLimpa',()=>{LOGS.length=0;try{localStorage.removeItem('gwa.logs')}catch(e){}aviso('Logs limpos');render()});
-  bindVinculo();bindBmEmp();
+  bindVinculo();bindSemCanal();bindBmEmp();
   q('aBmSalva',()=>{const c=Object.assign({},CFG.bmContas||{}),l=Object.assign({},CFG.bmLinhas||{});
     /* apagar um valor que vem de fábrica grava '' para ele não voltar ao recarregar */
     document.querySelectorAll('input.bmc').forEach(i=>{const v=i.value.trim().toUpperCase(),k=i.dataset.a;if(v)c[k]=v;else if(CFG_PADRAO.bmContas[k])c[k]='';else delete c[k]});
@@ -3048,7 +3049,7 @@ function bmMotor(meta,atv){
 function bmLead(M,form,canal,mes){
   const f=normT(form);if(f&&M.camp[f])return[[M.camp[f],1,'form']];
   const ls=[];for(const x of f.matchAll(RX_LIN))ls.push(x[1]);
-  const d=String(canal==null?'':canal).replace(/\D/g,'');ls.push(d.length>=8?d.slice(-4):SEMCANAL);
+  ls.push(linKeyEmp(canal));
   /* número vinculado à mão na Administração vale antes do que as campanhas citam */
   for(const l of ls){const b=(CFG.bmLinhas||{})[l];if(b)return[[b,1,'manual']]}
   for(const l of ls){const s=M.linha[mes+'|'+l];if(!s)continue;const e=Object.entries(s),t=e.reduce((q,[,v])=>q+v,0);
@@ -3058,7 +3059,11 @@ function bmLead(M,form,canal,mes){
 function bmCalc(M,leads,velhos,a,b){
   const R={},how={form:0,linha:0,rateio:0,manual:0,sem:0},linSem={};
   /* o admin pode mandar um BM (ou o "sem vínculo") somar dentro de outro BM da empresa */
-  const RD=CFG.bmRedir||{},rd=k=>{const t=RD[fE+'|'+k];return t&&t!==k?t:k};
+  const RD=CFG.bmRedir||{},mp=bmEmpMapa(M),foraBM={};
+  /* a reunião de uma empresa só mostra os BMs dela: BM de outra empresa cai em "sem vínculo", a não ser que o admin mande somar em um BM daqui */
+  const temProprio=Object.values(mp).some(e=>e===fE);
+  const rd=k=>{const t=RD[fE+'|'+k];if(t&&t!==k)return t;
+    if(k!==SEMBM&&temProprio&&mp[k]&&mp[k]!==fE){foraBM[k]=mp[k];return SEMBM}return k};
   const g=k=>{k=rd(k);return R[k]||(R[k]={bm:k,inv:0,leads:0,nv:0,fat:0})};
   const card=new Map();
   leads.forEach(x=>card.set(x.ck,x));(velhos||[]).forEach(x=>{if(!card.has(x.ck))card.set(x.ck,x)});
@@ -3078,7 +3083,7 @@ function bmCalc(M,leads,velhos,a,b){
   const sem=R[SEMBM]||{bm:SEMBM,inv:0,leads:0,nv:0,fat:0};delete R[SEMBM];sem.inv=invSem;
   const lista=Object.values(R).filter(x=>x.inv>0||x.leads>=1||x.nv>0).sort((x,y)=>y.inv-x.inv||y.leads-x.leads);
   lista.forEach(x=>{const c=x.inv>0;x.cpl=c&&x.leads?x.inv/x.leads:null;x.cpa=c&&x.nv?x.inv/x.nv:null;x.roas=c?x.fat/x.inv:null;x.margem=c&&x.fat?(x.fat-x.inv)/x.fat:null});
-  return{lista,sem,how,linSem,semLead,nVend:vend.length}}
+  return{lista,sem,how,linSem,semLead,nVend:vend.length,foraBM}}
 
 
 /* ── vincular número de WhatsApp ao BM de destino (vale antes do que as campanhas citam) ── */
@@ -3087,6 +3092,12 @@ const BM_LISTA=()=>{const s=new Set(Object.values(bmMotor(RAW.meta||[]).acc).fil
   Object.keys(CFG.bmEmp||{}).forEach(b=>b&&s.add(b));Object.values(CFG.bmRedir||{}).forEach(b=>b&&s.add(b));
   return [...s].sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true}))};
 const SEMCANAL='SEMCANAL';
+/* chave da linha: os 4 últimos dígitos do CANAL, assim "(11) 93057-2837", "(11) 930572837" e "2837" viram a mesma linha */
+const linKey=c=>{const d=String(c==null?'':c).replace(/\D/g,'');return d.length>=4?d.slice(-4):SEMCANAL};
+/* número que o admin escolheu para receber os leads sem canal daquela empresa */
+const semCanalDe=emp=>{const v=String((CFG.semCanal||{})[emp]||'').replace(/\D/g,'');return v.length>=4?v.slice(-4):''};
+/* chave já com o destino dos "sem canal" aplicado */
+const linKeyEmp=(c,emp)=>{const k=linKey(c);return k===SEMCANAL?(semCanalDe(emp===undefined?fE:emp)||SEMCANAL):k};
 /* nome da linha de WhatsApp na reunião (SEMCANAL = leads sem número: Google, site, VOIP…) */
 function linNome(k,padrao){const a=((CFG.linNomes||{})[k]||'').trim();if(a)return a;
   return padrao||(k===SEMCANAL?'(sem canal)':String(k))}
@@ -3106,7 +3117,7 @@ let vinFiltro='todos';
 /* todas as linhas de WhatsApp: leads do período (por empresa das campanhas), empresa definida, BM e alertas */
 function vinLinhas(){
   const M=bmMotor(RAW.meta||[]),mes=mesIso(d2),BE=bmEmpresas(M),EL=CFG.empLinhas||{},BL=CFG.bmLinhas||{},lin={};
-  CUBE.forEach(x=>{const d=String(x[3]||'').replace(/\D/g,'');const sc=d.length<8,l=sc?SEMCANAL:d.slice(-4);
+  CUBE.forEach(x=>{const l=linKey(x[3]),sc=l===SEMCANAL;
     const o=lin[l]||(lin[l]={leads:0,emp:{},num:sc?'(sem canal)':x[3],sc});o.leads+=x[4];const e=empOf(x[0]);o.emp[e]=(o.emp[e]||0)+x[4]});
   [...Object.keys(EL),...Object.keys(BL),...Object.keys(CFG.linNomes||{})].forEach(l=>{if(lin[l]||!(EL[l]||BL[l]||(CFG.linNomes||{})[l]))return;
     if(l===SEMCANAL){lin[l]={leads:0,emp:{},num:'(sem canal)',sc:true};return}
@@ -3171,6 +3182,35 @@ function bindVinculo(){const g=id=>document.getElementById(id);if(!g('vinAdd'))r
     fim(k?`${k} ${k===1?'alteração salva':'alterações salvas'} nos números`:'Nada mudou nos números')};
   document.querySelectorAll('[data-vrm]').forEach(bt=>bt.onclick=()=>{const l=bt.dataset.vrm;vinGrava(l,'','','');fim('Número '+l+' sem empresa, BM e nome definidos')})}
 
+/* ── leads que chegaram sem canal: cada empresa manda os seus para um número ── */
+function vSemCanal(){
+  const porEmp={},nums={};
+  CUBE.forEach(x=>{const e=empOf(x[0]),l=linKey(x[3]);
+    if(l===SEMCANAL)porEmp[e]=(porEmp[e]||0)+x[4];else{(nums[e]=nums[e]||{})[l]=(nums[e][l]||0)+x[4]}});
+  const EMPS=[...new Set([...Object.keys(porEmp),...Object.keys(nums),'GWA','M12','OFF','IND'])].filter(e=>e&&e!=='—').sort();
+  const tot=Object.values(porEmp).reduce((a,b)=>a+b,0);
+  const SC=CFG.semCanal||{};
+  const linha=e=>{const q=porEmp[e]||0,cur=semCanalDe(e),N=Object.entries(nums[e]||{}).sort((a,b)=>b[1]-a[1]);
+    const opts=`<option value="">— deixar como "sem canal"</option>`+N.map(([k,v])=>`<option value="${esc(k)}"${cur===k?' selected':''}>${esc(linNome(k,k))} · ${n(v)} leads</option>`).join('')
+      +(cur&&!N.some(([k])=>k===cur)?`<option value="${esc(cur)}" selected>${esc(cur)} (sem leads no período)</option>`:'');
+    return `<tr${q?'':' style="opacity:.55"'}><td class="lft"><b>${esc(e)}</b></td><td>${n(q)}</td>
+      <td>${tot?pc(q,tot):'—'}</td>
+      <td><select class="scn" data-e="${esc(e)}" aria-label="Número que recebe os leads sem canal da ${esc(e)}">${opts}</select></td>
+      <td class="lft">${cur?`<span class="tg g">somam na linha ${esc(linNome(cur,cur))}</span>`:(q?'<span class="tg o">entram como "sem canal"</span>':'<span class="tg s">—</span>')}</td></tr>`};
+  return `<div class="card wide t"><div class="ch" style="padding:15px 16px 6px"><h3>Leads sem canal — destino por empresa</h3>
+      <span class="m">${n(tot)} leads no período ${esc(dc(d1))} a ${esc(dc(d2))}</span></div>
+    <p class="info" style="margin:0 16px 10px">Leads que chegaram sem número de WhatsApp (Google, site, VOIP, TV). Eles são separados <b>pela empresa da campanha</b>:
+      escolha para cada empresa em qual número eles devem somar. Na reunião daquela empresa eles entram naquela linha — e herdam o BM dela — em vez de ficar numa linha "(sem canal)" à parte.</p>
+    <div class="tw"><table class="xl"><thead><tr><th>Empresa</th><th>Leads sem canal</th><th>% do total</th><th>Somar no número</th><th>Situação</th></tr></thead>
+      <tbody>${EMPS.map(linha).join('')}</tbody></table></div>
+    <div class="acts" style="padding:12px 16px"><button class="btn pri" id="scSalva">Salvar destino dos sem canal</button>
+      <span class="info" style="margin:0">A lista mostra só os números que receberam leads daquela empresa.</span></div></div>`}
+function bindSemCanal(){const b=document.getElementById('scSalva');if(!b)return;
+  b.onclick=()=>{const S=Object.assign({},CFG.semCanal||{});
+    document.querySelectorAll('select.scn').forEach(sl=>{const e=sl.dataset.e,v=sl.value;if(v)S[e]=v;else delete S[e]});
+    CFG.semCanal=S;salvaCfg();if(typeof rnCache!=='undefined')rnCache=null;
+    logEv('Administração','destino dos leads sem canal salvo',true,Object.keys(S).length);aviso('Destino dos leads sem canal salvo');render()}}
+
 /* ── BM por empresa: de quem é cada BM e para onde somar o que não é dela ── */
 function vBmEmp(){
   const M=bmMotor(RAW.meta||[]),mapa=bmEmpMapa(M),BE=bmEmpresas(M),RD=CFG.bmRedir||{},MAN=CFG.bmEmp||{};
@@ -3223,7 +3263,7 @@ function aBM(){
     const o=lin[l]||(lin[l]={leads:0,emp:{},num:x[3]});o.leads+=x[4];const e=empOf(x[0]);o.emp[e]=(o.emp[e]||0)+x[4]});
   const mes=mesIso(d2);
   const L=Object.entries(lin).filter(([,o])=>o.leads>0).sort((a,b)=>b[1].leads-a[1].leads);
-  return vVinculo()+vBmEmp()+`<div class="card t wide"><div class="ch" style="padding:15px 16px 8px"><h3>BM — contas de anúncio</h3><span class="m">usado no slide "Performance por BM" da Reunião</span></div>
+  return vVinculo()+vSemCanal()+vBmEmp()+`<div class="card t wide"><div class="ch" style="padding:15px 16px 8px"><h3>BM — contas de anúncio</h3><span class="m">usado no slide "Performance por BM" da Reunião</span></div>
     <p class="info" style="margin:0 16px 10px">Cada conta de anúncio pertence a um BM. O painel usa primeiro a <b>coluna BM da planilha</b> (RELATORIO_CAMPANHAS_2026 col. N e CAMPANHAS_ATIVAS col. O).
       Quando a planilha não diz, ele lê o BM no nome da conta (ex.: "Grazi - BM3") ou nas campanhas dela. O ajuste manual abaixo vale acima de tudo — use só para corrigir.</p>
     ${contas.length?`<div class="tw"><table class="xl"><thead><tr><th>Conta de anúncio</th><th>Gasto no ano</th><th>BM na planilha</th><th>BM usado</th><th>De onde veio</th><th>BM (ajuste manual)</th></tr></thead>
@@ -4125,11 +4165,11 @@ function rnDados(X){
   const tgtTot=camps.reduce((s,c)=>s+c.tgt,0);
   /* linhas de WhatsApp = coluna CANAL da campanha principal */
   const top=camps[0];const lm={};
-  if(top)CUBE.forEach(x=>{if(x[0]!==top.k)return;const ln=x[3]||'(sem canal)';const o=lm[ln]||(lm[ln]={rec:0,nt:0,sr:0,q:0,v:0});
+  /* a linha é identificada pelos 4 últimos dígitos: formatos diferentes do mesmo número entram juntos.
+     Os leads sem canal vão para o número escolhido para esta empresa em Administração → "Leads sem canal". */
+  if(top)CUBE.forEach(x=>{if(x[0]!==top.k)return;const ln=linKeyEmp(x[3],fE);const o=lm[ln]||(lm[ln]={rec:0,nt:0,sr:0,q:0,v:0});
     o.rec+=x[4];const t=x[1];if(ehSemTrab(t))o.nt+=x[4];else if(ehNaoAt(t))o.sr+=x[4];if(ehTarget(t))o.q+=x[4];if(kind(t)==='g')o.v+=x[4]});
-  /* o nome da linha é o apelido dado na Administração; sem apelido, os 4 últimos dígitos */
-  const nomeLin=k=>{const d=String(k).replace(/\D/g,'');const ch=d.length>=8?d.slice(-4):SEMCANAL;
-    return linNome(ch,ch===SEMCANAL?'(sem canal)':ch)};
+  const nomeLin=k=>linNome(k,k===SEMCANAL?'(sem canal)':k);
   const mkLinha=(k,o,extra)=>{const tr=o.rec-o.nt,rs=tr-o.sr;
     return Object.assign({nome:nomeLin(k),canal:k,rec:o.rec,tr,nt:o.nt,rs,sr:o.sr,q:o.q,v:o.v,
       pResp:tr?rs/tr:null,pQ:o.rec?o.q/o.rec:null,pV:o.rec?o.v/o.rec:null,aprov:o.rec?tr/o.rec:null},extra||{})};
@@ -4648,11 +4688,12 @@ function rnBM(pres,D){
   const H=X?X.how:{},tl=Object.values(H).reduce((q,v)=>q+v,0)||1,pc=v=>R.p0((v||0)/tl);
   const sem=X?X.sem:{leads:0,nv:0,fat:0};
   const lsem=X?Object.entries(X.linSem).filter(([l,v])=>l!=='(sem linha)'&&v>=10).sort((x,y)=>y[1]-x[1]).slice(0,3).map(([l])=>l):[];
+  const fora=X&&X.foraBM?Object.keys(X.foraBM):[];
   card(pres,s,0.62,6.33,12.11,0.68);
   txt(s,[{text:'Como foi atribuído: ',options:{bold:true,color:K.or}},
     {text:`custo pela conta de anúncio de cada BM · leads pelo formulário (${pc(H.form)}) ou pela linha de WhatsApp anunciada no mês (${pc((H.linha||0)+(H.rateio||0))})${H.manual?` ou pelo número vinculado na Administração (${pc(H.manual)})`:''} · vendas pela chave do card do lead.`,options:{color:'D1D5DB',breakLine:true}},
     {text:'Sem vínculo com BM: ',options:{bold:true,color:K.sub}},
-    {text:`${R.int(sem.leads)} leads · ${R.int(sem.nv)} vendas · ${R.m0(sem.fat)} (Google, VOIP, TV e linhas sem campanha Meta${lsem.length?': '+lsem.join(', '):''}).`,options:{color:K.sub}}],
+    {text:`${R.int(sem.leads)} leads · ${R.int(sem.nv)} vendas · ${R.m0(sem.fat)} (Google, VOIP, TV e linhas sem campanha Meta${lsem.length?': '+lsem.join(', '):''}).`+(fora.length?` Inclui o que caiu em BM de outra empresa (${fora.join(', ')}) — defina o destino em Administração → BM por empresa.`:''),options:{color:K.sub}}],
     {x:0.8,y:6.37,w:11.8,h:0.6,fontSize:8.5,valign:'middle'})}
 
 /* ═════ Comparativo geral: mesmo trecho do mês passado × este mês ═════ */
@@ -4856,6 +4897,7 @@ function vReuniao(){
   ${vKpis()}
   ${vNomes()}
   ${vVinculo()}
+  ${vSemCanal()}
   ${vBmEmp()}
   <div class="card"><div class="ch"><h3>O que entra na apresentação</h3><span class="m">desmarque o que não quiser</span></div>
     <div class="rn-s">${sec.map(([k,l])=>`<label><input type="checkbox" data-rs="${k}"${rnSecoes[k]?' checked':''}> ${l}</label>`).join('')}</div></div>
@@ -4994,7 +5036,7 @@ function bind(){
     if(g('btReuniao'))g('btReuniao').onclick=()=>gerarReuniao('baixar');
     if(g('btApresentar'))g('btApresentar').onclick=()=>gerarReuniao('apresentar');
     document.querySelectorAll('[data-rs]').forEach(c=>c.onchange=()=>{rnSecoes[c.dataset.rs]=c.checked?1:0});
-    bindKpis();bindNomes();bindVinculo();bindBmEmp()}
+    bindKpis();bindNomes();bindVinculo();bindSemCanal();bindBmEmp()}
   if(tab==='admin'&&aTab==='tv'&&admOk())bindTv();
   if(tab==='admin'&&aTab==='email'&&admOk())bindEmail();
   if(tab==='admin'&&aTab==='offline'&&admOk())bindOffline();
