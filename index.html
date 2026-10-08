@@ -4076,7 +4076,13 @@ function rnDados(X){
   const agF=rows=>{const m={};rows.forEach(r=>{const c=nc(r[0]);if(empOf(c)!==fE)return;const f=String(r[1]||'(sem formulário)').trim();
     const o=m[f]||(m[f]={camp:c,t:0,tab:{}});const t=(r[2]&&r[2]!=='-')?String(r[2]).trim():'Sem tabulação';o.tab[t]=(o.tab[t]||0)+(+r[3]||0);o.t+=(+r[3]||0)});return m};
   const FA=agF(X.forms||[]),FP=agF(X.formsAnt||[]);
-  const forms=Object.entries(FA).filter(([f,o])=>o.t>=20).sort((x,y)=>y[1].t-x[1].t).slice(0,4).map(([f,o])=>({f,...o,ant:FP[f]||null}));
+  /* formulários com o mesmo "Nome na reunião" viram um só: soma leads e tabulações */
+  const juntaF=m=>{const o={};Object.entries(m).forEach(([f,v])=>{const k=nomeForm(f);
+    const g=o[k]||(o[k]={f,nome:k,camp:v.camp,t:0,tab:{},fs:[],maior:0});
+    g.fs.push(f);g.t+=v.t;if(v.t>g.maior){g.maior=v.t;g.f=f;g.camp=v.camp}
+    Object.entries(v.tab).forEach(([t,n])=>{g.tab[t]=(g.tab[t]||0)+n})});return o};
+  const GA=juntaF(FA),GP=juntaF(FP);
+  const forms=Object.entries(GA).filter(([,o])=>o.t>=20).sort((x,y)=>y[1].t-x[1].t).slice(0,4).map(([k,o])=>({...o,ant:GP[k]||null}));
   /* BM: custo pela conta de anúncio; leads pelo formulário/linha de WhatsApp; vendas pela chave do card */
   const BMR=X.M?bmCalc(X.M,X.leads||[],X.velhos||[],a,b):null;
   const bms=BMR?BMR.lista.slice(0,4):[];
@@ -4388,8 +4394,10 @@ function rnBalanc(pres,D){
 function nomeForm(f){const a=((CFG.formNomes||{})[f]||'').trim();if(a)return a;
   return String(f).replace(new RegExp('^\\s*\\[\\s*'+fE+'\\s*\\]\\s*','i'),'').replace(/\[(CADASTROS?|LEADS)\]\s*/gi,'').trim()||f}
 function rnForm(pres,D,f){
-  const curto=nomeForm(f.f);
-  const s=slideBase(pres,'Análise de Formulário',curto,`${String(f.f).length>70?String(f.f).slice(0,68)+'…':f.f} · cadastro (${D.periodo}/${parse(D.b).getFullYear()})`,'GWA CONSULTORIA | ANÁLISE DE CADASTRO');
+  const curto=f.nome||nomeForm(f.f);
+  const nJ=(f.fs||[]).length;
+  const orig=nJ>1?`${nJ} formulários somados (mesmo nome na reunião)`:(String(f.f).length>70?String(f.f).slice(0,68)+'…':f.f);
+  const s=slideBase(pres,'Análise de Formulário',curto,`${orig} · cadastro (${D.periodo}/${parse(D.b).getFullYear()})`,'GWA CONSULTORIA | ANÁLISE DE CADASTRO');
   const L=Object.entries(f.tab).sort((a,b)=>b[1]-a[1]);
   const pNA=(f.tab['Não atende']||0)/f.t,venda=Object.entries(f.tab).filter(([t])=>kind(t)==='g').reduce((q,[,v])=>q+v,0);
   const neg=Object.entries(f.tab).filter(([t])=>/negocia/i.test(t)).reduce((q,[,v])=>q+v,0);
@@ -4627,27 +4635,37 @@ function rnLeads(pres,D){
     txt(s,l,{x:x+0.15,y:1.44,w:2.1,h:0.2,fontSize:8,color:K.sub});
     txt(s,v,{x:x+0.15,y:1.64,w:2.2,h:0.42,fontSize:18,bold:true});
     txt(s,dv==null?'':R.sg(dv)+R.d1(Math.abs(dv*100))+'%',{x:x+1.75,y:1.74,w:1.0,h:0.24,fontSize:8.5,bold:true,align:'right',color:dv==null?K.mut:dv>=0?K.gr:K.rd})});
-  const tabela=(x,y,w,h,tit,sub,rows,colW)=>{card(pres,s,x,y,w,h);
-    txt(s,tit,{x:x+0.2,y:y+0.1,w:w-2.4,h:0.26,fontSize:10.5,bold:true});
-    txt(s,sub,{x:x+w-2.5,y:y+0.13,w:2.3,h:0.22,fontSize:7.5,color:K.mut,align:'right'});
-    s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:'D1D5DB'}}:c)),{x:x+0.18,y:y+0.44,w:w-0.36,colW,rowH:Math.min(0.34,(h-0.6)/rows.length),fontFace:FT,fontSize:8.5,align:'center',
+  /* cada quadro: faixa colorida no topo, cabeçalho destacado, linhas zebradas e altura que preenche o cartão */
+  const tabela=(x,y,w,h,tit,sub,rows,colW,cor)=>{card(pres,s,x,y,w,h);
+    s.addShape(pres.shapes.RECTANGLE,{x:x+0.01,y,w:w-0.02,h:0.035,fill:{color:cor||K.or},line:{color:cor||K.or}});
+    txt(s,tit,{x:x+0.2,y:y+0.12,w:w-2.4,h:0.26,fontSize:10.5,bold:true});
+    txt(s,sub,{x:x+w-2.5,y:y+0.15,w:2.3,h:0.22,fontSize:7.5,color:K.mut,align:'right'});
+    const rh=Math.max(0.27,Math.min(0.46,(h-0.64)/rows.length));
+    const cel=(c,i)=>{const o=(c&&typeof c==='object')?{text:c.text,options:Object.assign({},c.options)}:{text:c,options:{}};
+      if(!o.options.color)o.options.color='D1D5DB';
+      if(!o.options.fill)o.options.fill={color:i===0?'1C1C1C':(i%2?'161616':'0E0E0E')};
+      return o};
+    s.addTable(rows.map((r,i)=>r.map(c=>cel(c,i))),{x:x+0.18,y:y+0.5,w:w-0.36,colW,rowH:rh,fontFace:FT,fontSize:8.5,align:'center',color:'D1D5DB',
       border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'})};
-  const hd=a=>a.map((t,i)=>({text:t,options:{bold:true,fontSize:8,color:i?K.sub:K.or}}));
+  const hd=a=>a.map((t,i)=>({text:t,options:{bold:true,fontSize:8,color:i?K.sub:K.or,align:i?'center':'left'}}));
+  const vLead=v=>({text:v,options:{bold:true,color:K.or2}});
   /* por mídia (campanha) */
-  const mid=D.camps.slice(0,5).map(c=>[{text:c.nome,options:{bold:true,color:'D1D5DB'}},{text:R.int(c.o.leads),options:{bold:true}},
-    R.p1(T.leads?c.o.leads/T.leads:null),R.int(c.o.nv),R.p2(c.o.leads?c.o.nv/c.o.leads:null),{text:R.int(c.p?c.p.leads:null),options:{color:K.sub}}]);
-  tabela(0.62,2.42,6.2,2.3,'Por mídia','leads · % · vendas · conv.',[hd(['Mídia','Leads','%','Vendas','Conv','Mês ant.']),...mid],[1.5,0.8,0.7,0.8,0.8,0.9]);
+  const mid=D.camps.slice(0,5).map(c=>[{text:c.nome,options:{bold:true,color:K.txt,align:'left'}},vLead(R.int(c.o.leads)),
+    R.p1(T.leads?c.o.leads/T.leads:null),{text:R.int(c.o.nv),options:{bold:true,color:K.gr}},R.p2(c.o.leads?c.o.nv/c.o.leads:null),{text:R.int(c.p?c.p.leads:null),options:{color:K.mut}}]);
+  tabela(0.62,2.42,6.2,2.3,'Por mídia','leads · % · vendas · conv.',[hd(['Mídia','Leads','%','Vendas','Conv','Mês ant.']),...mid],[1.5,0.8,0.7,0.8,0.8,0.9],K.bl);
   /* por linha de WhatsApp */
-  const ln=D.linhas.slice(0,5).map(l=>[{text:l.nome,options:{bold:true,color:l.outras?K.mut:'D1D5DB'}},{text:R.int(l.rec),options:{bold:true}},
-    R.p1(T.leads?l.rec/T.leads:null),R.int(l.q),R.int(l.v)]);
-  tabela(7.02,2.42,5.71,2.3,'Por linha de WhatsApp','recebidos · qualificados · vendas',[hd(['Linha','Leads','%','Qualif.','Vendas']),...(ln.length?ln:[[{text:'Sem linha com volume',options:{color:K.mut}},'—','—','—','—']])],[1.4,0.9,0.8,0.95,0.95]);
+  const ln=D.linhas.slice(0,5).map(l=>[{text:l.nome,options:{bold:true,color:l.outras?K.mut:K.txt,align:'left'}},vLead(R.int(l.rec)),
+    R.p1(T.leads?l.rec/T.leads:null),R.int(l.q),{text:R.int(l.v),options:{bold:true,color:K.gr}}]);
+  tabela(7.02,2.42,5.71,2.3,'Por linha de WhatsApp','recebidos · qualificados · vendas',[hd(['Linha','Leads','%','Qualif.','Vendas']),...(ln.length?ln:[[{text:'Sem linha com volume',options:{color:K.mut}},'—','—','—','—']])],[1.4,0.9,0.8,0.95,0.95],K.gr);
   /* por formulário */
   const fm=(D.forms||[]).slice(0,5).map(f=>{const v=Object.entries(f.tab).filter(([t])=>/^venda/i.test(t)).reduce((q,[,n])=>q+n,0);
-    return [{text:nomeForm(f.f),options:{bold:true,color:'D1D5DB',fit:'shrink'}},{text:R.int(f.t),options:{bold:true}},R.p1(T.leads?f.t/T.leads:null),R.int(v),{text:f.ant?R.int(f.ant.t):'—',options:{color:K.sub}}]});
-  tabela(0.62,4.88,6.2,2.14,'Por formulário de cadastro','volume no período',[hd(['Formulário','Leads','%','Vendas','Mês ant.']),...(fm.length?fm:[[{text:'Sem formulário com volume',options:{color:K.mut}},'—','—','—','—']])],[2.2,0.85,0.75,0.85,0.95]);
+    const nj=(f.fs||[]).length;
+    return [{text:(f.nome||nomeForm(f.f))+(nj>1?`  (${nj} formulários)`:''),options:{bold:true,color:K.txt,align:'left',fit:'shrink'}},vLead(R.int(f.t)),R.p1(T.leads?f.t/T.leads:null),{text:R.int(v),options:{bold:true,color:K.gr}},{text:f.ant?R.int(f.ant.t):'—',options:{color:K.mut}}]});
+  tabela(0.62,4.88,6.2,2.14,'Por formulário de cadastro','volume no período · nomes iguais somam',[hd(['Formulário','Leads','%','Vendas','Mês ant.']),...(fm.length?fm:[[{text:'Sem formulário com volume',options:{color:K.mut}},'—','—','—','—']])],[2.2,0.85,0.75,0.85,0.95],K.pu);
   /* por semana */
-  const sem=(D.W||[]).filter(w=>!w.ant).map(w=>[{text:w.n.replace('Semana ','S'),options:{bold:true,color:K.or}},{text:R.int(w.leads),options:{bold:true}},R.int(w.nv),R.p2(w.conv)]);
-  tabela(7.02,4.88,5.71,2.14,'Por semana','leads · vendas · conversão',[hd(['Semana','Leads','Vendas','Conv']),...sem],[1.4,1.2,1.1,1.25])}
+  const sem=(D.W||[]).filter(w=>!w.ant).map(w=>[{text:w.n.replace('Semana ','S'),options:{bold:true,color:K.txt,align:'left'}},vLead(R.int(w.leads)),
+    {text:R.int(w.nv),options:{bold:true,color:K.gr}},R.p2(w.conv)]);
+  tabela(7.02,4.88,5.71,2.14,'Por semana','leads · vendas · conversão',[hd(['Semana','Leads','Vendas','Conv']),...(sem.length?sem:[[{text:'Sem semana fechada',options:{color:K.mut}},'—','—','—']])],[1.4,1.2,1.1,1.25],K.am)}
 
 /* ═════ Vendas fechadas dentro do próprio mês (tabulação Venda na base) ═════ */
 function rnVendaMes(pres,D){
@@ -4792,16 +4810,19 @@ function vNomes(){carregaForms();
   const emp=fE,F={};(FORMLST.rows||[]).forEach(r=>{const f=String(r[0]==null?'':r[0]).trim()||'(sem formulário)';const c=nc(r[1]);if(emp!=='TODAS'&&empOf(c)!==emp)return;
     const o=F[f]||(F[f]={n:0,camps:{}});o.n+=+r[2]||0;o.camps[c]=1});
   const forms=Object.entries(F).sort((a,b)=>b[1].n-a[1].n);
+  /* formulários que caem no mesmo nome da reunião são somados num slide só */
+  const GR={};forms.forEach(([f,o])=>{const k=nomeForm(f);const g=GR[k]||(GR[k]={q:0,n:0});g.q++;g.n+=o.n});
   const camps=[...new Set(CUBE.map(x=>x[0]).filter(c=>c&&c!==BL&&(emp==='TODAS'||empOf(c)===emp)))].sort();
   const FN=CFG.formNomes||{},AP=CFG.apelidos||{};
   return `<div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Nomes na reunião</h3><span class="m">${emp==='TODAS'?'todas as empresas':esc(emp)} · vale para os slides e para o PowerPoint</span></div>
-    <p class="info" style="margin:0 16px 12px">Dê o nome que deve aparecer na apresentação. Em branco, usa o nome da planilha. Ex.: "[M12] [CADASTROS] [WAPP 0608] Formulário completo" → <b>Campanha Completa</b>.</p>
+    <p class="info" style="margin:0 16px 12px">Dê o nome que deve aparecer na apresentação. Em branco, usa o nome da planilha. Ex.: "[M12] [CADASTROS] [WAPP 0608] Formulário completo" → <b>Campanha Completa</b>. Formulários que ficarem com o <b>mesmo nome</b> entram somados, como um único formulário, nos slides e no PowerPoint.</p>
     <div class="nm-g">
     <div><h4 class="cfg-t" style="margin:0 16px 8px">Formulários de cadastro <span class="m">(ativos de ${esc(dc(d1))} a ${esc(dc(d2))})</span></h4>
       ${FORMLST.rows==null?`<p class="info" style="margin:0 16px 12px">${FORMLST.erro?'Não deu para ler os formulários: '+esc(FORMLST.erro):'Buscando os formulários na base…'}</p>`
       :forms.length?`<div class="tw"><table class="xl nm-t"><thead><tr><th>Formulário na planilha</th><th>Leads</th><th>Nome na reunião</th></tr></thead><tbody>
         ${forms.map(([f,o])=>`<tr><td class="lft"><b>${esc(f)}</b><div class="kp-h">${Object.keys(o.camps).map(esc).join(' · ')}</div></td><td>${n(o.n)}</td>
-          <td><input class="nm-in" data-fn="${esc(f)}" value="${esc(FN[f]||'')}" placeholder="${esc(nomeForm.call(null,f))}" maxlength="40" aria-label="Nome na reunião de ${esc(f)}"></td></tr>`).join('')}</tbody></table></div>`
+          <td><input class="nm-in" data-fn="${esc(f)}" value="${esc(FN[f]||'')}" placeholder="${esc(nomeForm.call(null,f))}" maxlength="40" aria-label="Nome na reunião de ${esc(f)}">
+            ${GR[nomeForm(f)].q>1?`<div class="kp-h">junta com +${GR[nomeForm(f)].q-1} no slide · ${n(GR[nomeForm(f)].n)} leads somados</div>`:''}</td></tr>`).join('')}</tbody></table></div>`
       :'<p class="info" style="margin:0 16px 12px">Nenhum formulário de cadastro com leads nesse período.</p>'}</div>
     <div><h4 class="cfg-t" style="margin:0 16px 8px">Campanhas</h4>
       <div class="tw"><table class="xl nm-t"><thead><tr><th>Campanha mapeada</th><th>Nome na reunião</th></tr></thead><tbody>
