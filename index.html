@@ -766,6 +766,7 @@ const CFG_PADRAO={
   semCanal:{},   /* empresa -> número (4 dígitos) que recebe os leads que chegaram sem canal */
   bmCamp:{},     /* campanha -> 1 (é Meta, entra no slide de BM) ou 0 (não é Meta) */
   rn:{sel:{},ordem:[],tema:'escuro'},  /* slides da reunião: quais entram, em que ordem e o estilo */
+  empCamp:{},    /* campanha -> empresa responsável (vale acima do sufixo do nome e da coluna da planilha) */
   tv:{periodo:"mes",vel:"media",zoom:"auto",tema:"dark",telas:[]},
   kpi:{lista:["nv","leads","mld","conv","tmed","lf","cpl","inv","margem","icr","roi","roas","cpa","tk"],
     metas:{"*":{conv:3,tmed:15,margem:70,icr:30,roas:4,tgt:15,churn:85}},custom:[],val:{}}
@@ -826,6 +827,7 @@ function gdate(v){
 /* "CADASTRO - M12" e "cadastro-m12" viram "CADASTRO-M12": so formatacao, o mapeamento nao muda */
 const nc=s=>String(s==null?'':s).trim().replace(/\s*-\s*/g,'-').replace(/\s+/g,' ').toUpperCase();
 function empOf(c){const s=String(c||'').trim();if(!s)return'—';
+  const man=(CFG.empCamp||{})[s];if(man)return man;   /* empresa escolhida na Administração → Mapeamento */
   const m=s.match(/-\s*([A-Za-z0-9]+)\s*$/);return m?m[1].toUpperCase():'—'}
 function kind(t){const s=String(t||'').trim().toLowerCase();
   if(/^pr[eé]\s*-?\s*venda/.test(s))return'o';
@@ -1479,7 +1481,7 @@ function buildCusto(meta,ads,off){
       const ct=String(r[4]||'—').trim()||'—';o.contas[ct]=(o.contas[ct]||0)+val;return}
     const camp=nc(r[2]);
     const fEmp=String(r[4]||'').trim().toUpperCase();
-    const emp=String(r[3]||'').trim().toUpperCase()||(EMPS.indexOf(fEmp)>=0?fEmp:'NÃO MAPEADA');
+    const emp=(CFG.empCamp||{})[camp]||String(r[3]||'').trim().toUpperCase()||(EMPS.indexOf(fEmp)>=0?fEmp:'NÃO MAPEADA');
     const y=+mm[2], m=+mm[1];
     let nd=diasNoMes(y,m);
     /* mes em andamento: o gasto acumulado vai ate o dia anterior a atualizacao, nao ate o fim do mes */
@@ -1493,7 +1495,7 @@ function buildCusto(meta,ads,off){
   (ads||[]).forEach(r=>{
     const d=gdate(r[0]); if(!d)return; const val=+r[3]||0;
     if(!String(r[5]==null?'':r[5]).trim()){EXCL.n++;EXCL.v+=val;return}
-    const camp=nc(r[5]), emp=String(r[6]||'').trim().toUpperCase()||empOf(camp);
+    const camp=nc(r[5]), emp=(CFG.empCamp||{})[camp]||String(r[6]||'').trim().toUpperCase()||empOf(camp);
     out.push({d,camp,emp,val,src:'ADS',canal:String(r[2]||'Google').trim(),
       estado:String(r[1]||'').trim(),budget:+r[4]||0,apx:false});
   });
@@ -2797,14 +2799,24 @@ function aMapa(){
         <td class="lft">${Object.entries(o.contas).sort((a,b)=>b[1]-a[1]).map(([c,v])=>esc(c)+' '+moS(v)).join(' · ')}</td></tr>`).join('')}</tbody></table></div>`:''}</div>
   <div class="card t wide"><div class="ch" style="padding:15px 16px 8px"><h3>Campanhas encontradas nas planilhas</h3>
     <span class="m">${L.length} · valores do período selecionado</span></div>
-    <div class="tw"><table class="xl"><thead><tr><th>Campanha mapeada</th><th>Empresa</th><th>Aparece em</th><th>Leads</th><th>Custo</th><th>Vendas</th><th>Faturamento</th><th>Situação</th><th>Nome nos relatórios</th></tr></thead>
-    <tbody>${L.map(([k,o])=>{const s=sit(o);return `<tr><td class="lft"><b>${esc(k)}</b></td><td>${esc(empOf(k))}</td>
+    <div class="tw"><table class="xl"><thead><tr><th>Campanha mapeada</th><th>Empresa responsável</th><th>Aparece em</th><th>Leads</th><th>Custo</th><th>Vendas</th><th>Faturamento</th><th>Situação</th><th>Nome nos relatórios</th></tr></thead>
+    <tbody>${L.map(([k,o])=>{const s=sit(o),man=(CFG.empCamp||{})[k]||'',auto=empAuto(k);
+      return `<tr><td class="lft"><b>${esc(k)}</b>${man&&man!==auto?`<div class="kp-h">no nome: ${esc(auto)}</div>`:''}</td>
+      <td><select class="empc" data-c="${esc(k)}" aria-label="Empresa responsável por ${esc(k)}">${optEmp(man,auto)}</select></td>
       <td class="lft">${[...o.src].map(x=>`<span class="tg s">${esc(x)}</span>`).join(' ')}</td>
       <td>${n(o.leads)}</td><td>${mo(o.inv)}</td><td>${n(o.nv)}</td><td>${mo(o.fat)}</td>
       <td><span class="tg ${s[0]==='g'?'g':s[0]==='r'?'r':s[0]==='y'?'o':'s'}">${s[1]}</span></td>
       <td><input class="ap" data-c="${esc(k)}" value="${esc((CFG.apelidos||{})[k]||'')}" placeholder="${esc(k.replace(/-[A-Z0-9]+$/,''))}" aria-label="Nome de ${esc(k)} nos relatórios"></td></tr>`}).join('')}</tbody></table></div>
-    <div class="acts" style="padding:12px 16px"><button class="btn pri" id="aApSalva">Salvar nomes</button>
-      <span class="info" style="margin:0">Ex.: CADASTRO-M12 → NEWS. Muda só o nome exibido nos relatórios e no Excel; o mapeamento da planilha não é alterado.</span></div></div>`+aBM()}
+    <div class="acts" style="padding:12px 16px"><button class="btn pri" id="aApSalva">Salvar nomes e empresas</button>
+      <span class="info" style="margin:0">A <b>empresa responsável</b> manda em todo o painel (leads, custo, reunião). Em "automático" vale o sufixo do nome ou a coluna da planilha.
+        O nome nos relatórios muda só o que aparece na tela; a planilha nunca é alterada.</span></div></div>`+aBM()}
+/* empresa que o painel usaria sozinho (sufixo do nome da campanha) */
+function empAuto(c){const m=String(c||'').trim().match(/-\s*([A-Za-z0-9]+)\s*$/);return m?m[1].toUpperCase():'—'}
+function optEmp(cur,auto){
+  const E=[...new Set(['GWA','M12','OFF','IND',...CUBE.map(x=>empAuto(x[0])),...CUSTO.map(x=>empAuto(x.camp)),...FIN.map(x=>x.e)]
+    .filter(e=>e&&e!=='—'))].sort();
+  return `<option value=""${cur?'':' selected'}>automático (${esc(auto||'—')})</option>`+
+    E.map(e=>`<option value="${esc(e)}"${cur===e?' selected':''}>${esc(e)}</option>`).join('')}
 
 /* ── configuração ── */
 function campo(id,rot,val,cls){return `<label class="cf ${cls||''}"><span>${rot}</span><input id="${id}" value="${esc(val)}"></label>`}
@@ -2877,8 +2889,15 @@ function bindAdmin(){
     document.querySelectorAll('input.bmc').forEach(i=>{const v=i.value.trim().toUpperCase(),k=i.dataset.a;if(v)c[k]=v;else if(CFG_PADRAO.bmContas[k])c[k]='';else delete c[k]});
     document.querySelectorAll('input.bml').forEach(i=>{const v=i.value.trim().toUpperCase(),k=i.dataset.l;if(v)l[k]=v;else if(CFG_PADRAO.bmLinhas[k])l[k]='';else delete l[k]});
     CFG.bmContas=c;CFG.bmLinhas=l;salvaCfg();logEv('Administração','mapa de BM salvo',true,Object.keys(c).length+Object.keys(l).length);aMsg='BM salvo. Vale para a próxima apresentação gerada.';render()});
-  q('aApSalva',()=>{const ap={};document.querySelectorAll('input.ap').forEach(i=>{const v=i.value.trim();if(v)ap[i.dataset.c]=v});
-    CFG.apelidos=ap;salvaCfg();logEv('Administração','nomes de campanha salvos',true,Object.keys(ap).length);aMsg='Nomes salvos. Eles já aparecem nos relatórios e no Excel.';render()});
+  q('aApSalva',()=>{const ap={},ec=Object.assign({},CFG.empCamp||{});
+    document.querySelectorAll('input.ap').forEach(i=>{const v=i.value.trim();if(v)ap[i.dataset.c]=v});
+    let mudouEmp=0;
+    document.querySelectorAll('select.empc').forEach(sl=>{const k=sl.dataset.c,v=sl.value;
+      if(v){if(ec[k]!==v){ec[k]=v;mudouEmp++}}else if(ec[k]){delete ec[k];mudouEmp++}});
+    CFG.apelidos=ap;CFG.empCamp=ec;salvaCfg();if(typeof rnCache!=='undefined')rnCache=null;
+    if(mudouEmp&&(RAW.meta||RAW.ads||RAW.off))ingCusto(RAW.meta||[],RAW.ads||[],RAW.off||[],RAW.atv||[]);
+    logEv('Administração','nomes e empresas de campanha salvos',true,Object.keys(ap).length+Object.keys(ec).length);
+    aMsg=mudouEmp?`Salvo. ${mudouEmp} ${mudouEmp===1?'campanha mudou':'campanhas mudaram'} de empresa — os totais já foram recalculados.`:'Nomes salvos. Eles já aparecem nos relatórios e no Excel.';render()});
   q('aCfgTesta',()=>{const r=leCfg();if(r.erros.length){document.getElementById('aTesteRes').innerHTML=r.erros.map(e=>`<span class="tg r">${esc(e)}</span>`).join(' ');return}testaConexoes(r.c)});
   q('aCfgSalva',()=>{const r=leCfg();if(r.erros.length){document.getElementById('aTesteRes').innerHTML=r.erros.map(e=>`<span class="tg r">${esc(e)}</span>`).join(' ');return}
     CFG=r.c;salvaCfg();aplicaCfg();logEv('Administração','configuração salva',true);aMsg='Configuração salva. Recarregando os dados…';
@@ -5068,7 +5087,8 @@ function selo(pres,s,x,y,w,h,t,cor){
   s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x,y,w,h,rectRadius:h/2,fill:{color:K.card},line:{color:cor}});
   txt(s,t,{x,y,w,h,fontSize:7.5,bold:true,color:cor,align:'center',valign:'middle'})}
 /* cartão de indicador com variação */
-function kpiVar(pres,s,x,y,w,h,rot,val,dv,bom,rod,cor){
+/* kpiCard: cartão de indicador com variação (nome kpiVar já existe no painel) */
+function kpiCard(pres,s,x,y,w,h,rot,val,dv,bom,rod,cor){
   card(pres,s,x,y,w,h);
   s.addShape(pres.shapes.RECTANGLE,{x,y,w,h:0.04,fill:{color:cor||K.or},line:{color:cor||K.or}});
   txt(s,rot,{x:x+0.16,y:y+0.14,w:w-0.32,h:0.2,fontSize:8.5,color:K.sub,fit:'shrink'});
@@ -5097,7 +5117,7 @@ function rnExec(pres,D){
     ['Investimento em mídia',R.m0(T.inv),vr(T.inv,P.inv),null,'Meta, Google e offline',K.bl],
     ['Lucro após mídia',R.m0(T.lucro),vr(T.lucro,P.lucro),true,'faturamento menos mídia',K.pu],
     ['ROAS',R.x2(T.roas)+'x',vr(T.roas,P.roas),true,'retorno por real investido',K.am]];
-  L.forEach(([rot,v,dv,bom,rod,cor],i)=>kpiVar(pres,s,0.62+i*3.05,1.3,2.9,1.32,rot,v,dv,bom,rod,cor));
+  L.forEach(([rot,v,dv,bom,rod,cor],i)=>kpiCard(pres,s,0.62+i*3.05,1.3,2.9,1.32,rot,v,dv,bom,rod,cor));
   /* tabela indicador x meta */
   const mt=k=>{const v=kpiMeta(null,k);return v==null?null:+v};
   const linhas=[
