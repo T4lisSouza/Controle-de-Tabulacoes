@@ -558,6 +558,20 @@ td.z{opacity:.35}
 .rn-c .tg{white-space:normal;max-width:100%;text-align:left;line-height:1.35}
 .rn-s{display:grid;grid-template-columns:1fr;gap:8px;font-size:13px;color:var(--ink2)} @media(min-width:760px){.rn-s{grid-template-columns:1fr 1fr}}
 .rn-s label{display:flex;gap:8px;align-items:flex-start;cursor:pointer;line-height:1.35} .rn-s input{margin-top:2px;accent-color:var(--accent);flex:none}
+.sl-top{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.sl-l{list-style:none;margin:0;padding:0 16px 4px}
+.sl-i{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border:1px solid var(--line);border-radius:12px;margin-bottom:7px;background:var(--card2)}
+.sl-i.sl-o{opacity:.86}
+.sl-n{flex:none;width:24px;height:24px;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:11.5px;display:flex;align-items:center;justify-content:center}
+.sl-o .sl-n{background:transparent;border:1px dashed var(--line);color:var(--ink3)}
+.sl-tx{flex:1;min-width:0;font-size:13px}
+.sl-tx b{font-weight:700}
+.sl-sub{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:12px;color:var(--ink2)}
+.sl-sub label{display:inline-flex;gap:6px;align-items:center;cursor:pointer} .sl-sub input{accent-color:var(--accent)}
+.sl-s1{display:inline-flex;gap:6px;align-items:center} .sl-s1 .lnk{font-size:11.5px}
+.sl-ac{flex:none;display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.sl-ac .btn{padding:5px 9px;font-size:12px}
+@media(max-width:700px){.sl-i{flex-wrap:wrap}.sl-ac{width:100%;justify-content:flex-end}}
 .rn-m{margin-bottom:12px} @media(min-width:760px){.rn-m{grid-template-columns:repeat(4,1fr)}}
 .rn-err{margin-top:10px;color:#E5484D;font-size:13px;font-weight:600}
 input.bmc,input.bml{width:100%;min-width:120px}
@@ -750,6 +764,8 @@ const CFG_PADRAO={
   bmRedir:{},    /* "EMPRESA|BM de origem" -> BM de destino: soma tudo no destino */
   linNomes:{},   /* linha de WhatsApp -> nome na reunião; SEMCANAL = leads que vieram sem número */
   semCanal:{},   /* empresa -> número (4 dígitos) que recebe os leads que chegaram sem canal */
+  bmCamp:{},     /* campanha -> 1 (é Meta, entra no slide de BM) ou 0 (não é Meta) */
+  rn:{sel:{},ordem:[],tema:'escuro'},  /* slides da reunião: quais entram, em que ordem e o estilo */
   tv:{periodo:"mes",vel:"media",zoom:"auto",tema:"dark",telas:[]},
   kpi:{lista:["nv","leads","mld","conv","tmed","lf","cpl","inv","margem","icr","roi","roas","cpa","tk"],
     metas:{"*":{conv:3,tmed:15,margem:70,icr:30,roas:4,tgt:15,churn:85}},custom:[],val:{}}
@@ -2855,7 +2871,7 @@ function bindAdmin(){
   q('aLogCsv',()=>baixaTxt('logs_painel.csv','﻿'+['Quando;Fonte;Consulta;Linhas;Tempo (ms);Resultado;Mensagem',
     ...LOGS.map(l=>[new Date(l.t).toLocaleString('pt-BR'),l.fonte,'"'+l.acao.replace(/"/g,'""')+'"',l.linhas,l.ms,l.ok?'ok':'erro','"'+(l.msg||'').replace(/"/g,'""')+'"'].join(';'))].join('\n'),'text/csv;charset=utf-8'));
   q('aLogLimpa',()=>{LOGS.length=0;try{localStorage.removeItem('gwa.logs')}catch(e){}aviso('Logs limpos');render()});
-  bindVinculo();bindSemCanal();bindBmEmp();
+  bindVinculo();bindSemCanal();bindBmCamp();bindBmEmp();
   q('aBmSalva',()=>{const c=Object.assign({},CFG.bmContas||{}),l=Object.assign({},CFG.bmLinhas||{});
     /* apagar um valor que vem de fábrica grava '' para ele não voltar ao recarregar */
     document.querySelectorAll('input.bmc').forEach(i=>{const v=i.value.trim().toUpperCase(),k=i.dataset.a;if(v)c[k]=v;else if(CFG_PADRAO.bmContas[k])c[k]='';else delete c[k]});
@@ -3068,13 +3084,13 @@ function bmCalc(M,leads,velhos,a,b){
   const card=new Map();
   leads.forEach(x=>card.set(x.ck,x));(velhos||[]).forEach(x=>{if(!card.has(x.ck))card.set(x.ck,x)});
   const atr=x=>x._bm||(x._bm=bmLead(M,x.form,x.canal,mesIso(x.d)));
-  leads.forEach(x=>{if(x.d<a||x.d>b)return;atr(x).forEach(([k,w,h])=>{g(k).leads+=w;how[h]+=w;
-    if(h==='sem'){const d=String(x.canal||'').replace(/\D/g,'');const l=d.length>=8?d.slice(-4):'(sem linha)';linSem[l]=(linSem[l]||0)+w}})});
+  leads.forEach(x=>{if(x.d<a||x.d>b||!campMeta(x.camp))return;atr(x).forEach(([k,w,h])=>{g(k).leads+=w;how[h]+=w;
+    if(h==='sem'){const l=linKeyEmp(x.canal,fE);linSem[l]=(linSem[l]||0)+w}})});
   let semLead=0;
-  const vend=SALES.filter(x=>finOk(x)&&x.e===fE&&finDate(x)&&finDate(x)>=a&&finDate(x)<=b);
+  const vend=SALES.filter(x=>finOk(x)&&x.e===fE&&campMeta(x.mi)&&finDate(x)&&finDate(x)>=a&&finDate(x)<=b);
   const qual=new Map();
   vend.forEach(s=>{const l=s.ck&&card.get(s.ck);const at=l?atr(l):[[SEMBM,1,'sem']];if(!l)semLead++;qual.set(s.id,at);at.forEach(([k,w])=>g(k).nv+=w)});
-  FIN.forEach(p=>{if(!finOk(p)||p.e!==fE)return;const d=finDate(p);if(!d||d<a||d>b)return;
+  FIN.forEach(p=>{if(!finOk(p)||p.e!==fE||!campMeta(p.mi))return;const d=finDate(p);if(!d||d<a||d>b)return;
     let at=qual.get(p.id);if(!at){const l=p.ck&&card.get(p.ck);at=l?atr(l):[[SEMBM,1,'sem']]}
     at.forEach(([k,w])=>g(k).fat+=p.v*w)});
   let invSem=0;
@@ -3092,6 +3108,16 @@ const BM_LISTA=()=>{const s=new Set(Object.values(bmMotor(RAW.meta||[]).acc).fil
   Object.keys(CFG.bmEmp||{}).forEach(b=>b&&s.add(b));Object.values(CFG.bmRedir||{}).forEach(b=>b&&s.add(b));
   return [...s].sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true}))};
 const SEMCANAL='SEMCANAL';
+/* BM é coisa do Meta: Google, Youtube e afiliados ficam de fora do slide de BM */
+const RX_NAO_META=/\b(GOOGLE|YOUTUBE|AFILIAD|ORGANIC|INDICA)/i;
+let FCAMP=null,FCAMP_N=-1;
+function fonteCamp(){if(FCAMP&&FCAMP_N===CUSTO.length)return FCAMP;
+  const m={};CUSTO.forEach(x=>{const o=m[x.camp]||(m[x.camp]={});o[x.src]=1});FCAMP=m;FCAMP_N=CUSTO.length;return m}
+function campMeta(k){const c=nc(k);if(!c||c===BL)return false;
+  const man=(CFG.bmCamp||{})[c];if(man===0||man===1)return !!man;
+  const f=fonteCamp()[c];
+  /* só entra no BM quem tem gasto no Meta; sem gasto do Meta (Google, Youtube, afiliado, GPT, orgânico) fica fora */
+  return !!(f&&f.META)}
 /* chave da linha: os 4 últimos dígitos do CANAL, assim "(11) 93057-2837", "(11) 930572837" e "2837" viram a mesma linha */
 const linKey=c=>{const d=String(c==null?'':c).replace(/\D/g,'');return d.length>=4?d.slice(-4):SEMCANAL};
 /* número que o admin escolheu para receber os leads sem canal daquela empresa */
@@ -3211,6 +3237,37 @@ function bindSemCanal(){const b=document.getElementById('scSalva');if(!b)return;
     CFG.semCanal=S;salvaCfg();if(typeof rnCache!=='undefined')rnCache=null;
     logEv('Administração','destino dos leads sem canal salvo',true,Object.keys(S).length);aviso('Destino dos leads sem canal salvo');render()}}
 
+/* ── quais campanhas entram no slide de BM (BM é do Meta) ── */
+function vBmCamp(){
+  const M={};CUBE.forEach(x=>{const k=x[0]||BL;if(!k||k===BL)return;if(fE!=='TODAS'&&empOf(k)!==fE)return;
+    (M[k]=M[k]||{leads:0}).leads+=x[4]});
+  CUSTO.forEach(x=>{if(!inRange(x.d)||!x.camp||x.camp===BL)return;if(fE!=='TODAS'&&empOf(x.camp)!==fE)return;
+    const o=M[x.camp]=M[x.camp]||{leads:0};o.inv=(o.inv||0)+x.val});
+  const L=Object.entries(M).sort((a,b)=>(b[1].leads-a[1].leads)||a[0].localeCompare(b[0]));
+  const MAN=CFG.bmCamp||{},F=fonteCamp();
+  const SRC={META:['g','Meta Ads'],ADS:['r','Google Ads'],OFFLINE:['o','Offline']};
+  const linha=([k,o])=>{const man=MAN[k],ok=campMeta(k),f=F[k]||{};
+    const fontes=Object.keys(f).map(x=>SRC[x]?`<span class="tg ${SRC[x][0]}">${SRC[x][1]}</span>`:'').join(' ')||'<span class="tg s">sem custo</span>';
+    return `<tr><td class="lft"><b>${esc(nomeCamp(k))}</b><div class="kp-h">${esc(k)}</div></td>
+      <td>${n(o.leads||0)}</td><td>${o.inv?mo2(o.inv):'—'}</td><td class="lft">${fontes}</td>
+      <td><select class="bmc2" data-k="${esc(k)}" aria-label="A campanha ${esc(k)} entra no slide de BM?">
+        <option value=""${man===undefined?' selected':''}>automático (${ok?'entra':'fica fora'})</option>
+        <option value="1"${man===1?' selected':''}>entra (é Meta)</option>
+        <option value="0"${man===0?' selected':''}>fica fora (não é Meta)</option></select></td>
+      <td><span class="tg ${ok?'g':'o'}">${ok?'entra no BM':'fica fora'}</span></td></tr>`};
+  return `<div class="card wide t"><div class="ch" style="padding:15px 16px 6px"><h3>Campanhas que entram no slide de BM</h3>
+      <span class="m">${fE==='TODAS'?'todas as empresas':esc(fE)} · período ${esc(dc(d1))} a ${esc(dc(d2))}</span></div>
+    <p class="info" style="margin:0 16px 10px">BM é do Meta. Campanhas de <b>Google, Youtube e afiliados</b> não entram no slide "Performance por BM" — nem nos leads, nem nas vendas, nem nos totais do topo.
+      O painel decide sozinho pela fonte do custo (ou pelo nome, quando a campanha não tem custo); use a coluna da direita só para corrigir.</p>
+    ${L.length?`<div class="tw"><table class="xl"><thead><tr><th>Campanha</th><th>Leads</th><th>Custo no período</th><th>Fonte do custo</th><th>Entra no BM?</th><th>Hoje</th></tr></thead>
+      <tbody>${L.map(linha).join('')}</tbody></table></div>`:'<p class="info" style="margin:0 16px 12px">Nenhuma campanha com leads ou custo no período.</p>'}
+    <div class="acts" style="padding:12px 16px"><button class="btn pri" id="bmcSalva">Salvar campanhas do BM</button></div></div>`}
+function bindBmCamp(){const b=document.getElementById('bmcSalva');if(!b)return;
+  b.onclick=()=>{const C2=Object.assign({},CFG.bmCamp||{});
+    document.querySelectorAll('select.bmc2').forEach(sl=>{const k=sl.dataset.k,v=sl.value;if(v==='')delete C2[k];else C2[k]=+v});
+    CFG.bmCamp=C2;salvaCfg();if(typeof rnCache!=='undefined')rnCache=null;
+    logEv('Administração','campanhas do slide de BM salvas',true,Object.keys(C2).length);aviso('Campanhas do BM salvas');render()}}
+
 /* ── BM por empresa: de quem é cada BM e para onde somar o que não é dela ── */
 function vBmEmp(){
   const M=bmMotor(RAW.meta||[]),mapa=bmEmpMapa(M),BE=bmEmpresas(M),RD=CFG.bmRedir||{},MAN=CFG.bmEmp||{};
@@ -3263,7 +3320,7 @@ function aBM(){
     const o=lin[l]||(lin[l]={leads:0,emp:{},num:x[3]});o.leads+=x[4];const e=empOf(x[0]);o.emp[e]=(o.emp[e]||0)+x[4]});
   const mes=mesIso(d2);
   const L=Object.entries(lin).filter(([,o])=>o.leads>0).sort((a,b)=>b[1].leads-a[1].leads);
-  return vVinculo()+vSemCanal()+vBmEmp()+`<div class="card t wide"><div class="ch" style="padding:15px 16px 8px"><h3>BM — contas de anúncio</h3><span class="m">usado no slide "Performance por BM" da Reunião</span></div>
+  return vVinculo()+vSemCanal()+vBmCamp()+vBmEmp()+`<div class="card t wide"><div class="ch" style="padding:15px 16px 8px"><h3>BM — contas de anúncio</h3><span class="m">usado no slide "Performance por BM" da Reunião</span></div>
     <p class="info" style="margin:0 16px 10px">Cada conta de anúncio pertence a um BM. O painel usa primeiro a <b>coluna BM da planilha</b> (RELATORIO_CAMPANHAS_2026 col. N e CAMPANHAS_ATIVAS col. O).
       Quando a planilha não diz, ele lê o BM no nome da conta (ex.: "Grazi - BM3") ou nas campanhas dela. O ajuste manual abaixo vale acima de tudo — use só para corrigir.</p>
     ${contas.length?`<div class="tw"><table class="xl"><thead><tr><th>Conta de anúncio</th><th>Gasto no ano</th><th>BM na planilha</th><th>BM usado</th><th>De onde veio</th><th>BM (ajuste manual)</th></tr></thead>
@@ -3984,7 +4041,7 @@ const RN_LOGO='iVBORw0KGgoAAAANSUhEUgAAAF4AAAAmCAYAAABNoyzCAAAACXBIWXMAAAsTAAALE
 /* ═════════ REUNIÃO — apresentação .pptx no padrão "Reunião Online" ═════════ */
 const PPTX_CDN=['https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js',
   'https://unpkg.com/pptxgenjs@4.0.1/dist/pptxgen.bundle.js'];
-let rnBusy=false, rnMsg='', rnSecoes={capa:1,mes:1,leads:1,camp:1,aprov:1,target:1,linha:1,balanc:1,form:1,qual:1,vmes:1,tempo:1,custos:1,ticket:1,semanal:1,bm:1,fim:1};
+let rnBusy=false, rnMsg='';
 function carregaPptx(){
   if(window.PptxGenJS)return Promise.resolve();
   return PPTX_CDN.reduce((pr,url)=>pr.catch(()=>new Promise((res,rej)=>{const s=document.createElement('script');
@@ -4021,12 +4078,19 @@ function rVar(c,p,tipo){
   return `${s}${NF.format(Math.round(a))}${rs}`}
 
 /* ── paleta e tipografia do modelo ── */
-const K={bg:'000000',card:'111111',card2:'0B0F14',bord:'262626',txt:'FFFFFF',sub:'9CA3AF',mut:'6B7280',dim:'555555',
-  or:'D2691E',or2:'F97316',gr:'10B981',rd:'EF4444',bl:'3B82F6',pu:'8B5CF6',am:'F59E0B',sl:'4B5563',ln:'1F2937'};
+/* duas paletas: a de sempre (escura/laranja) e uma monocromática para reuniões de diretoria */
+const K_ESC={bg:'000000',card:'111111',card2:'0B0F14',bord:'262626',txt:'FFFFFF',sub:'9CA3AF',mut:'6B7280',dim:'555555',
+  or:'D2691E',or2:'F97316',gr:'10B981',rd:'EF4444',bl:'3B82F6',pu:'8B5CF6',am:'F59E0B',sl:'4B5563',ln:'1F2937',
+  tx2:'D1D5DB',bx:'0E1726',bx2:'0F172A',bx3:'111827',bx4:'0D0D0D',rd2:'F87171',am2:'FCD34D',am3:'D97706'};
+const K_PB={bg:'000000',card:'0D0D0D',card2:'070707',bord:'303030',txt:'FFFFFF',sub:'B5B5B5',mut:'7C7C7C',dim:'5A5A5A',
+  or:'FFFFFF',or2:'EDEDED',gr:'FFFFFF',rd:'8C8C8C',bl:'C8C8C8',pu:'A8A8A8',am:'DCDCDC',sl:'6E6E6E',ln:'303030',
+  tx2:'D8D8D8',bx:'101010',bx2:'151515',bx3:'121212',bx4:'060606',rd2:'9A9A9A',am2:'E8E8E8',am3:'BFBFBF'};
+const K=Object.assign({},K_ESC);
+function rnTema(t){const F=(t==='pb')?K_PB:K_ESC;Object.keys(F).forEach(k=>{K[k]=F[k]});return K}
 const FT='Montserrat';
-const TABCOR_PPT=[[/^venda/i,K.gr],[/pr[eé].?-?\s*venda/i,'F59E0B'],[/negocia/i,K.pu],[/fechado/i,'1F2937'],
-  [/habilita/i,'D97706'],[/discador/i,'4B5563'],[/n[ãa]o atende/i,K.rd],[/desqualif/i,K.bl]];
-const corTab=t=>{const h=TABCOR_PPT.find(([r])=>r.test(t));return h?h[1]:K.sl};
+const TABRX=[[/^venda/i,'gr'],[/pr[eé].?-?\s*venda/i,'am'],[/negocia/i,'pu'],[/fechado/i,'ln'],
+  [/habilita/i,'am3'],[/discador/i,'sl'],[/n[ãa]o atende/i,'rd'],[/desqualif/i,'bl']];
+const corTab=t=>{const h=TABRX.find(([r])=>r.test(t));return K[h?h[1]:'sl']};
 const ehTarget=t=>{const k=kind(t);return k==='g'||(k==='o')};          /* Negociando, Pré-venda e Venda */
 const ehNaoAt=t=>/n[ãa]o atende/i.test(t||'');
 const ehSemTrab=t=>!t||t==='-'||/discador/i.test(t);
@@ -4059,7 +4123,7 @@ function slideBase(pres,titulo,sub,linha,rodape){
   if(linha)s.addText(linha,{x:0.68,y:0.93,w:8.6,h:0.3,fontFace:FT,fontSize:11,color:K.sub,margin:0,isTextBox:true});
   s.addText(rodape||'GWA CONSULTORIA | CONFIDENCIAL',{x:8.6,y:7.08,w:4.25,h:0.24,fontFace:'Courier New',fontSize:8,color:K.dim,align:'right',margin:0,isTextBox:true});
   s.addShape(pres.shapes.RECTANGLE,{x:0,y:7.42,w:4.44,h:0.08,fill:{color:K.or},line:{color:K.or}});
-  s.addShape(pres.shapes.RECTANGLE,{x:4.44,y:7.42,w:8.89,h:0.08,fill:{color:'0F172A'},line:{color:'0F172A'}});
+  s.addShape(pres.shapes.RECTANGLE,{x:4.44,y:7.42,w:8.89,h:0.08,fill:{color:K.bx2},line:{color:K.bx2}});
   return s}
 function card(pres,s,x,y,w,h,fill,borda){s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x,y,w,h,rectRadius:0.08,
   fill:{color:fill||K.card},line:{color:borda||K.bord,width:0.75}})}
@@ -4070,20 +4134,21 @@ function kpiBox(pres,s,x,y,w,h,rot,val,corVal,extra){
   txt(s,val,{x:x+0.18,y:y+0.38,w:w-0.36,h:0.5,fontSize:22,bold:true,color:corVal||K.txt});
   if(extra)txt(s,extra,{x:x+0.18,y:y+h-0.38,w:w-0.36,h:0.25,fontSize:8.5,color:K.mut})}
 function caixaTexto(pres,s,x,y,w,h,titulo,corpo,cor){
-  s.addShape(pres.shapes.RECTANGLE,{x,y,w,h,fill:{color:'0E1726'},line:{color:'0E1726'}});
+  s.addShape(pres.shapes.RECTANGLE,{x,y,w,h,fill:{color:K.bx},line:{color:K.bx}});
   s.addShape(pres.shapes.RECTANGLE,{x,y,w:0.06,h,fill:{color:cor||K.gr},line:{color:cor||K.gr}});
   txt(s,titulo,{x:x+0.25,y:y+0.14,w:w-0.4,h:0.3,fontSize:12.5,bold:true,color:cor||K.gr});
-  txt(s,corpo,{x:x+0.25,y:y+0.48,w:w-0.4,h:h-0.6,fontSize:10.5,color:'D1D5DB',valign:'top',paraSpaceAfter:4})}
+  txt(s,corpo,{x:x+0.25,y:y+0.48,w:w-0.4,h:h-0.6,fontSize:10.5,color:K.tx2,valign:'top',paraSpaceAfter:4})}
 const setaR=(v,bom)=>v==null||Math.abs(v)<1e-9?{t:'→',c:K.mut}:{t:v>0?'↑':'↓',c:bom==null?K.mut:((v>0)===bom?K.gr:K.rd)};
 
 /* ═════ montagem ═════ */
 let rnCache=null;
-async function gerarReuniao(modo){
+async function gerarReuniao(modo,soSec){
   const apresentar=modo==='apresentar';
   if(rnBusy)return;
   if(!admOk()){aviso('Entre na Administração para usar a Reunião');return}
   if(fE==='TODAS'){aviso('Escolha uma empresa no filtro de cima');return}
-  const titulo=`Reunião Online · ${fE} · ${dc(d1)} a ${dc(d2)}`;
+  const CF=rnCfg();rnTema(CF.tema);
+  const titulo=soSec?`Prévia · ${(RN_MAP[soSec]||{}).n||soSec} · ${fE}`:`Reunião Online · ${fE} · ${dc(d1)} a ${dc(d2)}`;
   if(apresentar)pvAbre(titulo);
   rnBusy=true;rnMsg='Preparando os dados…';render();
   const passo=t=>{rnMsg=t;render();if(apresentar)pvMsg(t)};
@@ -4104,21 +4169,34 @@ async function gerarReuniao(modo){
     pres.author='GWA Consultoria';pres.company='GWA Consultoria';
     pres.title=`Reunião Online - ${fE} - ${dc(d1)} a ${dc(d2)}`;
     const D=rnDados(extra);
-    const passos=[['capa',rnCapa],['mes',rnMes],['leads',rnLeads]];
+    /* cada item sabe a que bloco pertence (g, o que se reordena) e qual chave liga/desliga (sec) */
+    const itens=[],add=(g,sec,fn)=>itens.push({g,sec,fn});
+    add('capa','capa',rnCapa);add('exec','exec',rnExec);add('mes','mes',rnMes);add('leads','leads',rnLeads);
+    add('funil','funil',rnFunil);
     D.camps.forEach((c,i)=>{
-      passos.push(['camp',p=>rnKpis(p,D,c)],['camp',p=>rnTabs(p,D,c)]);
-      if(i===0)passos.push(['aprov',p=>rnAprov(p,D,c)]);
-      if(c.o.leads>=50)passos.push(['target',p=>rnTarget(p,D,c)]);
-      if(i===0&&D.linhas.length>=1)passos.push(['linha',p=>rnLinha(p,D,c)])});
-    passos.push(['balanc',rnBalanc]);
-    D.forms.forEach(f=>passos.push(['form',p=>rnForm(p,D,f)]));
-    passos.push(['qual',rnQual],['vmes',rnVendaMes],['tempo',rnTempo],['custos',rnCustos],['ticket',rnTicket],['semanal',rnSemanal]);
-    if(D.bms.length)passos.push(['bm',rnBM]);
-    passos.push(['fim',rnFim]);
+      add('camp','camp',p=>rnKpis(p,D,c));add('camp','camp',p=>rnTabs(p,D,c));
+      if(i===0)add('camp','aprov',p=>rnAprov(p,D,c));
+      if(c.o.leads>=50)add('camp','target',p=>rnTarget(p,D,c));
+      if(i===0&&(D.linhasTop||D.linhas).length>=1)add('camp','linha',p=>rnLinha(p,D,c))});
+    add('balanc','balanc',rnBalanc);
+    D.forms.forEach(f=>add('form','form',p=>rnForm(p,D,f)));
+    add('qual','qual',rnQual);add('vmes','vmes',rnVendaMes);add('tempo','tempo',rnTempo);
+    add('invest','invest',rnInvest);add('ranking','ranking',rnRanking);add('empresas','empresas',rnEmpresas);
+    add('custos','custos',rnCustos);add('ticket','ticket',rnTicket);add('evol','evol',rnEvol);
+    add('semanal','semanal',rnSemanal);add('proj','proj',rnProj);
+    if(D.bms.length)add('bm','bm',rnBM);
+    add('oport','oport',rnOport);
+    add('fim','fim',rnFim);
+    const gPv=soSec?((RN_MAP[soSec]||{}).pai||soSec):null;
+    const ordem=soSec?[gPv]:CF.ordem;
+    const liga=it=>soSec?(it.sec===soSec||it.g===soSec):!!CF.sel[it.sec];
+    const passos=[];
+    ordem.forEach(g=>itens.forEach(it=>{if(it.g===g&&liga(it))passos.push([it.sec,it.fn])}));
     let feitos=0;
-    for(const [sec,fn] of passos){if(!rnSecoes[sec])continue;
+    for(const [sec,fn] of passos){
       try{fn.length===2?fn(pres,D):fn(pres);feitos++}
       catch(e){logEv('Reunião','erro no slide '+sec,false,0,0,e.message);console.error(e)}}
+    if(!feitos&&soSec){rnFim(pres,D);feitos=1}
     if(apresentar){pvMostra(pres);logEv('Reunião','apresentação aberta na tela: '+fE,true,feitos);rnMsg=''}
     else{const nome=`Reuniao_${fE}_${dc(d1).replace(/\//g,'-')}_a_${dc(d2).replace(/\//g,'-')}.pptx`;
       await pres.writeFile({fileName:nome});
@@ -4167,18 +4245,17 @@ function rnDados(X){
   const top=camps[0];const lm={};
   /* a linha é identificada pelos 4 últimos dígitos: formatos diferentes do mesmo número entram juntos.
      Os leads sem canal vão para o número escolhido para esta empresa em Administração → "Leads sem canal". */
-  if(top)CUBE.forEach(x=>{if(x[0]!==top.k)return;const ln=linKeyEmp(x[3],fE);const o=lm[ln]||(lm[ln]={rec:0,nt:0,sr:0,q:0,v:0});
-    o.rec+=x[4];const t=x[1];if(ehSemTrab(t))o.nt+=x[4];else if(ehNaoAt(t))o.sr+=x[4];if(ehTarget(t))o.q+=x[4];if(kind(t)==='g')o.v+=x[4]});
+  const lmTop={};
+  const soma=(M,x)=>{const ln=linKeyEmp(x[3],fE),o=M[ln]||(M[ln]={rec:0,nt:0,sr:0,q:0,v:0});
+    o.rec+=x[4];const t=x[1];if(ehSemTrab(t))o.nt+=x[4];else if(ehNaoAt(t))o.sr+=x[4];if(ehTarget(t))o.q+=x[4];if(kind(t)==='g')o.v+=x[4]};
+  CUBE.forEach(x=>{const k=x[0];if(!k||k===BL||empOf(k)!==fE)return;soma(lm,x);if(top&&k===top.k)soma(lmTop,x)});
   const nomeLin=k=>linNome(k,k===SEMCANAL?'(sem canal)':k);
   const mkLinha=(k,o,extra)=>{const tr=o.rec-o.nt,rs=tr-o.sr;
     return Object.assign({nome:nomeLin(k),canal:k,rec:o.rec,tr,nt:o.nt,rs,sr:o.sr,q:o.q,v:o.v,
       pResp:tr?rs/tr:null,pQ:o.rec?o.q/o.rec:null,pV:o.rec?o.v/o.rec:null,aprov:o.rec?tr/o.rec:null},extra||{})};
-  const ordL=Object.entries(lm).sort((x,y)=>y[1].rec-x[1].rec);
-  const grandes=ordL.filter(([,o])=>o.rec>=20).slice(0,6),peq=ordL.filter(x=>grandes.indexOf(x)<0);
-  const linhas=grandes.map(([k,o])=>mkLinha(k,o));
-  /* as linhas pequenas entram somadas numa única linha, para o total bater com os leads da mídia */
-  if(peq.length){const o=peq.reduce((a,[,x])=>({rec:a.rec+x.rec,nt:a.nt+x.nt,sr:a.sr+x.sr,q:a.q+x.q,v:a.v+x.v}),{rec:0,nt:0,sr:0,q:0,v:0});
-    if(o.rec>0)linhas.push(mkLinha('outras',o,{nome:`Outras (${peq.length})`,outras:true}))}
+  /* todos os números aparecem: nada é agrupado em "Outras" */
+  const ordena=M=>Object.entries(M).filter(([,o])=>o.rec>0).sort((x,y)=>y[1].rec-x[1].rec).map(([k,o])=>mkLinha(k,o));
+  const linhas=ordena(lm),linhasTop=ordena(lmTop);
   /* formulários dos cadastros da empresa */
   const agF=rows=>{const m={};rows.forEach(r=>{const c=nc(r[0]);if(empOf(c)!==fE)return;const f=String(r[1]||'(sem formulário)').trim();
     const o=m[f]||(m[f]={camp:c,t:0,tab:{}});const t=(r[2]&&r[2]!=='-')?String(r[2]).trim():'Sem tabulação';o.tab[t]=(o.tab[t]||0)+(+r[3]||0);o.t+=(+r[3]||0)});return m};
@@ -4192,6 +4269,12 @@ function rnDados(X){
   const forms=Object.entries(GA).filter(([,o])=>o.t>=20).sort((x,y)=>y[1].t-x[1].t).slice(0,4).map(([k,o])=>({...o,ant:GP[k]||null}));
   /* BM: custo pela conta de anúncio; leads pelo formulário/linha de WhatsApp; vendas pela chave do card */
   const BMR=X.M?bmCalc(X.M,X.leads||[],X.velhos||[],a,b):null;
+  /* o slide de BM é só do Meta: Google, Youtube e afiliados ficam de fora também nos KPIs do topo */
+  const soMeta=M=>{const o={leads:0,nv:0,fat:0,inv:0};Object.entries(M||{}).forEach(([k,v])=>{
+    if(!k||k===BL||empOf(k)!==fE||!campMeta(k))return;o.leads+=v.leads||0;o.nv+=v.nv||0;o.fat+=v.fat||0;o.inv+=v.inv||0});
+    o.roas=o.inv?o.fat/o.inv:null;o.conv=o.leads?o.nv/o.leads:null;return o};
+  const Tm=soMeta(C),Pm=soMeta(CP);
+  const foraMeta=Object.keys(C).filter(k=>k&&k!==BL&&empOf(k)===fE&&!campMeta(k)&&(C[k].leads>0||C[k].nv>0)).map(k=>nomeCamp(k));
   const bms=BMR?BMR.lista.slice(0,4):[];
   /* ticket médio por mês no ano */
   const ano=parse(b).getFullYear(),mf=parse(b).getMonth();const tk=[];
@@ -4209,7 +4292,7 @@ function rnDados(X){
   /* vendas tabuladas em leads que entraram no período (base rotativa, tabulação "Venda") */
   const vendaTab=t=>/^\s*venda/i.test(String(t||''));
   const vm={tot:0,camp:{},lin:{}};
-  CUBE.forEach(x=>{if(!dsOkL(x[0])||empOf(x[0])!==fE)return;const k=x[0]||BL,ln=x[3]||'(sem linha)';
+  CUBE.forEach(x=>{if(!dsOkL(x[0])||empOf(x[0])!==fE)return;const k=x[0]||BL,ln=linKeyEmp(x[3],fE);
     const c=vm.camp[k]||(vm.camp[k]={leads:0,v:0}),l=vm.lin[ln]||(vm.lin[ln]={leads:0,v:0});
     c.leads+=x[4];l.leads+=x[4];if(vendaTab(x[1])){c.v+=x[4];l.v+=x[4];vm.tot+=x[4]}});
   const fin=k=>{const vs=SALES.filter(x=>finOk(x)&&x.e===fE&&x.mi===k&&finDate(x)&&finDate(x)>=a&&finDate(x)<=b);
@@ -4218,7 +4301,7 @@ function rnDados(X){
     porCamp:Object.entries(vm.camp).filter(([,o])=>o.leads>0).sort((x,y)=>y[1].v-x[1].v||y[1].leads-x[1].leads)
       .map(([k,o])=>Object.assign({k,nome:nomeCamp(k),leads:o.leads,v:o.v},fin(k))),
     porLinha:Object.entries(vm.lin).filter(([,o])=>o.v>0).sort((x,y)=>y[1].v-x[1].v)
-      .map(([k,o])=>({nome:k==='(sem linha)'?'Sem linha':(String(k).match(/(\d{4})\D*$/)||[,k])[1],leads:o.leads,v:o.v}))};
+      .map(([k,o])=>({k,nome:linNome(k,k===SEMCANAL?'(sem canal)':k),leads:o.leads,v:o.v}))};
   /* tempo entre a entrada do lead e a venda */
   const VS=SALES.filter(x=>finOk(x)&&x.e===fE&&finDate(x)&&finDate(x)>=a&&finDate(x)<=b);
   const dd=VS.map(x=>({d:ddiff(x.ld,x.vc),mi:x.mi})).filter(o=>o.d!=null&&o.d>=0);
@@ -4232,7 +4315,7 @@ function rnDados(X){
       ['4 a 7 dias',ds.filter(d=>d>=4&&d<=7).length,K.bl],['8 a 15 dias',ds.filter(d=>d>=8&&d<=15).length,K.pu],
       ['16 a 30 dias',ds.filter(d=>d>=16&&d<=30).length,K.am],['Mais de 30 dias',ds.filter(d=>d>30).length,K.rd]],
     porCamp:Object.entries(porCampT).sort((x,y)=>y[1].n-x[1].n).map(([k,c])=>({nome:nomeCamp(k),n:c.n,med:c.n?c.sum/c.n:null,d0:c.d0,d7:c.d7,d30:c.d30}))};
-  return{a,b,pa,pb,T,P,C,CP,dias,diasP,camps,tgtTot,linhas,forms,bms,BMR,tk,W,vmes,tempo,
+  return{a,b,pa,pb,T,P,C,CP,dias,diasP,camps,tgtTot,linhas,linhasTop,forms,bms,BMR,Tm,Pm,foraMeta,tk,W,vmes,tempo,
     periodo:`${parse(a).getDate()} a ${parse(b).getDate()}/${MESC[parse(b).getMonth()]}`,
     periodoC:`${String(parse(a).getDate()).padStart(2,'0')}-${String(parse(b).getDate()).padStart(2,'0')} ${MESC[parse(b).getMonth()]}`,
     mesAno:`${MESC[parse(b).getMonth()]} ${parse(b).getFullYear()}`,mes:MESC[parse(b).getMonth()],
@@ -4248,13 +4331,13 @@ function rnCapa(pres,D){
   s.addImage({data:'image/png;base64,'+RN_LOGO,x:1.55,y:0.5,w:1.4,h:0.57});
   s.addShape(pres.shapes.LINE,{x:4.06,y:0.75,w:0,h:0.33,line:{color:'333333',width:1}});
   txt(s,'Consultoria de Performance',{x:4.2,y:0.78,w:3,h:0.28,fontSize:10.5,color:K.sub});
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:10.95,y:0.66,w:1.73,h:0.4,rectRadius:0.06,fill:{color:'0F172A'},line:{color:'1E293B'}});
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:10.95,y:0.66,w:1.73,h:0.4,rectRadius:0.06,fill:{color:K.bx2},line:{color:'1E293B'}});
   txt(s,D.mesAno,{x:10.95,y:0.66,w:1.73,h:0.4,fontSize:10.5,bold:true,color:K.or,align:'center',valign:'middle'});
   txt(s,'Período: '+D.periodo,{x:10.3,y:1.1,w:2.45,h:0.22,fontSize:8,color:K.mut,align:'right'});
   s.addShape(pres.shapes.RECTANGLE,{x:0.67,y:1.98,w:1.0,h:0.08,fill:{color:K.or},line:{color:K.or}});
   txt(s,'Reunião Online',{x:0.65,y:2.45,w:9,h:0.95,fontSize:54,bold:true});
   txt(s,fE,{x:0.65,y:3.42,w:9,h0:0,h:0.9,fontSize:54,bold:true,color:K.or});
-  txt(s,'Análise executiva de resultados, eficiência de canais e direcionamentos estratégicos para escala.',{x:0.67,y:4.4,w:8.4,h:0.85,fontSize:17,color:'D1D5DB'});
+  txt(s,'Análise executiva de resultados, eficiência de canais e direcionamentos estratégicos para escala.',{x:0.67,y:4.4,w:8.4,h:0.85,fontSize:17,color:K.tx2});
   s.addShape(pres.shapes.LINE,{x:0.9,y:5.68,w:11.6,h:0,line:{color:'333333',width:0.75}});
   const st=(c,p,bom)=>{const v=vr(c,p);if(v==null)return['Novo',K.bl];if(Math.abs(v)<0.05)return['Estável',K.gr];
     return (v>0)===bom?['Em Alta ↑',K.gr]:['Atenção ↓',K.am]};
@@ -4293,7 +4376,7 @@ function rnKpis(pres,D,c){
     fill:{color:K.card},color:K.txt,border:{type:'solid',pt:2.5,color:K.bg},valign:'middle',margin:[0,0.12,0,0.12]});
   /* evolução da conversão */
   card(pres,s,7.7,1.3,5.03,3.72);
-  txt(s,'Evolução de Conversão',{x:7.92,y:1.45,w:3,h:0.3,fontSize:12,bold:true,color:'D1D5DB'});
+  txt(s,'Evolução de Conversão',{x:7.92,y:1.45,w:3,h:0.3,fontSize:12,bold:true,color:K.tx2});
   txt(s,'Conversão %',{x:11.2,y:1.45,w:1.35,h:0.3,fontSize:9,color:K.txt,align:'right'});
   const cv=c.conv.filter((x,i)=>i>0||x[1]>0);
   if(cv.length>1){s.addChart(pres.charts.LINE,[{name:'Conversão %',labels:cv.map(x=>brd(x[0])),values:cv.map(x=>+(x[1]*100).toFixed(2))}],
@@ -4315,30 +4398,30 @@ function rnKpis(pres,D,c){
 function rnTabs(pres,D,c){
   const s=slideBase(pres,c.nome,'Tabulações e Funil',`Análise detalhada do fluxo de atendimento e conversão (${D.periodo})`);
   const tot=D.camps.reduce((q,x)=>q+x.o.leads,0);
-  card(pres,s,10.22,0.42,2.5,0.88,'0F172A','1E293B');
+  card(pres,s,10.22,0.42,2.5,0.88,K.bx2,'1E293B');
   txt(s,'Leads Totais',{x:10.22,y:0.5,w:2.5,h:0.2,fontSize:8,color:K.mut,align:'center'});
   txt(s,[{text:R.int(c.o.leads),options:{fontSize:17,bold:true}},{text:`  (${R.p1(tot?c.o.leads/tot:null)} do Total)`,options:{fontSize:8.5,bold:true,color:K.gr}}],{x:10.3,y:0.74,w:2.35,h:0.4,align:'center'});
-  card(pres,s,0.62,1.45,7.4,4.4,'0B0F14','1F2937');
-  txt(s,'Distribuição de Status',{x:0.88,y:1.62,w:3.4,h:0.3,fontSize:12,bold:true,color:'D1D5DB'});
+  card(pres,s,0.62,1.45,7.4,4.4,K.card2,K.ln);
+  txt(s,'Distribuição de Status',{x:0.88,y:1.62,w:3.4,h:0.3,fontSize:12,bold:true,color:K.tx2});
   const L=Object.entries(c.tb.m).sort((x,y)=>y[1]-x[1]).slice(0,9);
   if(L.length)s.addChart(pres.charts.DOUGHNUT,[{name:'Status',labels:L.map(x=>x[0]),values:L.map(x=>x[1])}],
     {x:0.75,y:2.0,w:3.3,h:3.3,holeSize:62,chartColors:L.map(x=>corTab(x[0])),showLegend:false,showPercent:true,showValue:false,
-     dataLabelColor:'FFFFFF',dataLabelFontSize:7,dataBorder:{pt:1,color:'0B0F14'}});
-  const rows=[['Status','Atual (Vol/%)','Var. Share'].map(h=>({text:h,options:{bold:true,color:'D1D5DB',fontSize:8.5}})),
+     dataLabelColor:'FFFFFF',dataLabelFontSize:7,dataBorder:{pt:1,color:K.card2}});
+  const rows=[['Status','Atual (Vol/%)','Var. Share'].map(h=>({text:h,options:{bold:true,color:K.tx2,fontSize:8.5}})),
     ...L.map(([t,v])=>{const sh=c.tb.t?v/c.tb.t:0,shp=c.tbp.t?(c.tbp.m[t]||0)/c.tbp.t:null;const dv=shp==null?null:sh-shp;
       const boa=ehNaoAt(t)||/desqualif|discador/i.test(t)?false:true;const sv=setaR(dv,boa);
-      return [{text:'●  '+t,options:{color:'D1D5DB'}},{text:`${R.int(v)} (${R.p2(sh)})`,options:{bold:true,color:K.txt,align:'right'}},
+      return [{text:'●  '+t,options:{color:K.tx2}},{text:`${R.int(v)} (${R.p2(sh)})`,options:{bold:true,color:K.txt,align:'right'}},
         {text:dv==null?'- (novo)':`${sv.t} ${R.sg(dv)}${R.d2(Math.abs(dv*100))}pp`,options:{bold:true,color:dv==null?K.mut:sv.c,align:'right'}}]})];
   s.addTable(rows,{x:4.15,y:1.62,w:3.75,colW:[1.55,1.25,0.95],rowH:0.24,fontFace:FT,fontSize:8,color:K.txt,
-    border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle',margin:[0,0.05,0,0.05]});
+    border:{type:'solid',pt:0.5,color:K.ln},valign:'middle',margin:[0,0.05,0,0.05]});
   /* funil */
   const nAt=Object.entries(c.tb.m).filter(([t])=>ehNaoAt(t)).reduce((q,[,v])=>q+v,0);
   const neg=Object.entries(c.tb.m).filter(([t])=>/negocia/i.test(t)).reduce((q,[,v])=>q+v,0);
   const cont=c.o.leads-nAt;
-  card(pres,s,8.28,1.45,4.45,5.6,'0B0F14','1F2937');
+  card(pres,s,8.28,1.45,4.45,5.6,K.card2,K.ln);
   txt(s,'Funil de Conversão Real',{x:8.28,y:1.6,w:4.45,h:0.3,fontSize:12,bold:true,color:K.or,align:'center'});
-  const et=[['Leads Totais',c.o.leads,'4B5563',4.1],['Contatados (Efetivos)',cont,'D97706',3.3],['Em Negociação',neg,'D2691E',2.5],['Vendas',c.o.nv,K.gr,1.6]];
-  const gaps=[[c.o.leads?nAt/c.o.leads:null,' Perda Inicial',K.rd],[c.o.leads?cont/c.o.leads:null,' Eficiência','D1D5DB'],[cont?neg/cont:null,' do Contato','D1D5DB']];
+  const et=[['Leads Totais',c.o.leads,K.sl,4.1],['Contatados (Efetivos)',cont,'D97706',3.3],['Em Negociação',neg,'D2691E',2.5],['Vendas',c.o.nv,K.gr,1.6]];
+  const gaps=[[c.o.leads?nAt/c.o.leads:null,' Perda Inicial',K.rd],[c.o.leads?cont/c.o.leads:null,' Eficiência',K.tx2],[cont?neg/cont:null,' do Contato',K.tx2]];
   et.forEach(([l,v,cor,w],i)=>{const y=2.05+i*1.0,x=8.28+(4.45-w)/2;
     s.addShape(i<3?pres.shapes.TRAPEZOID:pres.shapes.RECTANGLE,{x,y,w,h:0.55,fill:{color:cor},line:{color:cor},flipV:true});
     txt(s,l,{x:x+0.2,y,w:w-0.9,h:0.55,fontSize:10,bold:true,valign:'middle'});
@@ -4359,9 +4442,9 @@ function rnAprov(pres,D,c){
   const o=c.o,p=c.p,mt=kpiMeta(c.k,'tmed'),s=slideBase(pres,c.nome,'Indicadores de Aproveitamento',`Eficiência operacional e desempenho - ${D.mes} ${D.periodoC.split(' ')[0]}`);
   card(pres,s,10.82,0.42,1.9,0.66);txt(s,'Contratos Totais',{x:10.9,y:0.48,w:1.74,h:0.2,fontSize:8,color:K.mut,align:'right'});
   txt(s,R.int(o.nv),{x:10.9,y:0.66,w:1.74,h:0.36,fontSize:17,bold:true,color:K.or,align:'right'});
-  txt(s,'Eficiência do Funil',{x:0.78,y:1.5,w:4,h:0.28,fontSize:11,bold:true,color:'D1D5DB'});
+  txt(s,'Eficiência do Funil',{x:0.78,y:1.5,w:4,h:0.28,fontSize:11,bold:true,color:K.tx2});
   const cardK=(x,cor,tag,rot,val,dv,linha2)=>{card(pres,s,x,1.92,3.92,2.27);s.addShape(pres.shapes.RECTANGLE,{x,y:1.92,w:0.05,h:2.27,fill:{color:cor},line:{color:cor}});
-    txt(s,tag,{x:x+2.8,y:2.12,w:0.95,h:0.24,fontSize:8,bold:true,color:cor,align:'center',fill:{color:'1F2937'}});
+    txt(s,tag,{x:x+2.8,y:2.12,w:0.95,h:0.24,fontSize:8,bold:true,color:cor,align:'center',fill:{color:K.ln}});
     txt(s,rot,{x:x+0.28,y:2.95,w:3.4,h:0.26,fontSize:10,color:K.sub});
     txt(s,[{text:val,options:{fontSize:28,bold:true,color:cor===K.pu?K.pu:K.txt}},{text:'  '+dv,options:{fontSize:10,bold:true,color:K.gr}}],{x:x+0.28,y:3.22,w:3.55,h:0.55});
     txt(s,linha2,{x:x+0.28,y:3.82,w:3.5,h:0.24,fontSize:8.5,color:K.mut})};
@@ -4369,7 +4452,7 @@ function rnAprov(pres,D,c){
   cardK(0.62,K.or,'Volume','Total de Leads',R.int(o.leads),D.periodoC,`Leads-F: ${R.d1(o.lf)} | MLD: ${R.d1(mld)}`);
   cardK(4.73,K.pu,'Financeiro','Custo por Aquisição (CPA)',R.m2(o.cac),p.cac!=null&&o.cac!=null?rVar(o.cac,p.cac,'m2').split(' (')[0]+' vs ant.':'',`CPL: ${R.m2(o.cpl)} | Total: ${R.m2(o.inv)}`);
   cardK(8.84,K.gr,'Eficiência','Conversão Real (Tabulada)',R.p1(o.conv),o.conv!=null&&p.conv!=null?rVar(o.conv,p.conv,'pp').split(' (')[0]+' vs ant.':'',`${R.int(o.nv)} vendas sobre Total Leads`);
-  txt(s,'Desempenho Geral',{x:0.78,y:4.45,w:4,h:0.28,fontSize:11,bold:true,color:'D1D5DB'});
+  txt(s,'Desempenho Geral',{x:0.78,y:4.45,w:4,h:0.28,fontSize:11,bold:true,color:K.tx2});
   card(pres,s,0.62,4.88,5.92,1.43);card(pres,s,6.81,4.88,5.92,1.43);
   txt(s,'ROI',{x:1.8,y:5.05,w:3,h:0.22,fontSize:10,color:K.sub});
   txt(s,o.roi==null?'—':Math.round(o.roi*100)+'%',{x:1.8,y:5.27,w:4,h:0.55,fontSize:30,bold:true,color:K.gr});
@@ -4389,10 +4472,10 @@ function rnAprov(pres,D,c){
   txt(s,[{text:tm==null?'—':R.d1(tm),options:{fontSize:14,bold:true,color:crit?K.rd:K.gr}},{text:` dias  ${p.tempo!=null&&tm!=null?(Math.abs(tm-p.tempo)<0.05?'Mantido':tm>p.tempo?'Subiu':'Caiu')+' vs ant. ('+R.d1(p.tempo)+'d)':''}${crit?' - CRÍTICO':''}`,options:{fontSize:8.5,bold:true,color:crit?K.rd:K.gr}}],
     {x:6.5,y:6.53,w:6.05,h:0.28,align:'right'});
   const esc=40,barW=11.65,frac=Math.min(1,(tm||0)/esc);
-  s.addShape(pres.shapes.RECTANGLE,{x:0.85,y:6.88,w:barW,h:0.06,fill:{color:'1F2937'},line:{color:'1F2937'}});
+  s.addShape(pres.shapes.RECTANGLE,{x:0.85,y:6.88,w:barW,h:0.06,fill:{color:K.ln},line:{color:K.ln}});
   s.addShape(pres.shapes.RECTANGLE,{x:0.85,y:6.88,w:Math.max(0.02,barW*frac),h:0.06,fill:{color:crit?K.rd:K.gr},line:{color:crit?K.rd:K.gr}});
   if(mt!=null){const fx=Math.min(1,mt/esc);
-    s.addShape(pres.shapes.LINE,{x:0.85+barW*fx,y:6.82,w:0,h:0.18,line:{color:'D1D5DB',width:1,dashType:'dash'}});
+    s.addShape(pres.shapes.LINE,{x:0.85+barW*fx,y:6.82,w:0,h:0.18,line:{color:K.tx2,width:1,dashType:'dash'}});
     txt(s,`Meta Máx: ${R.d1(mt).replace(/,0$/,'')}d`,{x:0.85+barW*fx-0.6,y:6.6,w:1.2,h:0.18,fontSize:7,bold:true,color:K.mut,align:'center'})}}
 
 function gauge(pres,s,x,y,val,cor){
@@ -4417,7 +4500,7 @@ function rnTarget(pres,D,c){
     txt(s,[{text:R.p1(val),options:{fontSize:28,bold:true,color:ok?K.gr:K.rd}},{text:dv==null?'':`  ${dv>0?'↑':'↓'} ${R.sg(dv)}${R.d1(Math.abs(dv*100))}pp vs ant.`,options:{fontSize:9.5,bold:true,color:K.rd}}],{x:x+0.2,y:4.92,w:4.2,h:0.55});
     txt(s,linha,{x:x+1.6,y:5.38,w:3,h:0.2,fontSize:8.5,color:K.gr});
     txt(s,metaRot,{x:x+4.1,y:4.85,w:1.55,h:0.2,fontSize:9,color:K.mut,align:'right'});
-    txt(s,meta,{x:x+4.1,y:5.05,w:1.55,h:0.35,fontSize:15,bold:true,color:'D1D5DB',align:'right'})};
+    txt(s,meta,{x:x+4.1,y:5.05,w:1.55,h:0.35,fontSize:15,bold:true,color:K.tx2,align:'right'})};
   bloco(0.62,'Target (ICP)','Leads dentro do Perfil de Cliente Ideal',mtg==null?true:t!=null&&t*100>=mtg,mtg==null?'Sem meta':'Acima da Meta','Abaixo da Meta',t,tp,K.gr,'Resultado Atual vs Anterior',mtg==null?'':'> '+mmT(mtg)+'%','Meta GWA',
     `${R.int(c.tgt)} leads (${R.p1(D.tgtTot?c.tgt/D.tgtTot:null)} do global)`);
   bloco(6.9,'Churn do Funil','Taxa de perda operacional e desqualificação',mch==null?true:ch!=null&&ch*100<mch,mch==null?'Sem teto':'Abaixo do Teto','Acima do Teto',ch,chp,K.gr,'Perda Acumulada vs Anterior',mch==null?'':'< '+mmT(mch)+'%','Teto Aceitável',
@@ -4427,51 +4510,55 @@ function rnTarget(pres,D,c){
   txt(s,'Leitura Estratégica',{x:0.88,y:6.2,w:2.6,h:0.32,fontSize:14,bold:true,color:K.or});
   txt(s,'Análise de Funil',{x:0.88,y:6.5,w:2.6,h:0.2,fontSize:8,color:K.mut});
   s.addShape(pres.shapes.LINE,{x:3.6,y:6.1,w:0,h:0.7,line:{color:'333333',width:0.75}});
-  txt(s,txtL,{x:3.85,y:5.98,w:8.7,h:0.98,fontSize:10,color:'D1D5DB',valign:'middle'})}
+  txt(s,txtL,{x:3.85,y:5.98,w:8.7,h:0.98,fontSize:10,color:K.tx2,valign:'middle'})}
 
 function rnLinha(pres,D,c){
-  const Ls=D.linhas,s=slideBase(pres,c.nome.toUpperCase(),'PERFORMANCE POR LINHA',`Análise de recebimento, trabalho e conversão das linhas ativas (${D.periodo})`);
+  const Ls=(D.linhasTop&&D.linhasTop.length?D.linhasTop:D.linhas),s=slideBase(pres,c.nome.toUpperCase(),'PERFORMANCE POR LINHA',`Análise de recebimento, trabalho e conversão das linhas ativas (${D.periodo})`);
   const S=Ls.reduce((a,x)=>({rec:a.rec+x.rec,tr:a.tr+x.tr,rs:a.rs+x.rs,q:a.q+x.q,v:a.v+x.v,nt:a.nt+x.nt}),{rec:0,tr:0,rs:0,q:0,v:0,nt:0});
   const top=[['Leads Recebidos',R.int(S.rec),'','Volume Total Base',K.bl],['Leads Trabalhados',R.int(S.tr),R.p1(S.rec?S.tr/S.rec:null),`${R.int(S.nt)} (${R.p1(S.rec?S.nt/S.rec:null)}) Não trabalhados`,K.gr],
     ['Respostas',R.int(S.rs),R.p1(S.rec?S.rs/S.rec:null),'Conversão Inicial',K.pu],['Qualificados',R.int(S.q),R.p1(S.rec?S.q/S.rec:null),'Taxa de Qualificação',K.am],
     ['Vendas (tabulação)',R.int(S.v),R.p1(S.rec?S.v/S.rec:null),'Conversão sobre recebidos',K.or]];
   top.forEach(([l,v,pp,sub,cor],i)=>{const x=0.62+i*2.46;card(pres,s,x,1.38,2.3,1.05);s.addShape(pres.shapes.RECTANGLE,{x,y:1.38,w:2.3,h:0.04,fill:{color:cor},line:{color:cor}});
-    txt(s,l,{x:x+0.15,y:1.48,w:2.1,h:0.2,fontSize:8.5,bold:true,color:'D1D5DB'});
+    txt(s,l,{x:x+0.15,y:1.48,w:2.1,h:0.2,fontSize:8.5,bold:true,color:K.tx2});
     txt(s,[{text:v,options:{fontSize:19,bold:true}},{text:pp?'  '+pp:'',options:{fontSize:9,bold:true,color:cor}}],{x:x+0.15,y:1.7,w:2.1,h:0.38});
     txt(s,sub,{x:x+0.15,y:2.1,w:2.1,h:0.2,fontSize:7.5,color:i===1?K.rd:K.mut})});
   /* bloco da tabela do tamanho exato das linhas; embaixo, destaque e gráfico na mesma altura até a margem */
-  const nL=Ls.length,rh=nL>4?0.28:0.36,tH=(nL+1)*rh,cardH=0.5+tH+0.42;
-  card(pres,s,0.62,2.6,12.11,cardH,'0B0F14','1F2937');
-  txt(s,'Detalhamento Executivo por Linha',{x:0.85,y:2.72,w:5,h:0.28,fontSize:11.5,bold:true,color:'D1D5DB'});
+  /* todas as linhas entram: a altura da linha e a fonte encolhem até caber no quadro */
+  const nL=Ls.length,rh=Math.min(0.36,2.28/(nL+1)),fsL=Math.max(4.8,Math.min(9,rh*24)),tH=(nL+1)*rh,cardH=0.5+tH+0.42;
+  card(pres,s,0.62,2.6,12.11,cardH,K.card2,K.ln);
+  txt(s,'Detalhamento Executivo por Linha',{x:0.85,y:2.72,w:5,h:0.28,fontSize:11.5,bold:true,color:K.tx2});
   const nomead=Ls.filter(l=>!l.outras);
   const best=nomead.slice().sort((a,b)=>(b.pResp||0)-(a.pResp||0))[0];
   const rows=[['Linha','Receb.','Trab.','Ñ Trab.','Resps.','S/ Resp.','Vendas','% Resp','% Qualif','% Venda','Aproveit.'].map((h,i)=>({text:h,options:{bold:true,fontSize:8,color:i===3?K.rd:i===6?K.gr:i===8?K.am:K.sub}})),
-    ...Ls.map(l=>[{text:(l===best?'★ ':'')+l.nome,options:{bold:true,color:l===best?K.gr:K.txt}},R.int(l.rec),R.int(l.tr),{text:R.int(l.nt),options:{color:'F87171'}},
-      R.int(l.rs),R.int(l.sr),{text:R.int(l.v),options:{bold:true,color:K.gr}},R.p1(l.pResp),{text:R.p1(l.pQ),options:{bold:true,color:'FCD34D'}},R.p1(l.pV),
+    ...Ls.map(l=>[{text:(l===best?'★ ':'')+l.nome,options:{bold:true,color:l===best?K.gr:K.txt}},R.int(l.rec),R.int(l.tr),{text:R.int(l.nt),options:{color:K.rd2}},
+      R.int(l.rs),R.int(l.sr),{text:R.int(l.v),options:{bold:true,color:K.gr}},R.p1(l.pResp),{text:R.p1(l.pQ),options:{bold:true,color:K.am2}},R.p1(l.pV),
       {text:R.p1(l.aprov),options:{bold:true,color:l===best?K.gr:K.txt}}])];
-  s.addTable(rows.map((r,i)=>r.map(cl=>typeof cl==='string'?{text:cl,options:{color:'D1D5DB'}}:cl)),
-    {x:0.85,y:3.08,w:11.65,colW:[1.2,1.0,1.0,1.0,1.0,1.0,1.0,1.1,1.1,1.1,1.15],rowH:rh,fontFace:FT,fontSize:9,align:'center',
-     border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'});
+  s.addTable(rows.map((r,i)=>r.map(cl=>typeof cl==='string'?{text:cl,options:{color:K.tx2}}:cl)),
+    {x:0.85,y:3.08,w:11.65,colW:[1.2,1.0,1.0,1.0,1.0,1.0,1.0,1.1,1.1,1.1,1.15],rowH:rh,fontFace:FT,fontSize:fsL,align:'center',color:K.tx2,
+     margin:rh<0.26?[0.015,0.04,0.015,0.04]:[0.03,0.05,0.03,0.05],
+     border:{type:'solid',pt:0.5,color:K.ln},valign:'middle'});
   txt(s,'Linhas = coluna CANAL da base · Trabalhados = recebidos menos Discador/sem tabulação · Respostas = trabalhados menos "Não atende" · Qualificados = Negociando + Pré-venda + Venda.',
     {x:0.85,y:3.08+tH+0.1,w:11.65,h:0.22,fontSize:7,color:K.mut});
   const lider=nomead[0],yb=2.6+cardH+0.2,hb=Math.max(1.1,7.02-yb);
+  /* o gráfico só mostra as maiores: a tabela acima já traz todas as linhas */
+  const graf=nomead.slice(0,Math.max(2,Math.min(6,Math.floor((hb-0.55)/0.2))));
   caixaTexto(pres,s,0.62,yb,6.2,hb,`Destaque Operacional: ${best?best.nome:'—'}${lider&&best&&lider!==best?' e '+lider.nome:''}`,
     `${best?`A linha ${best.nome} lidera em taxa de resposta (${R.p1(best.pResp)}) e qualificação (${R.p1(best.pQ)}).`:''} ${lider?`A linha ${lider.nome} é o motor da operação: absorveu ${R.p1(S.rec?lider.rec/S.rec:null)} dos leads (${R.int(lider.rec)}) e ${R.p1(S.v?lider.v/S.v:null)} das vendas tabuladas (${R.int(lider.v)}).`:''}`,K.gr);
   card(pres,s,7.0,yb,5.73,hb);
   txt(s,'Comparativo: Taxa de Resposta (%)',{x:7.2,y:yb+0.12,w:5,h:0.25,fontSize:10,bold:true,color:K.sub});
-  s.addChart(pres.charts.BAR,[{name:'% Resp',labels:nomead.map(l=>'Linha '+l.nome),values:nomead.map(l=>+((l.pResp||0)*100).toFixed(1))}],
-    {x:7.15,y:yb+0.42,w:5.43,h:hb-0.55,barDir:'bar',chartColors:nomead.map(l=>l===best?K.gr:'4B5563'),showValue:true,dataLabelColor:'FFFFFF',dataLabelFontSize:8,
-     dataLabelFormatCode:'0.0"%"',catAxisLabelColor:'D1D5DB',catAxisLabelFontSize:8,valAxisHidden:true,valGridLine:{style:'none'},catGridLine:{style:'none'},
+  s.addChart(pres.charts.BAR,[{name:'% Resp',labels:graf.map(l=>'Linha '+l.nome),values:graf.map(l=>+((l.pResp||0)*100).toFixed(1))}],
+    {x:7.15,y:yb+0.42,w:5.43,h:hb-0.55,barDir:'bar',chartColors:nomead.map(l=>l===best?K.gr:K.sl),showValue:true,dataLabelColor:'FFFFFF',dataLabelFontSize:8,
+     dataLabelFormatCode:'0.0"%"',catAxisLabelColor:K.tx2,catAxisLabelFontSize:8,valAxisHidden:true,valGridLine:{style:'none'},catGridLine:{style:'none'},
      catAxisLineShow:false,valAxisLineShow:false,showLegend:false,barGapWidthPct:60,valAxisMinVal:0,valAxisMaxVal:Math.min(100,Math.ceil(Math.max(...nomead.map(l=>(l.pResp||0)*100))*1.25/10)*10||100)})}
 
 function rnBalanc(pres,D){
   const s=slideBase(pres,'Balanceador','Contratos '+fE,`Análise de peso por campanha e consolidação Target/Churn (${D.periodoC})`);
   const camps=D.camps,tl=camps.reduce((q,c)=>q+c.o.leads,0),nv=camps.reduce((q,c)=>q+c.o.nv,0),tg=D.tgtTot,tlT=camps.reduce((q,c)=>q+c.tb.t,0);
-  card(pres,s,9.16,0.41,3.57,0.8,'0F172A','1E293B');
+  card(pres,s,9.16,0.41,3.57,0.8,K.bx2,'1E293B');
   txt(s,'Total de Contratos',{x:9.55,y:0.5,w:3,h:0.22,fontSize:9,color:K.sub});txt(s,R.int(nv),{x:9.55,y:0.72,w:3,h:0.4,fontSize:17,bold:true});
-  card(pres,s,0.62,1.35,4.6,1.7);txt(s,'Índices Globais '+fE,{x:0.85,y:1.5,w:3,h:0.25,fontSize:11,bold:true,color:'D1D5DB'});
+  card(pres,s,0.62,1.35,4.6,1.7);txt(s,'Índices Globais '+fE,{x:0.85,y:1.5,w:3,h:0.25,fontSize:11,bold:true,color:K.tx2});
   [['Total Leads',R.int(tl),'',K.bl],['Target',R.int(tg),R.p1(tlT?tg/tlT:null),K.gr],['Churn',R.int(tlT-tg),R.p1(tlT?(tlT-tg)/tlT:null),K.rd]].forEach(([l,v,p2,cor],i)=>{
-    const x=0.85+i*1.42;card(pres,s,x,1.88,1.32,0.98,'0D0D0D');s.addShape(pres.shapes.RECTANGLE,{x,y:1.88,w:0.05,h:0.98,fill:{color:cor},line:{color:cor}});
+    const x=0.85+i*1.42;card(pres,s,x,1.88,1.32,0.98,K.bx4);s.addShape(pres.shapes.RECTANGLE,{x,y:1.88,w:0.05,h:0.98,fill:{color:cor},line:{color:cor}});
     txt(s,l,{x:x+0.08,y:1.95,w:1.2,h:0.22,fontSize:9.5,bold:true,color:K.sub,align:'center'});
     txt(s,v,{x:x+0.08,y:2.18,w:1.2,h:0.36,fontSize:16,bold:true,align:'center'});
     txt(s,p2,{x:x+0.08,y:2.55,w:1.2,h:0.22,fontSize:9,bold:true,color:K.sub,align:'center'})});
@@ -4480,21 +4567,21 @@ function rnBalanc(pres,D){
   const nl=Math.min(4,camps.length),pas=nl>3?0.74:0.85;
   camps.slice(0,nl).forEach((c,i)=>{const y=3.98+i*pas,t=c.tb.t?c.tgt/c.tb.t:0;
     txt(s,c.nome,{x:0.85,y,w:2.9,h:0.26,fontSize:10.5,bold:true});txt(s,R.int(c.o.leads),{x:3.7,y,w:1.3,h:0.26,fontSize:10.5,bold:true,align:'right'});
-    s.addShape(pres.shapes.RECTANGLE,{x:0.85,y:y+0.3,w:4.15,h:0.06,fill:{color:'1F2937'},line:{color:'1F2937'}});
+    s.addShape(pres.shapes.RECTANGLE,{x:0.85,y:y+0.3,w:4.15,h:0.06,fill:{color:K.ln},line:{color:K.ln}});
     s.addShape(pres.shapes.RECTANGLE,{x:0.85,y:y+0.3,w:Math.max(0.02,4.15*(tl?c.o.leads/tl:0)),h:0.06,fill:{color:i?'6B7280':K.or},line:{color:i?'6B7280':K.or}});
     txt(s,`Tgt: ${R.int(c.tgt)} (${R.p1(t)})`,{x:0.85,y:y+0.41,w:2.1,h:0.22,fontSize:9,color:K.sub});
     txt(s,`Chr: ${R.int(c.tb.t-c.tgt)} (${R.p1(1-t)})`,{x:2.9,y:y+0.41,w:2.1,h:0.22,fontSize:9,color:K.sub,align:'right'})});
   card(pres,s,5.42,1.35,7.31,5.65);
-  txt(s,'Distribuição de Contratos',{x:5.65,y:1.55,w:3,h:0.26,fontSize:10.5,bold:true,color:'D1D5DB'});
+  txt(s,'Distribuição de Contratos',{x:5.65,y:1.55,w:3,h:0.26,fontSize:10.5,bold:true,color:K.tx2});
   const cores=[K.or,'6B7280',K.sl,K.bl,K.pu,K.gr];
   s.addChart(pres.charts.BAR,[{name:'Contratos',labels:camps.map(c=>c.nome),values:camps.map(c=>c.o.nv)}],
     {x:5.5,y:1.85,w:3.55,h:3.0,barDir:'col',chartColors:cores.slice(0,camps.length),showValue:true,dataLabelColor:'FFFFFF',dataLabelFontSize:8,
-     catAxisLabelColor:K.sub,catAxisLabelFontSize:8,valAxisLabelColor:K.mut,valAxisLabelFontSize:7,valGridLine:{color:'262626',size:0.5},catGridLine:{style:'none'},showLegend:false,barGapWidthPct:70});
+     catAxisLabelColor:K.sub,catAxisLabelFontSize:8,valAxisLabelColor:K.mut,valAxisLabelFontSize:7,valGridLine:{color:K.bord,size:0.5},catGridLine:{style:'none'},showLegend:false,barGapWidthPct:70});
   s.addChart(pres.charts.DOUGHNUT,[{name:'Contratos',labels:camps.map(c=>`${c.nome} (${c.o.nv})`),values:camps.map(c=>c.o.nv)}],
     {x:9.15,y:1.6,w:3.45,h:3.3,holeSize:65,chartColors:cores.slice(0,camps.length),showLegend:true,legendPos:'b',legendColor:K.sub,legendFontSize:7.5,
-     showPercent:true,dataLabelColor:'FFFFFF',dataLabelFontSize:7,title:`Distribuição Total (${nv} Contratos)`,showTitle:true,titleColor:'D1D5DB',titleFontSize:9});
+     showPercent:true,dataLabelColor:'FFFFFF',dataLabelFontSize:7,title:`Distribuição Total (${nv} Contratos)`,showTitle:true,titleColor:K.tx2,titleFontSize:9});
   const ex=camps.map(c=>`${c.nome} gerou ${R.int(c.o.nv)} contratos (${R.p1(nv?c.o.nv/nv:null)}) com ${R.int(c.o.leads)} leads (Target: ${R.int(c.tgt)} | Churn: ${R.int(c.tb.t-c.tgt)}).`).join(' ');
-  txt(s,[{text:'Leitura Executiva: ',options:{bold:true,color:K.txt}},{text:ex+` Total global: ${R.int(tl)} leads e ${R.int(nv)} contratos; proporção de Target consolidada de ${R.p1(tlT?tg/tlT:null)}.`,options:{color:'D1D5DB'}}],
+  txt(s,[{text:'Leitura Executiva: ',options:{bold:true,color:K.txt}},{text:ex+` Total global: ${R.int(tl)} leads e ${R.int(nv)} contratos; proporção de Target consolidada de ${R.p1(tlT?tg/tlT:null)}.`,options:{color:K.tx2}}],
     {x:5.65,y:5.05,w:6.9,h:1.85,fontSize:10,valign:'top',fit:'shrink'})}
 
 /* nome do formulário nos slides: o definido na Administração ou o original sem os prefixos [EMPRESA] [CADASTRO] */
@@ -4513,22 +4600,22 @@ function rnForm(pres,D,f){
   txt(s,R.int(f.t)+' Leads',{x:8.2,y:0.56,w:2.2,h:0.36,fontSize:15,bold:true,align:'right'});
   txt(s,'Status Principal',{x:10.6,y:0.36,w:2.12,h:0.2,fontSize:8,color:K.mut,align:'right'});
   txt(s,crit?'CRÍTICO':ruim?'Atenção':'Negociando: '+R.p0(f.t?neg/f.t:0),{x:10.4,y:0.56,w:2.32,h:0.36,fontSize:14,bold:true,color:crit?K.rd:ruim?K.am:K.bl,align:'right'});
-  card(pres,s,0.62,1.4,4.6,5.6,'0B0F14','1F2937');
+  card(pres,s,0.62,1.4,4.6,5.6,K.card2,K.ln);
   txt(s,'Tabulação Resumida',{x:0.85,y:1.52,w:3,h:0.28,fontSize:10.5,bold:true});
   const ant=f.ant;
   const rows=[['Status','Vol','%','Var pp'].map(h=>({text:h,options:{bold:true,color:K.sub,fontSize:8.5}})),
     ...L.slice(0,9).map(([t,v])=>{const sh=v/f.t,sa=ant&&ant.t?(ant.tab[t]||0)/ant.t:null,dv=sa==null?null:sh-sa;
-      const cor=ehNaoAt(t)?'F87171':kind(t)==='g'?K.gr:'D1D5DB';
+      const cor=ehNaoAt(t)?K.rd2:kind(t)==='g'?K.gr:K.tx2;
       return [{text:'●  '+t,options:{color:cor,bold:ehNaoAt(t)||kind(t)==='g'}},{text:R.int(v),options:{bold:true,color:cor}},{text:R.p1(sh),options:{color:cor}},
         {text:dv==null?'-':R.sg(dv)+R.d1(Math.abs(dv*100))+'pp',options:{color:K.mut}}]})];
-  s.addTable(rows,{x:0.75,y:1.9,w:4.35,colW:[1.95,0.75,0.8,0.85],rowH:0.4,fontFace:FT,fontSize:9,border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle',align:'center'});
+  s.addTable(rows,{x:0.75,y:1.9,w:4.35,colW:[1.95,0.75,0.8,0.85],rowH:0.4,fontFace:FT,fontSize:9,border:{type:'solid',pt:0.5,color:K.ln},valign:'middle',align:'center'});
   /* espaço livre embaixo da tabela: comparação com o período anterior */
   const fimT=1.9+rows.length*0.4;
   if(7.0-fimT>=1.15){const y=6.0,vA=ant&&ant.t?ant.t:null,vendA=ant?Object.entries(ant.tab).filter(([t])=>kind(t)==='g').reduce((q,[,v])=>q+v,0):null;
     const naA=ant&&ant.t?(ant.tab['Não atende']||0)/ant.t:null;
     txt(s,'vs período anterior',{x:0.85,y:y-0.3,w:3,h:0.22,fontSize:8.5,bold:true,color:K.sub});
     [['Leads',vA==null?'—':R.int(vA),vA?vr(f.t,vA):null,true],['Não atende',R.p1(naA),naA==null?null:pNA-naA,false,'pp'],['Vendas',vendA==null?'—':R.int(vendA),vendA?vr(venda,vendA):null,true]].forEach(([l,v,dv,bom,pp],i)=>{
-      const x=0.75+i*1.47;card(pres,s,x,y,1.37,0.82,'111827','1F2937');
+      const x=0.75+i*1.47;card(pres,s,x,y,1.37,0.82,K.bx3,K.ln);
       txt(s,l+' antes',{x:x+0.1,y:y+0.07,w:1.2,h:0.18,fontSize:7.5,color:K.mut});txt(s,v,{x:x+0.1,y:y+0.26,w:1.2,h:0.3,fontSize:13,bold:true});
       const sv=setaR(dv,bom);txt(s,dv==null?'':`${sv.t} agora ${R.sg(dv)}${pp?R.d1(Math.abs(dv*100))+'pp':R.d1(Math.abs(dv*100))+'%'}`,{x:x+0.1,y:y+0.57,w:1.25,h:0.18,fontSize:7,bold:true,color:sv.c})})}
   const top4=[['Não Atende',R.p1(pNA)],['Negociando',R.int(neg)],['Discador',R.int(Object.entries(f.tab).filter(([t])=>/discador/i.test(t)).reduce((q,[,v])=>q+v,0))],['Venda',R.int(venda)]];
@@ -4549,17 +4636,17 @@ function rnQual(pres,D){
   txt(s,[{text:R.int(tot.t),options:{fontSize:17,bold:true,color:K.or}},{text:`  (${D.periodoC})`,options:{fontSize:8.5,bold:true,color:K.sub}}],{x:9.0,y:0.56,w:3.72,h:0.36,align:'right'});
   const maxCol=t=>Math.max(...camps.map(c=>c.tb.t?(c.tb.m[t]||0)/c.tb.t:0));
   const rows=[[{text:'Status',options:{bold:true,color:K.sub}},...camps.map(c=>({text:c.nome,options:{bold:true,color:K.sub}})),{text:'TOTAL',options:{bold:true,color:K.or}}],
-    ...tabs.map(t=>[{text:'●  '+t,options:{bold:true,color:'D1D5DB'}},...camps.map(c=>{const v=c.tb.t?(c.tb.m[t]||0)/c.tb.t:0;
-      return{text:R.p2(v),options:{color:v===maxCol(t)&&v>0?(ehNaoAt(t)?'F87171':K.or):'D1D5DB',bold:v===maxCol(t)&&v>0}}}),
+    ...tabs.map(t=>[{text:'●  '+t,options:{bold:true,color:K.tx2}},...camps.map(c=>{const v=c.tb.t?(c.tb.m[t]||0)/c.tb.t:0;
+      return{text:R.p2(v),options:{color:v===maxCol(t)&&v>0?(ehNaoAt(t)?K.rd2:K.or):K.tx2,bold:v===maxCol(t)&&v>0}}}),
       {text:R.p2(tot.t?(tot.m[t]||0)/tot.t:0),options:{bold:true,color:K.or}}]),
     [{text:'Total Geral',options:{bold:true}},...camps.map(()=>({text:'100%',options:{bold:true}})),{text:'100%',options:{bold:true,color:K.or}}]];
   const cw=[1.85,...camps.map(()=>4.55/camps.length),0.9];
-  s.addTable(rows,{x:0.62,y:1.42,w:7.3,colW:cw,rowH:0.44,fontFace:FT,fontSize:8.5,color:'D1D5DB',align:'center',
-    border:{type:'solid',pt:0.5,color:'1F2937'},fill:{color:'0D0D0D'},valign:'middle'});
+  s.addTable(rows,{x:0.62,y:1.42,w:7.3,colW:cw,rowH:0.44,fontFace:FT,fontSize:8.5,color:K.tx2,align:'center',
+    border:{type:'solid',pt:0.5,color:K.ln},fill:{color:K.bx4},valign:'middle'});
   card(pres,s,8.12,1.42,4.6,3.25);txt(s,`Distribuição Total (%) - ${D.mes}`,{x:8.3,y:1.52,w:4.2,h:0.26,fontSize:10.5,bold:true});
   s.addChart(pres.charts.BAR,[{name:'%',labels:tabs,values:tabs.map(t=>+((tot.t?(tot.m[t]||0)/tot.t:0)*100).toFixed(2))}],
     {x:8.2,y:1.82,w:4.45,h:2.8,barDir:'col',chartColors:tabs.map(corTab),catAxisLabelColor:K.sub,catAxisLabelFontSize:7,catAxisLabelRotate:-45,
-     valAxisLabelColor:K.mut,valAxisLabelFontSize:7,valAxisLabelFormatCode:'0"%"',valGridLine:{color:'262626',size:0.5},catGridLine:{style:'none'},showLegend:false,barGapWidthPct:45});
+     valAxisLabelColor:K.mut,valAxisLabelFontSize:7,valAxisLabelFormatCode:'0"%"',valGridLine:{color:K.bord,size:0.5},catGridLine:{style:'none'},showLegend:false,barGapWidthPct:45});
   const pior=camps.slice().sort((a,b)=>(b.tb.t?(b.tb.m['Não atende']||0)/b.tb.t:0)-(a.tb.t?(a.tb.m['Não atende']||0)/a.tb.t:0))[0];
   const melhor=camps.slice().sort((a,b)=>(b.tb.t?b.tgt/b.tb.t:0)-(a.tb.t?a.tgt/a.tb.t:0))[0];
   caixaTexto(pres,s,8.12,4.85,4.6,2.15,`Destaques por Mídia - ${D.mes}`,
@@ -4573,13 +4660,13 @@ function rnCustos(pres,D){
   const cores=[K.gr,K.am,K.pu,K.bl,'6B7280',K.or];
   card(pres,s,0.62,1.38,3.95,2.95);txt(s,'Share de Custos',{x:0.8,y:1.48,w:3,h:0.26,fontSize:10,bold:true});
   s.addTable([['Campanha','Custo (R$)','Share %'].map(h=>({text:h,options:{bold:true,color:K.sub,fontSize:8}})),
-    ...C.slice(0,6).map(([k,o],i)=>[{text:'●  '+nomeCamp(k),options:{color:'D1D5DB'}},{text:R.m2(o.inv),options:{color:'D1D5DB',align:'right'}},{text:R.p1(T.inv?o.inv/T.inv:0),options:{color:K.sub,align:'right'}}])],
+    ...C.slice(0,6).map(([k,o],i)=>[{text:'●  '+nomeCamp(k),options:{color:K.tx2}},{text:R.m2(o.inv),options:{color:K.tx2,align:'right'}},{text:R.p1(T.inv?o.inv/T.inv:0),options:{color:K.sub,align:'right'}}])],
     {x:0.72,y:1.8,w:3.75,colW:[1.45,1.45,0.85],rowH:0.3,fontFace:FT,fontSize:8.5,border:{type:'none'},valign:'middle'});
   card(pres,s,4.7,1.38,3.95,2.95);txt(s,'Share de Receita',{x:4.88,y:1.48,w:3,h:0.26,fontSize:10,bold:true});
   const FT2=C.reduce((q,[,o])=>q+o.fat,0);
   s.addTable([['Campanha','Receita %','Status'].map(h=>({text:h,options:{bold:true,color:K.sub,fontSize:8}})),
     ...C.slice().sort((a,b)=>b[1].fat-a[1].fat).slice(0,6).map(([k,o],i)=>{const sh=FT2?o.fat/FT2:0;const st=sh>=0.5?['Dominante',K.gr]:sh>=0.15?['Estável',K.am]:o.p&&false?['Novo',K.bl]:['Baixo',K.pu];
-      return[{text:'●  '+nomeCamp(k),options:{color:'D1D5DB'}},{text:R.p1(sh),options:{bold:true,color:st[1],align:'right'}},{text:st[0],options:{bold:true,color:st[1],align:'center'}}]})],
+      return[{text:'●  '+nomeCamp(k),options:{color:K.tx2}},{text:R.p1(sh),options:{bold:true,color:st[1],align:'right'}},{text:st[0],options:{bold:true,color:st[1],align:'center'}}]})],
     {x:4.8,y:1.8,w:3.75,colW:[1.5,1.05,1.2],rowH:0.3,fontFace:FT,fontSize:8.5,border:{type:'none'},valign:'middle'});
   card(pres,s,8.78,1.38,3.95,2.95);txt(s,'Peso Temporal',{x:8.96,y:1.48,w:3,h:0.26,fontSize:10,bold:true});
   const W=D.W;
@@ -4591,7 +4678,7 @@ function rnCustos(pres,D){
   s.addChart(pres.charts.LINE,[{name:'Investimento',labels:W.map(w=>w.n.replace('Semana','Sem')),values:W.map(w=>Math.round(w.inv))},
     {name:'Faturamento',labels:W.map(w=>w.n.replace('Semana','Sem')),values:W.map(w=>Math.round(w.fat))}],
     {x:0.72,y:4.88,w:11.9,h:2.05,chartColors:[K.or,K.gr],lineSize:2,lineDataSymbol:'circle',lineDataSymbolSize:6,showLegend:true,legendPos:'t',legendColor:K.sub,legendFontSize:8,
-     catAxisLabelColor:K.sub,catAxisLabelFontSize:8,valAxisLabelColor:K.mut,valAxisLabelFontSize:7,valAxisLabelFormatCode:'"R$ "#,##0',valGridLine:{color:'262626',size:0.5},catGridLine:{style:'none'}})}
+     catAxisLabelColor:K.sub,catAxisLabelFontSize:8,valAxisLabelColor:K.mut,valAxisLabelFontSize:7,valAxisLabelFormatCode:'"R$ "#,##0',valGridLine:{color:K.bord,size:0.5},catGridLine:{style:'none'}})}
 
 function rnTicket(pres,D){
   const tk=D.tk.filter(x=>x.v!=null),ano=parse(D.b).getFullYear();
@@ -4608,19 +4695,19 @@ function rnTicket(pres,D){
   s.addChart(pres.charts.LINE,[{name:'Ticket médio',labels:tk.map(x=>MES3[x.m]),values:tk.map(x=>+x.v.toFixed(2))}],
     {x:0.75,y:2.15,w:7.7,h:4.05,chartColors:['9CA3AF'],lineSize:2,lineDataSymbol:'circle',lineDataSymbolSize:8,lineSmooth:true,
      showValue:true,dataLabelColor:'FFFFFF',dataLabelFontSize:7.5,dataLabelFormatCode:'"R$ "#,##0.00',dataLabelPosition:'t',
-     catAxisLabelColor:'D1D5DB',catAxisLabelFontSize:9,valAxisLabelColor:K.mut,valAxisLabelFontSize:7,valAxisLabelFormatCode:'"R$ "#,##0',
-     valGridLine:{color:'262626',size:0.5},catGridLine:{style:'none'},showLegend:false});
+     catAxisLabelColor:K.tx2,catAxisLabelFontSize:9,valAxisLabelColor:K.mut,valAxisLabelFontSize:7,valAxisLabelFormatCode:'"R$ "#,##0',
+     valGridLine:{color:K.bord,size:0.5},catGridLine:{style:'none'},showLegend:false});
   card(pres,s,8.8,2.05,3.93,1.1);txt(s,`Ticket Atual (${MESC[at.m]})`,{x:8.8,y:2.15,w:3.93,h:0.22,fontSize:8.5,color:K.mut,align:'center'});
   txt(s,R.m2(at.v),{x:8.8,y:2.4,w:3.93,h:0.6,fontSize:26,bold:true,color:alerta?K.rd:K.gr,align:'center'});
   card(pres,s,8.8,3.3,1.9,0.95,alerta?'1A0808':K.card,alerta?'7F1D1D':K.bord);card(pres,s,10.83,3.3,1.9,0.95);
-  txt(s,'Var. vs mês ant.',{x:8.8,y:3.38,w:1.9,h:0.2,fontSize:8,color:alerta?'F87171':K.mut,align:'center'});
+  txt(s,'Var. vs mês ant.',{x:8.8,y:3.38,w:1.9,h:0.2,fontSize:8,color:alerta?K.rd2:K.mut,align:'center'});
   txt(s,dv==null?'—':R.sg(dv)+R.d1(Math.abs(dv*100))+'%',{x:8.8,y:3.6,w:1.9,h:0.45,fontSize:17,bold:true,color:alerta?K.rd:K.gr,align:'center'});
   txt(s,`Pico (${MESC[pico.m]})`,{x:10.83,y:3.38,w:1.9,h:0.2,fontSize:8,color:K.mut,align:'center'});
   txt(s,R.m2(pico.v),{x:10.83,y:3.6,w:1.9,h:0.45,fontSize:14,bold:true,align:'center'});
   caixaTexto(pres,s,8.8,4.4,3.93,1.9,'Card de Análise',`${MESC[at.m]} fecha com ticket de ${R.m2(at.v)}${ant?`, ${dv<0?'queda':'alta'} de ${R.d1(Math.abs(dv*100))}% (${R.sg(at.v-ant.v)}R$ ${R.d2(Math.abs(at.v-ant.v))}) em relação a ${MESC[ant.m]} (${R.m2(ant.v)})`:''}. ${at.v<med?'Abaixo':'Acima'} da média do ano.`,alerta?K.rd:K.gr);
   card(pres,s,0.62,6.45,12.11,0.58);
   txt(s,`●  A média do período (${MES3[tk[0].m]}-${MES3[at.m]}) está em ${R.m2(med)}. O valor de ${MESC[at.m]} (${R.m2(at.v)}) ${at.v<med?'fica abaixo':'fica acima'} da média do ano${queda!=null&&pico!==at?`, ${R.d1(Math.abs(queda*100))}% ${queda<0?'abaixo':'acima'} do pico de ${MESC[pico.m]}`:''}.`,
-    {x:0.8,y:6.45,w:11.8,h:0.58,fontSize:9,color:'D1D5DB',valign:'middle'})}
+    {x:0.8,y:6.45,w:11.8,h:0.58,fontSize:9,color:K.tx2,valign:'middle'})}
 
 function rnSemanal(pres,D){
   const T=D.T,W=D.W,s=slideBase(pres,'Performance Semanal',D.mesAno,`Análise semanal (${D.periodo}) com métricas de leads, vendas, conversão e ROAS`);
@@ -4633,24 +4720,26 @@ function rnSemanal(pres,D){
     ...W.map(w=>[{text:`${w.n}\n${brd(w.ini)}-${brd(w.fim)}`,options:{bold:true,color:K.or,fontSize:8}},{text:R.int(w.leads),options:{bold:true,color:K.txt}},{text:R.int(w.nv),options:{bold:true,color:K.gr}},
       R.p1(w.conv),R.m2(w.inv),R.m2(w.cpl),R.m2(w.cac),{text:w.roas==null?'—':R.x2(w.roas)+'x',options:{bold:true,color:K.gr}},R.p1(w.margem),
       {text:w.st,options:{bold:true,color:stc[w.st]||K.sub,fontSize:7.5}}])];
-  s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:'D1D5DB'}}:c)),
+  s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:K.tx2}}:c)),
     {x:0.72,y:1.75,w:7.65,colW:[1.05,0.62,0.66,0.6,1.0,0.7,0.82,0.6,0.72,0.88],rowH:Math.min(0.72,4.5/(W.length+1)),fontFace:FT,fontSize:8,align:'center',
-     border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'});
+     border:{type:'solid',pt:0.5,color:K.ln},valign:'middle'});
   const melhor=W.filter(w=>w.st!=='SEM DADOS'&&w.conv!=null).sort((a,b)=>(b.roas||0)-(a.roas||0))[0];
-  if(melhor)txt(s,`●  ${melhor.n} apresentou o melhor desempenho com ${R.p1(melhor.conv)} de conversão e ROAS de ${R.x2(melhor.roas)}x.`,{x:0.82,y:6.6,w:7.5,h:0.3,fontSize:8.5,color:'D1D5DB'});
+  if(melhor)txt(s,`●  ${melhor.n} apresentou o melhor desempenho com ${R.p1(melhor.conv)} de conversão e ROAS de ${R.x2(melhor.roas)}x.`,{x:0.82,y:6.6,w:7.5,h:0.3,fontSize:8.5,color:K.tx2});
   card(pres,s,8.62,1.32,4.11,1.55);txt(s,'Mês Atual',{x:8.8,y:1.4,w:2,h:0.18,fontSize:7.5,color:K.mut});txt(s,'Desempenho Geral',{x:8.8,y:1.56,w:2.5,h:0.28,fontSize:11,bold:true});
   txt(s,'ROAS Médio',{x:11.0,y:1.4,w:1.55,h:0.18,fontSize:7.5,color:K.mut,align:'right'});txt(s,R.x2(T.roas)+'x',{x:10.8,y:1.56,w:1.75,h:0.3,fontSize:15,bold:true,color:K.gr,align:'right'});
-  [['Leads',R.int(T.leads)],['Vendas',R.int(T.nv)],['Conv',R.p1(T.conv)]].forEach(([l,v],i)=>{const x=8.75+i*1.3;card(pres,s,x,1.98,1.2,0.75,'0D0D0D');
+  [['Leads',R.int(T.leads)],['Vendas',R.int(T.nv)],['Conv',R.p1(T.conv)]].forEach(([l,v],i)=>{const x=8.75+i*1.3;card(pres,s,x,1.98,1.2,0.75,K.bx4);
     txt(s,l,{x:x+0.1,y:2.04,w:1,h:0.18,fontSize:7.5,color:K.mut});txt(s,v,{x:x+0.1,y:2.24,w:1.05,h:0.36,fontSize:12,bold:true})});
   card(pres,s,8.62,3.0,4.11,2.9);txt(s,'Evolução Semanal',{x:8.8,y:3.08,w:2.5,h:0.24,fontSize:10,bold:true});
   s.addChart(pres.charts.LINE,[{name:'Leads',labels:W.map(w=>w.n.replace('Semana','Sem')),values:W.map(w=>w.leads)},{name:'Vendas',labels:W.map(w=>w.n.replace('Semana','Sem')),values:W.map(w=>w.nv)}],
     {x:8.68,y:3.3,w:4.0,h:2.55,chartColors:[K.or,K.gr],lineSize:2,lineSmooth:false,lineDataSymbol:'circle',lineDataSymbolSize:5,showLegend:true,legendPos:'t',legendColor:K.sub,legendFontSize:7,
-     catAxisLabelColor:K.sub,catAxisLabelFontSize:7,valAxisLabelColor:K.mut,valAxisLabelFontSize:6.5,valGridLine:{color:'262626',size:0.5},catGridLine:{style:'none'}});
+     catAxisLabelColor:K.sub,catAxisLabelFontSize:7,valAxisLabelColor:K.mut,valAxisLabelFontSize:6.5,valGridLine:{color:K.bord,size:0.5},catGridLine:{style:'none'}});
   [['Custo Total',R.m2(T.inv)],['ROAS Médio',R.x2(T.roas)+'x']].forEach(([l,v],i)=>{const x=8.62+i*2.1;card(pres,s,x,6.03,2.01,0.99);
     txt(s,l,{x:x+0.15,y:6.1,w:1.8,h:0.2,fontSize:8,color:K.gr});txt(s,v,{x:x+0.15,y:6.3,w:1.8,h:0.36,fontSize:13,bold:true});txt(s,D.mesAno,{x:x+0.15,y:6.66,w:1.8,h:0.2,fontSize:7.5,bold:true,color:K.mut})})}
 
 function rnBM(pres,D){
-  const T=D.T,P=D.P,B=D.bms,X=D.BMR,s=slideBase(pres,'Performance por BM','Business Manager',`Análise de performance por conta publicitária (${D.periodo})`,'GWA CONSULTORIA | BM ANALYSIS');
+  const T=D.Tm||D.T,P=D.Pm||D.P,B=D.bms,X=D.BMR,fm=D.foraMeta||[];
+  const s=slideBase(pres,'Performance por BM','Business Manager',
+    `Campanhas do Meta (${D.periodo})${fm.length?' · fora: '+fm.slice(0,4).join(', ')+(fm.length>4?' e mais '+(fm.length-4):''):''}`,'GWA CONSULTORIA | BM ANALYSIS');
   const somaBM=(X?X.lista:[]).reduce((q,b)=>q+b.nv,0),semNv=X?X.sem.nv:0;
   [['Total Leads',R.int(T.leads),vr(T.leads,P.leads),''],['Total Vendas',R.int(T.nv),vr(T.nv,P.nv),`${R.int(somaBM)} nos BMs + ${R.int(semNv)} sem vínculo`],
    ['Custo Total',R.m0(T.inv),vr(T.inv,P.inv),''],['ROAS Médio',R.x2(T.roas)+'x',vr(T.roas,P.roas),'']].forEach(([l,v,dv,nota],i)=>{
@@ -4669,7 +4758,7 @@ function rnBM(pres,D){
   const pw=Math.max(0.9,Math.min(1.26,w-0.9)),lw=Math.min(1.5,w*0.52),vw=Math.min(1.72,w-0.42);
   Bc.forEach((b,i)=>{const x=x0+i*(w+0.18),[stt0,cor0]=st(b),stt=b.semv?'FORA DO BM':stt0,cor=b.semv?K.sl:cor0,ab=b.semv?'S/V':b.bm.replace(/^BM\s*INTERNO\s*/i,'BI').replace(/\s+/g,'').slice(0,4);
     card(pres,s,x,2.33,w,3.9);
-    s.addShape(pres.shapes.OVAL,{x:x+0.18,y:2.46,w:0.44,h:0.44,fill:{color:'0F172A'},line:{color:cor}});
+    s.addShape(pres.shapes.OVAL,{x:x+0.18,y:2.46,w:0.44,h:0.44,fill:{color:K.bx2},line:{color:cor}});
     txt(s,ab,{x:x+0.18,y:2.46,w:0.44,h:0.44,fontSize:7.5,bold:true,color:cor,align:'center',valign:'middle'});
     s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:x+w-0.18-pw,y:2.53,w:pw,h:0.28,rectRadius:0.14,fill:{color:K.card},line:{color:cor}});
     txt(s,stt,{x:x+w-0.18-pw,y:2.53,w:pw,h:0.28,fontSize:7.5,bold:true,color:cor,align:'center',valign:'middle'});
@@ -4678,20 +4767,20 @@ function rnBM(pres,D){
     [['Leads',R.int(b.leads)],['Vendas',R.int(b.nv)],['Conversão',R.p1(b.leads?b.nv/b.leads:null)],['Faturamento',R.m0(b.fat)]].forEach(([l,v],j)=>{
       txt(s,l,{x:x+0.18,y:3.56+j*0.285,w:lw,h:0.24,fontSize:8.5,color:K.sub});
       txt(s,v,{x:x+w-0.18-vw,y:3.56+j*0.285,w:vw,h:0.24,fontSize:8.5,bold:true,color:j===2?cor:K.txt,align:'right',fit:'shrink'})});
-    card(pres,s,x+0.18,4.74,w-0.36,1.08,'0D0D0D');
+    card(pres,s,x+0.18,4.74,w-0.36,1.08,K.bx4);
     [['Custo',R.m2(b.inv)],['CPL',R.m2(b.cpl)],['CPA',R.m2(b.cpa)],['ROAS',b.roas==null?'—':R.x2(b.roas)+'x']].forEach(([l,v],j)=>{const xx=x+0.3+(j%2)*((w-0.6)/2),yy=4.80+Math.floor(j/2)*0.52;
       txt(s,l,{x:xx,y:yy,w:(w-0.64)/2,h:0.17,fontSize:7.5,color:K.mut});txt(s,v,{x:xx,y:yy+0.17,w:(w-0.64)/2,h:0.26,fontSize:9.5,bold:true,color:l==='ROAS'?cor:K.txt,fit:'shrink'})});
     txt(s,'Margem',{x:x+0.18,y:5.92,w:lw,h:0.2,fontSize:8,color:K.mut});txt(s,R.p1(b.margem),{x:x+w-0.18-vw,y:5.92,w:vw,h:0.2,fontSize:8.5,bold:true,color:cor,align:'right'});
-    s.addShape(pres.shapes.RECTANGLE,{x:x+0.18,y:6.13,w:w-0.36,h:0.06,fill:{color:'1F2937'},line:{color:'1F2937'}});
+    s.addShape(pres.shapes.RECTANGLE,{x:x+0.18,y:6.13,w:w-0.36,h:0.06,fill:{color:K.ln},line:{color:K.ln}});
     s.addShape(pres.shapes.RECTANGLE,{x:x+0.18,y:6.13,w:Math.max(0.02,(w-0.36)*Math.max(0,Math.min(1,b.margem||0))),h:0.06,fill:{color:cor},line:{color:cor}})});
   /* rodapé: como foi atribuído e o que ficou sem vínculo */
   const H=X?X.how:{},tl=Object.values(H).reduce((q,v)=>q+v,0)||1,pc=v=>R.p0((v||0)/tl);
   const sem=X?X.sem:{leads:0,nv:0,fat:0};
-  const lsem=X?Object.entries(X.linSem).filter(([l,v])=>l!=='(sem linha)'&&v>=10).sort((x,y)=>y[1]-x[1]).slice(0,3).map(([l])=>l):[];
+  const lsem=X?Object.entries(X.linSem).filter(([l,v])=>l!==SEMCANAL&&v>=10).sort((x,y)=>y[1]-x[1]).slice(0,3).map(([l])=>linNome(l,l)):[];
   const fora=X&&X.foraBM?Object.keys(X.foraBM):[];
   card(pres,s,0.62,6.33,12.11,0.68);
   txt(s,[{text:'Como foi atribuído: ',options:{bold:true,color:K.or}},
-    {text:`custo pela conta de anúncio de cada BM · leads pelo formulário (${pc(H.form)}) ou pela linha de WhatsApp anunciada no mês (${pc((H.linha||0)+(H.rateio||0))})${H.manual?` ou pelo número vinculado na Administração (${pc(H.manual)})`:''} · vendas pela chave do card do lead.`,options:{color:'D1D5DB',breakLine:true}},
+    {text:`custo pela conta de anúncio de cada BM · leads pelo formulário (${pc(H.form)}) ou pela linha de WhatsApp anunciada no mês (${pc((H.linha||0)+(H.rateio||0))})${H.manual?` ou pelo número vinculado na Administração (${pc(H.manual)})`:''} · vendas pela chave do card do lead.`,options:{color:K.tx2,breakLine:true}},
     {text:'Sem vínculo com BM: ',options:{bold:true,color:K.sub}},
     {text:`${R.int(sem.leads)} leads · ${R.int(sem.nv)} vendas · ${R.m0(sem.fat)} (Google, VOIP, TV e linhas sem campanha Meta${lsem.length?': '+lsem.join(', '):''}).`+(fora.length?` Inclui o que caiu em BM de outra empresa (${fora.join(', ')}) — defina o destino em Administração → BM por empresa.`:''),options:{color:K.sub}}],
     {x:0.8,y:6.37,w:11.8,h:0.6,fontSize:8.5,valign:'middle'})}
@@ -4712,22 +4801,22 @@ function rnMes(pres,D){
   const val=(o,k)=>k==='lucro'?(o.fat-o.inv):k==='roi'?(o.inv?(o.fat-o.inv)/o.inv:null):k==='icr'?(o.inv&&o.fat?o.inv/o.fat:null):o[k];
   const fmt=(v,t)=>t==='int'?R.int(v):t==='m0'?R.m0(v):t==='m2'?R.m2(v):t==='p1'?R.p1(v):t==='p2'?R.p2(v):t==='p0'?R.p0(v):v==null?'—':R.x2(v)+'x';
   card(pres,s,0.62,1.3,7.5,5.72);
-  txt(s,'Indicadores no mesmo trecho do mês',{x:0.85,y:1.4,w:5,h:0.28,fontSize:11,bold:true,color:'D1D5DB'});
+  txt(s,'Indicadores no mesmo trecho do mês',{x:0.85,y:1.4,w:5,h:0.28,fontSize:11,bold:true,color:K.tx2});
   const rows=[[`Indicador`,mesDe(D.pa),mesDe(D.b),'Variação'].map((h,i)=>({text:h,options:{bold:true,fontSize:8,color:i===2?K.or:K.sub}})),
     ...L.map(([rot,k,t,bom])=>{const a=val(P,k),b=val(T,k),v=vr(b,a);
-      return [{text:rot,options:{bold:true,color:'D1D5DB'}},{text:fmt(a,t),options:{color:K.sub}},{text:fmt(b,t),options:{bold:true,color:K.txt}},
+      return [{text:rot,options:{bold:true,color:K.tx2}},{text:fmt(a,t),options:{color:K.sub}},{text:fmt(b,t),options:{bold:true,color:K.txt}},
         {text:v==null?'—':R.sg(v)+R.d1(Math.abs(v*100))+'%',options:{bold:true,color:v==null||bom==null?K.mut:(v>=0)===bom?K.gr:K.rd}}]})];
-  s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:'D1D5DB'}}:c)),{x:0.8,y:1.76,w:7.14,colW:[2.3,1.6,1.6,1.64],rowH:0.39,fontFace:FT,fontSize:9,align:'center',
-    border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'});
+  s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:K.tx2}}:c)),{x:0.8,y:1.76,w:7.14,colW:[2.3,1.6,1.6,1.64],rowH:0.39,fontFace:FT,fontSize:9,align:'center',
+    border:{type:'solid',pt:0.5,color:K.ln},valign:'middle'});
   /* gráfico: leads e vendas lado a lado */
   card(pres,s,8.26,1.3,4.47,2.72);
   txt(s,'Volume',{x:8.46,y:1.4,w:3,h:0.24,fontSize:10,bold:true});
   s.addChart(pres.charts.BAR,[{name:mesDe(D.pa),labels:['Leads','Vendas'],values:[P.leads,P.nv]},{name:mesDe(D.b),labels:['Leads','Vendas'],values:[T.leads,T.nv]}],
     {x:8.32,y:1.68,w:4.35,h:2.26,chartColors:[K.sl,K.or2],showValue:true,dataLabelColor:'FFFFFF',dataLabelFontSize:8,showLegend:true,legendPos:'b',legendColor:K.sub,legendFontSize:7,
-     catAxisLabelColor:'D1D5DB',catAxisLabelFontSize:8,valAxisHidden:true,valGridLine:{style:'none'},catGridLine:{style:'none'},catAxisLineShow:false,valAxisLineShow:false,barGapWidthPct:60});
+     catAxisLabelColor:K.tx2,catAxisLabelFontSize:8,valAxisHidden:true,valGridLine:{style:'none'},catGridLine:{style:'none'},catAxisLineShow:false,valAxisLineShow:false,barGapWidthPct:60});
   /* três destaques */
   const kpi=[['Faturamento',R.m0(T.fat),vr(T.fat,P.fat),true],['Conversão',R.p2(T.conv),vr(T.conv,P.conv),true],['ROAS',T.roas==null?'—':R.x2(T.roas)+'x',vr(T.roas,P.roas),true]];
-  kpi.forEach(([l,v,dv,bom],i)=>{const y=4.16+i*0.6;card(pres,s,8.26,y,4.47,0.52,'0D0D0D');
+  kpi.forEach(([l,v,dv,bom],i)=>{const y=4.16+i*0.6;card(pres,s,8.26,y,4.47,0.52,K.bx4);
     txt(s,l,{x:8.44,y:y+0.06,w:1.9,h:0.4,fontSize:8.5,color:K.sub,valign:'middle'});
     txt(s,v,{x:10.1,y:y+0.06,w:1.5,h:0.4,fontSize:11,bold:true,align:'right',valign:'middle'});
     txt(s,dv==null?'—':R.sg(dv)+R.d1(Math.abs(dv*100))+'%',{x:11.6,y:y+0.06,w:0.95,h:0.4,fontSize:8.5,bold:true,align:'right',valign:'middle',color:dv==null?K.mut:(dv>=0)===bom?K.gr:K.rd})});
@@ -4752,13 +4841,15 @@ function rnLeads(pres,D){
     s.addShape(pres.shapes.RECTANGLE,{x:x+0.01,y,w:w-0.02,h:0.035,fill:{color:cor||K.or},line:{color:cor||K.or}});
     txt(s,tit,{x:x+0.2,y:y+0.12,w:w-2.4,h:0.26,fontSize:10.5,bold:true});
     txt(s,sub,{x:x+w-2.5,y:y+0.15,w:2.3,h:0.22,fontSize:7.5,color:K.mut,align:'right'});
-    const rh=Math.max(0.27,Math.min(0.46,(h-0.64)/rows.length));
+    const rh0=(h-0.64)/rows.length,rh=rows.length<=7?Math.max(0.26,Math.min(0.46,rh0)):rh0;
+    const fs=rh>=0.25?8.5:Math.max(4.8,Math.min(8.5,rh*26));
     const cel=(c,i)=>{const o=(c&&typeof c==='object')?{text:c.text,options:Object.assign({},c.options)}:{text:c,options:{}};
-      if(!o.options.color)o.options.color='D1D5DB';
+      if(!o.options.color)o.options.color=K.tx2;
       if(!o.options.fill)o.options.fill={color:i===0?'1C1C1C':(i%2?'161616':'0E0E0E')};
       return o};
-    s.addTable(rows.map((r,i)=>r.map(c=>cel(c,i))),{x:x+0.18,y:y+0.5,w:w-0.36,colW,rowH:rh,fontFace:FT,fontSize:8.5,align:'center',color:'D1D5DB',
-      border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'})};
+    s.addTable(rows.map((r,i)=>r.map(c=>cel(c,i))),{x:x+0.18,y:y+0.5,w:w-0.36,colW,rowH:rh,fontFace:FT,fontSize:fs,align:'center',color:K.tx2,
+      margin:rh<0.26?[0.015,0.04,0.015,0.04]:[0.03,0.05,0.03,0.05],
+      border:{type:'solid',pt:0.5,color:K.ln},valign:'middle'})};
   const hd=a=>a.map((t,i)=>({text:t,options:{bold:true,fontSize:8,color:i?K.sub:K.or,align:i?'center':'left'}}));
   const vLead=v=>({text:v,options:{bold:true,color:K.or2}});
   /* por mídia (campanha) */
@@ -4766,9 +4857,10 @@ function rnLeads(pres,D){
     R.p1(T.leads?c.o.leads/T.leads:null),{text:R.int(c.o.nv),options:{bold:true,color:K.gr}},R.p2(c.o.leads?c.o.nv/c.o.leads:null),{text:R.int(c.p?c.p.leads:null),options:{color:K.mut}}]);
   tabela(0.62,2.42,6.2,2.3,'Por mídia','leads · % · vendas · conv.',[hd(['Mídia','Leads','%','Vendas','Conv','Mês ant.']),...mid],[1.5,0.8,0.7,0.8,0.8,0.9],K.bl);
   /* por linha de WhatsApp */
-  const ln=D.linhas.slice(0,5).map(l=>[{text:l.nome,options:{bold:true,color:l.outras?K.mut:K.txt,align:'left'}},vLead(R.int(l.rec)),
+  const ln=D.linhas.map(l=>[{text:l.nome,options:{bold:true,color:l.outras?K.mut:K.txt,align:'left'}},vLead(R.int(l.rec)),
     R.p1(T.leads?l.rec/T.leads:null),R.int(l.q),{text:R.int(l.v),options:{bold:true,color:K.gr}}]);
-  tabela(7.02,2.42,5.71,2.3,'Por linha de WhatsApp','recebidos · qualificados · vendas',[hd(['Linha','Leads','%','Qualif.','Vendas']),...(ln.length?ln:[[{text:'Sem linha com volume',options:{color:K.mut}},'—','—','—','—']])],[1.4,0.9,0.8,0.95,0.95],K.gr);
+  const hLin=Math.max(2.3,Math.min(4.6,0.66+(ln.length+1)*0.26));
+  tabela(7.02,2.42,5.71,hLin,'Por linha de WhatsApp','recebidos · qualificados · vendas',[hd(['Linha','Leads','%','Qualif.','Vendas']),...(ln.length?ln:[[{text:'Sem linha com volume',options:{color:K.mut}},'—','—','—','—']])],[1.4,0.9,0.8,0.95,0.95],K.gr);
   /* por formulário */
   const fm=(D.forms||[]).slice(0,5).map(f=>{const v=Object.entries(f.tab).filter(([t])=>/^venda/i.test(t)).reduce((q,[,n])=>q+n,0);
     const nj=(f.fs||[]).length;
@@ -4777,7 +4869,8 @@ function rnLeads(pres,D){
   /* por semana */
   const sem=(D.W||[]).filter(w=>!w.ant).map(w=>[{text:w.n.replace('Semana ','S'),options:{bold:true,color:K.txt,align:'left'}},vLead(R.int(w.leads)),
     {text:R.int(w.nv),options:{bold:true,color:K.gr}},R.p2(w.conv)]);
-  tabela(7.02,4.88,5.71,2.14,'Por semana','leads · vendas · conversão',[hd(['Semana','Leads','Vendas','Conv']),...(sem.length?sem:[[{text:'Sem semana fechada',options:{color:K.mut}},'—','—','—']])],[1.4,1.2,1.1,1.25],K.am)}
+  const ySem=Math.max(4.88,2.42+hLin+0.16),hSem=7.02-ySem;
+  if(hSem>=1.2)tabela(7.02,ySem,5.71,hSem,'Por semana','leads · vendas · conversão',[hd(['Semana','Leads','Vendas','Conv']),...(sem.length?sem:[[{text:'Sem semana fechada',options:{color:K.mut}},'—','—','—']])],[1.4,1.2,1.1,1.25],K.am)}
 
 /* ═════ Vendas fechadas dentro do próprio mês (tabulação Venda na base) ═════ */
 function rnVendaMes(pres,D){
@@ -4793,21 +4886,26 @@ function rnVendaMes(pres,D){
     txt(s,sub,{x:x+0.15,y:2.06,w:2.6,h:0.2,fontSize:7.5,color:K.mut})});
   const nL2=Math.min(7,V.porCamp.length)+1,hCard=Math.max(2.2,0.5+Math.min(0.42,3.4/Math.max(2,nL2))*nL2+0.42);
   card(pres,s,0.62,2.56,7.3,hCard);
-  txt(s,'Onde fecharam as vendas do período',{x:0.85,y:2.68,w:5,h:0.28,fontSize:11,bold:true,color:'D1D5DB'});
+  txt(s,'Onde fecharam as vendas do período',{x:0.85,y:2.68,w:5,h:0.28,fontSize:11,bold:true,color:K.tx2});
   const rows=[['Mídia','Leads','Vendas','Conv %','Ticket médio','Faturamento'].map((h,i)=>({text:h,options:{bold:true,fontSize:8,color:i?K.sub:K.or}})),
-    ...V.porCamp.slice(0,7).map(c=>[{text:c.nome,options:{bold:true,color:'D1D5DB',fit:'shrink'}},R.int(c.leads),{text:R.int(c.v),options:{bold:true,color:K.gr}},
+    ...V.porCamp.slice(0,7).map(c=>[{text:c.nome,options:{bold:true,color:K.tx2,fit:'shrink'}},R.int(c.leads),{text:R.int(c.v),options:{bold:true,color:K.gr}},
       {text:R.p2(c.leads?c.v/c.leads:null),options:{bold:true,color:K.am}},R.m2(c.ticket),R.m0(c.fat)])];
-  s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:'D1D5DB'}}:c)),{x:0.8,y:3.0,w:6.94,colW:[1.74,0.86,0.86,0.9,1.3,1.28],rowH:Math.min(0.42,3.4/Math.max(2,rows.length)),fontFace:FT,fontSize:8.5,align:'center',
-    border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'});
+  s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:K.tx2}}:c)),{x:0.8,y:3.0,w:6.94,colW:[1.74,0.86,0.86,0.9,1.3,1.28],rowH:Math.min(0.42,3.4/Math.max(2,rows.length)),fontFace:FT,fontSize:8.5,align:'center',
+    border:{type:'solid',pt:0.5,color:K.ln},valign:'middle'});
   txt(s,'Vendas na base = leads do período com tabulação "Venda". O financeiro conta a venda pela data da 1ª parcela, por isso os dois números podem diferir.',
     {x:0.8,y:2.56+hCard-0.36,w:6.9,h:0.3,fontSize:7,color:K.mut});
   /* por linha */
-  card(pres,s,8.12,2.56,4.61,2.1);
-  txt(s,'Vendas por linha',{x:8.32,y:2.66,w:3,h:0.26,fontSize:10.5,bold:true});
-  const lr=[['Linha','Leads','Vendas','Conv'].map(h=>({text:h,options:{bold:true,fontSize:8,color:K.sub}})),
-    ...V.porLinha.slice(0,4).map(l=>[{text:l.nome,options:{bold:true,color:'D1D5DB'}},R.int(l.leads),{text:R.int(l.v),options:{bold:true,color:K.gr}},R.p2(l.leads?l.v/l.leads:null)])];
-  s.addTable((lr.length>1?lr:[...lr,[{text:'Sem vendas por linha',options:{color:K.mut}},'—','—','—']]).map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:'D1D5DB'}}:c)),
-    {x:8.3,y:2.98,w:4.25,colW:[1.3,0.95,0.95,1.05],rowH:0.32,fontFace:FT,fontSize:8.5,align:'center',border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'});
+  card(pres,s,8.12,2.56,4.61,2.18);
+  txt(s,'Vendas por linha',{x:8.32,y:2.64,w:3,h:0.26,fontSize:10.5,bold:true});
+  /* as linhas que não cabem entram somadas em "Outras", para a soma bater com as vendas da base */
+  const vis=V.porLinha.slice(),rhV=Math.min(0.29,1.72/(vis.length+1)),fsV=Math.max(4.8,Math.min(8.5,rhV*28));
+  const lr=[['Linha','Leads','Vendas','Conv'].map(h=>({text:h,options:{bold:true,fontSize:Math.min(8,fsV),color:K.sub}})),
+    ...vis.map(l=>[{text:l.nome,options:{bold:true,color:K.tx2,fit:'shrink'}},R.int(l.leads),{text:R.int(l.v),options:{bold:true,color:K.gr}},R.p2(l.leads?l.v/l.leads:null)])];
+  s.addTable((lr.length>1?lr:[...lr,[{text:'Sem vendas por linha',options:{color:K.mut}},'—','—','—']]).map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:K.tx2}}:c)),
+    {x:8.3,y:2.96,w:4.25,colW:[1.3,0.95,0.95,1.05],rowH:rhV,fontFace:FT,fontSize:fsV,align:'center',color:K.tx2,
+     margin:rhV<0.26?[0.015,0.04,0.015,0.04]:[0.03,0.05,0.03,0.05],border:{type:'solid',pt:0.5,color:K.ln},valign:'middle'});
+  if(vis.some(l=>l.k===SEMCANAL))txt(s,'"(sem canal)" = leads que chegaram sem número de WhatsApp (Google, site, VOIP). O destino deles fica em Administração → Leads sem canal.',
+    {x:8.3,y:2.96+lr.length*rhV+0.02,w:4.25,h:0.26,fontSize:6.5,color:K.mut});
   const topC=V.porCamp[0],melhor=V.porCamp.filter(c=>c.leads>=20).sort((a,b)=>(b.v/b.leads)-(a.v/a.leads))[0];
   caixaTexto(pres,s,8.12,4.82,4.61,2.2,'Leitura das vendas do mês',
     `${V.tot?`${R.int(V.tot)} ${V.tot===1?'venda foi tabulada':'vendas foram tabuladas'} em leads que entraram no período (${R.p2(D.T.leads?V.tot/D.T.leads:null)} dos leads).`:'Nenhuma venda tabulada em leads do período.'} ${topC?`${topC.nome} concentra o volume (${R.int(topC.v)} ${topC.v===1?'venda':'vendas'}).`:''} ${melhor&&topC&&melhor.nome!==topC.nome?`A melhor conversão é de ${melhor.nome} (${R.p2(melhor.v/melhor.leads)}).`:''} ${D.T.velho?`Outras ${R.int(D.T.velho)} vendas do financeiro vieram de leads de meses anteriores.`:''}`,K.gr)}
@@ -4829,7 +4927,7 @@ function rnTempo(pres,D){
   const fxR=Z.faixas.slice().reverse();
   s.addChart(pres.charts.BAR,[{name:'Vendas',labels:fxR.map(f=>f[0]),values:fxR.map(f=>f[1])}],
     {x:0.7,y:2.96,w:5.84,h:2.0,barDir:'bar',chartColors:fxR.map(f=>f[2]),showValue:true,dataLabelColor:'FFFFFF',dataLabelFontSize:8,
-     catAxisLabelColor:'D1D5DB',catAxisLabelFontSize:7.5,valAxisHidden:true,valGridLine:{style:'none'},catGridLine:{style:'none'},
+     catAxisLabelColor:K.tx2,catAxisLabelFontSize:7.5,valAxisHidden:true,valGridLine:{style:'none'},catGridLine:{style:'none'},
      catAxisLineShow:false,valAxisLineShow:false,showLegend:false,barGapWidthPct:50});
   /* origem das vendas */
   card(pres,s,6.82,2.56,5.91,2.5);
@@ -4840,7 +4938,7 @@ function rnTempo(pres,D){
     ['Conversão global',R.p2(D.T.conv),'',K.bl]];
   ori.forEach(([l,v,p,cor],i)=>{const y=3.02+i*0.47;
     s.addShape(pres.shapes.RECTANGLE,{x:7.02,y:y+0.06,w:0.05,h:0.3,fill:{color:cor},line:{color:cor}});
-    txt(s,l,{x:7.2,y:y,w:3.1,h:0.42,fontSize:9,color:'D1D5DB',valign:'middle'});
+    txt(s,l,{x:7.2,y:y,w:3.1,h:0.42,fontSize:9,color:K.tx2,valign:'middle'});
     txt(s,v,{x:10.3,y:y,w:1.3,h:0.42,fontSize:11,bold:true,align:'right',valign:'middle'});
     txt(s,p,{x:11.6,y:y,w:0.95,h:0.42,fontSize:8.5,color:K.sub,align:'right',valign:'middle'})});
   /* tempo médio por campanha */
@@ -4848,11 +4946,11 @@ function rnTempo(pres,D){
   txt(s,'Tempo médio por mídia',{x:0.82,y:5.32,w:4,h:0.26,fontSize:10.5,bold:true});
   txt(s,`Empresa ${fE}: ${Z.med==null?'—':R.d1(Z.med)+' dias'} em média`,{x:9.0,y:5.34,w:3.5,h:0.24,fontSize:8,color:K.or,align:'right'});
   const rows=[['Mídia','Vendas','Tempo médio','Mesmo dia','Até 7 dias','Mais de 30'].map((h,i)=>({text:h,options:{bold:true,fontSize:8,color:i?K.sub:K.or}})),
-    ...Z.porCamp.slice(0,5).map(c=>[{text:c.nome,options:{bold:true,color:'D1D5DB',fit:'shrink'}},R.int(c.n),
+    ...Z.porCamp.slice(0,5).map(c=>[{text:c.nome,options:{bold:true,color:K.tx2,fit:'shrink'}},R.int(c.n),
       {text:c.med==null?'—':R.d1(c.med)+' d',options:{bold:true,color:c.med!=null&&Z.med!=null&&c.med<=Z.med?K.gr:K.am}},
       R.p1(c.n?c.d0/c.n:null),R.p1(c.n?c.d7/c.n:null),{text:R.p1(c.n?c.d30/c.n:null),options:{color:c.d30?K.rd:K.sub}}])];
-  s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:'D1D5DB'}}:c)),{x:0.8,y:5.62,w:11.75,colW:[3.0,1.4,1.9,1.8,1.8,1.85],rowH:Math.min(0.3,1.2/Math.max(1,rows.length-1)),fontFace:FT,fontSize:8.5,align:'center',
-    border:{type:'solid',pt:0.5,color:'1F2937'},valign:'middle'})}
+  s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:K.tx2}}:c)),{x:0.8,y:5.62,w:11.75,colW:[3.0,1.4,1.9,1.8,1.8,1.85],rowH:Math.min(0.3,1.2/Math.max(1,rows.length-1)),fontFace:FT,fontSize:8.5,align:'center',
+    border:{type:'solid',pt:0.5,color:K.ln},valign:'middle'})}
 
 function rnFim(pres,D){
   const s=pres.addSlide();s.background={color:'0A0705'};
@@ -4860,7 +4958,7 @@ function rnFim(pres,D){
   s.addImage({data:'image/png;base64,'+RN_LOGO,x:6.2,y:1.0,w:0.95,h:0.39});
   txt(s,'OBRIGADO!',{x:0.5,y:1.75,w:12.33,h:1.2,fontSize:60,bold:true,color:K.or,align:'center',charSpacing:4});
   s.addShape(pres.shapes.RECTANGLE,{x:6.17,y:3.05,w:1.0,h:0.05,fill:{color:K.or},line:{color:K.or}});
-  txt(s,[{text:'Agradecemos a dedicação e a ',options:{color:'D1D5DB'}},{text:'troca de insights',options:{color:K.or,bold:true}},{text:` na análise deste período de ${D.mes}.`,options:{color:'D1D5DB'}}],
+  txt(s,[{text:'Agradecemos a dedicação e a ',options:{color:K.tx2}},{text:'troca de insights',options:{color:K.or,bold:true}},{text:` na análise deste período de ${D.mes}.`,options:{color:K.tx2}}],
     {x:1.8,y:3.3,w:9.7,h:0.9,fontSize:19,align:'center'});
   txt(s,`Os dados apresentados refletem o desempenho das campanhas de ${D.periodo} de ${parse(D.b).getFullYear()} e fornecem a clareza necessária para as otimizações e correções de rota das próximas semanas.`,
     {x:2.2,y:4.25,w:8.9,h:0.85,fontSize:12.5,color:K.sub,align:'center'});
@@ -4875,11 +4973,6 @@ function vReuniao(){
   const temEmp=fE!=='TODAS';
   let camps=[];
   if(temEmp){camps=comEmpresa(fE,()=>Object.entries(dsAgg(d1,d2,K_CAMP)).filter(([k,o])=>empOf(k)===fE&&(o.leads>0||o.nv>0)).sort((a,b)=>b[1].leads-a[1].leads).map(([k,o])=>[k,o]))}
-  const sec=[['capa','Capa com os 4 indicadores'],['mes','Comparativo com o mesmo trecho do mês passado'],['leads','Leads do mês (mídia, linha, formulário, semana)'],['camp','Por campanha: KPIs vs Meta GWA e Tabulações e Funil'],['aprov','Indicadores de Aproveitamento (campanha principal)'],
-    ['target','Target e Churn (campanhas com 50+ leads)'],['linha','Performance por Linha (canais da campanha principal)'],['balanc','Balanceador de contratos'],
-    ['form','Análise de Formulário (cadastros)'],['qual','Qualidade Operacional por mídia'],
-    ['vmes','Vendas fechadas dentro do mês'],['tempo','Tempo até a venda (por mídia)'],['custos','Custos vs Receita e peso temporal'],
-    ['ticket','Evolução do Ticket Médio no ano'],['semanal','Performance Semanal'],['bm','Performance por BM (contas Meta)'],['fim','Encerramento']];
   const dis=!temEmp||rnBusy?' disabled':'';
   return `
   <div class="card wide rnw">
@@ -4898,9 +4991,9 @@ function vReuniao(){
   ${vNomes()}
   ${vVinculo()}
   ${vSemCanal()}
+  ${vBmCamp()}
   ${vBmEmp()}
-  <div class="card"><div class="ch"><h3>O que entra na apresentação</h3><span class="m">desmarque o que não quiser</span></div>
-    <div class="rn-s">${sec.map(([k,l])=>`<label><input type="checkbox" data-rs="${k}"${rnSecoes[k]?' checked':''}> ${l}</label>`).join('')}</div></div>
+  ${vSlides()}
   <div class="card"><div class="ch"><h3>Como os números são calculados</h3></div>
     <ul class="nar" style="font-size:12.5px">
       <li>Mesmas regras do painel: leads da base comercial, vendas e faturamento do fechamento financeiro, custos das 3 abas de custo (só campanhas mapeadas).</li>
@@ -4958,6 +5051,504 @@ function avisoParcial(k){if(!['resumo','emp','perf','relat','reuniao'].includes(
   const inv=CUSTO.filter(x=>x.d>=m0&&x.d<=hj&&(fE==='TODAS'||x.emp===fE)).reduce((q,x)=>q+x.val,0);
   const [dt,hr]=(FRESH.metaHora||FRESH.meta).split(' ');
   return `<div class="warn parc" role="note"><b>Início do mês: investimento ainda parcial.</b> A planilha de custos foi atualizada em ${dc(dt)}${hr?' às '+hr:''} e traz ${moS(inv)} de ${MESC_P[+hj.slice(5,7)-1]} até agora${fE==='TODAS'?'':' para '+esc(fE)}. Os números do mês fechado estão em <button class="lnk2" data-perant>Mês anterior</button>.</div>`}
+
+/* ═════════════════════════════════════════════════════════════════════
+   BIBLIOTECA DE SLIDES — slides extras de performance para a reunião.
+   Nada aqui entra na apresentação sozinho: cada um é ligado na
+   Administração → Reunião → "Slides da apresentação".
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* barra de progresso simples */
+function barraP(pres,s,x,y,w,h,frac,cor){
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x,y,w,h,rectRadius:h/2,fill:{color:K.ln},line:{color:K.ln}});
+  const f=Math.max(0,Math.min(1,frac||0));
+  if(f>0)s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x,y,w:Math.max(h,w*f),h,rectRadius:h/2,fill:{color:cor||K.gr},line:{color:cor||K.gr}})}
+/* selo arredondado */
+function selo(pres,s,x,y,w,h,t,cor){
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x,y,w,h,rectRadius:h/2,fill:{color:K.card},line:{color:cor}});
+  txt(s,t,{x,y,w,h,fontSize:7.5,bold:true,color:cor,align:'center',valign:'middle'})}
+/* cartão de indicador com variação */
+function kpiVar(pres,s,x,y,w,h,rot,val,dv,bom,rod,cor){
+  card(pres,s,x,y,w,h);
+  s.addShape(pres.shapes.RECTANGLE,{x,y,w,h:0.04,fill:{color:cor||K.or},line:{color:cor||K.or}});
+  txt(s,rot,{x:x+0.16,y:y+0.14,w:w-0.32,h:0.2,fontSize:8.5,color:K.sub,fit:'shrink'});
+  txt(s,val,{x:x+0.16,y:y+0.36,w:w-0.32,h:0.44,fontSize:20,bold:true,fit:'shrink'});
+  const sv=setaR(dv,bom);
+  txt(s,dv==null?'sem base anterior':`${sv.t} ${R.sg(dv)}${R.d1(Math.abs(dv*100))}% vs anterior`,
+    {x:x+0.16,y:y+0.82,w:w-0.32,h:0.2,fontSize:7.5,bold:true,color:sv.c,fit:'shrink'});
+  if(rod)txt(s,rod,{x:x+0.16,y:y+h-0.28,w:w-0.32,h:0.22,fontSize:7.5,color:K.mut,fit:'shrink'})}
+/* tabela padrão dos slides novos: cabeçalho com fundo, zebra e fonte que encolhe */
+function tbl(pres,s,x,y,w,h,rows,colW){
+  const rh0=h/rows.length,rh=Math.min(0.42,rh0),fs=rh>=0.3?9:rh>=0.24?8:Math.max(5,rh*27);
+  s.addTable(rows.map((r,i)=>r.map(c=>{const o=(c&&typeof c==='object')?{text:c.text,options:Object.assign({},c.options)}:{text:c,options:{}};
+      if(!o.options.color)o.options.color=i?K.tx2:K.sub;
+      if(!o.options.fill)o.options.fill={color:i===0?K.bx3:(i%2?K.card:K.bx4)};
+      if(i===0&&o.options.bold===undefined)o.options.bold=true;
+      return o})),
+    {x,y,w,colW,rowH:rh,fontFace:FT,fontSize:fs,align:'center',color:K.tx2,valign:'middle',
+     margin:rh<0.26?[0.015,0.04,0.015,0.04]:[0.03,0.06,0.03,0.06],border:{type:'solid',pt:0.5,color:K.ln}})}
+const cabT=a=>a.map((t,i)=>({text:t,options:{bold:true,fontSize:8,color:i?K.sub:K.or,align:i?'center':'left'}}));
+
+/* ───── 1. Resumo Executivo: os números do período contra as metas ───── */
+function rnExec(pres,D){
+  const T=D.T,P=D.P,s=slideBase(pres,'Resumo Executivo',D.mesAno,
+    `Visão de diretoria — ${empNome()} · ${D.periodo} contra o período anterior`,'GWA CONSULTORIA | RESUMO EXECUTIVO');
+  const L=[['Faturamento',R.m0(T.fat),vr(T.fat,P.fat),true,'parcelas vencidas no período',K.gr],
+    ['Investimento em mídia',R.m0(T.inv),vr(T.inv,P.inv),null,'Meta, Google e offline',K.bl],
+    ['Lucro após mídia',R.m0(T.lucro),vr(T.lucro,P.lucro),true,'faturamento menos mídia',K.pu],
+    ['ROAS',R.x2(T.roas)+'x',vr(T.roas,P.roas),true,'retorno por real investido',K.am]];
+  L.forEach(([rot,v,dv,bom,rod,cor],i)=>kpiVar(pres,s,0.62+i*3.05,1.3,2.9,1.32,rot,v,dv,bom,rod,cor));
+  /* tabela indicador x meta */
+  const mt=k=>{const v=kpiMeta(null,k);return v==null?null:+v};
+  const linhas=[
+    ['Leads gerados',T.leads,P.leads,null,v=>R.int(v),true],
+    ['Vendas',T.nv,P.nv,null,v=>R.int(v),true],
+    ['Conversão',T.conv,P.conv,mt('conv')==null?null:mt('conv')/100,v=>R.p2(v),true],
+    ['CPL',T.cpl,P.cpl,null,v=>R.m2(v),false],
+    ['CAC',T.cac,P.cac,null,v=>R.m2(v),false],
+    ['Ticket médio',T.ticket,P.ticket,null,v=>R.m2(v),true],
+    ['ROAS',T.roas,P.roas,mt('roas'),v=>R.x2(v)+'x',true],
+    ['ROI',T.roi,P.roi,null,v=>R.p0(v),true],
+    ['Margem após mídia',T.margem,P.margem,mt('margem')==null?null:mt('margem')/100,v=>R.p1(v),true],
+    ['% ICR (mídia / faturamento)',T.icr,P.icr,mt('icr')==null?null:mt('icr')/100,v=>R.p1(v),false],
+    ['Tempo médio até a venda',T.tempo,P.tempo,mt('tmed'),v=>v==null?'—':R.d1(v)+' dias',false]];
+  card(pres,s,0.62,2.82,7.86,4.2,K.card2,K.ln);
+  txt(s,'Indicadores do período contra a meta',{x:0.85,y:2.94,w:5,h:0.28,fontSize:11,bold:true});
+  const rows=[cabT(['Indicador','Período','Anterior','Meta','Status'])];
+  linhas.forEach(([rot,v,pv,meta,f,bom])=>{
+    const dv=vr(v,pv);let st='—',cor=K.mut;
+    if(meta!=null&&v!=null&&isFinite(v)){const ok=bom?v>=meta:v<=meta;
+      const dist=meta?Math.abs(v-meta)/Math.abs(meta):0;
+      st=ok?'ATINGIDA':dist<=0.15?'PERTO':'ABAIXO';cor=ok?K.gr:dist<=0.15?K.am:K.rd}
+    else if(dv!=null&&Math.abs(dv)>=0.005){const melhor=(dv>0)===bom;
+      st=bom==null?(dv>0?'SUBIU':'CAIU'):(melhor?'MELHOROU':'PIOROU');cor=bom==null?K.mut:(melhor?K.gr:K.rd)}
+    else if(dv!=null)st='ESTÁVEL';
+    rows.push([{text:rot,options:{bold:true,color:K.txt,align:'left',fit:'shrink'}},
+      {text:f(v),options:{bold:true,color:K.or2}},{text:f(pv),options:{color:K.mut}},
+      {text:meta==null?'—':f(meta),options:{color:K.sub}},{text:st,options:{bold:true,color:cor}}])});
+  tbl(pres,s,0.8,3.3,7.5,3.6,rows,[2.5,1.3,1.25,1.25,1.2]);
+  /* gráfico e leitura */
+  card(pres,s,8.72,2.82,4.01,2.05);
+  txt(s,'Faturamento x Investimento',{x:8.92,y:2.92,w:3.6,h:0.26,fontSize:10,bold:true,color:K.sub});
+  s.addChart(pres.charts.BAR,[{name:'Anterior',labels:['Faturamento','Investimento'],values:[Math.round(P.fat),Math.round(P.inv)]},
+    {name:'Período',labels:['Faturamento','Investimento'],values:[Math.round(T.fat),Math.round(T.inv)]}],
+    {x:8.85,y:3.2,w:3.75,h:1.58,barDir:'col',chartColors:[K.sl,K.or],showValue:false,showLegend:true,legendPos:'b',
+     legendColor:K.sub,legendFontSize:7,catAxisLabelColor:K.sub,catAxisLabelFontSize:7.5,valAxisLabelColor:K.mut,valAxisLabelFontSize:6.5,
+     valGridLine:{color:K.ln,size:0.5},catGridLine:{style:'none'},barGapWidthPct:60});
+  const fAlvo=mt('roas'),gap=fAlvo&&T.roas!=null?T.roas-fAlvo:null;
+  const txtExec=[`${empNome()} faturou ${R.m0(T.fat)} com ${R.m0(T.inv)} de mídia no período (ROAS ${R.x2(T.roas)}x, margem ${R.p1(T.margem)}).`,
+    T.leads?`Foram ${R.int(T.leads)} leads e ${R.int(T.nv)} vendas — conversão de ${R.p2(T.conv)} e CAC de ${R.m2(T.cac)}.`:'',
+    gap!=null?(gap>=0?`O ROAS está ${R.d2(gap)} acima da meta de ${R.x2(fAlvo)}x.`:`O ROAS está ${R.d2(Math.abs(gap))} abaixo da meta de ${R.x2(fAlvo)}x.`):'',
+    vr(T.fat,P.fat)!=null?`Contra o período anterior, o faturamento ${T.fat>=P.fat?'subiu':'caiu'} ${R.d1(Math.abs(vr(T.fat,P.fat))*100)}% e o investimento ${T.inv>=P.inv?'subiu':'caiu'} ${R.d1(Math.abs(vr(T.inv,P.inv)||0)*100)}%.`:''].filter(Boolean).join(' ');
+  caixaTexto(pres,s,8.72,5.02,4.01,2.0,'Leitura do período',txtExec,T.roas!=null&&fAlvo&&T.roas>=fAlvo?K.gr:K.am)}
+
+/* ───── 2. Funil de conversão ───── */
+function rnFunil(pres,D){
+  const s=slideBase(pres,'Funil de Conversão',D.mesAno,
+    `Do lead recebido ao contrato fechado (${D.periodo})`,'GWA CONSULTORIA | FUNIL');
+  const et=(a,b)=>{const tb=tabsCamp(a,b,'*'),tot=tb.t;
+    const na=Object.entries(tb.m).filter(([t])=>ehNaoAt(t)).reduce((q,[,v])=>q+v,0);
+    const disc=Object.entries(tb.m).filter(([t])=>ehSemTrab(t)).reduce((q,[,v])=>q+v,0);
+    const qual=Object.entries(tb.m).filter(([t])=>ehTarget(t)).reduce((q,[,v])=>q+v,0);
+    return{tot,trab:tot-disc,resp:tot-disc-na,qual,venda:dsTot(a,b).nv}};
+  const F=et(D.a,D.b),A=et(D.pa,D.pb);
+  const fases=[['Leads recebidos',F.tot,A.tot,K.bl],['Leads trabalhados',F.trab,A.trab,K.pu],
+    ['Responderam',F.resp,A.resp,K.am],['Qualificados',F.qual,A.qual,K.or],['Vendas fechadas',F.venda,A.venda,K.gr]];
+  const base=F.tot||1;
+  card(pres,s,0.62,1.32,7.86,5.7,K.card2,K.ln);
+  txt(s,'Etapas do funil no período',{x:0.85,y:1.44,w:5,h:0.3,fontSize:11.5,bold:true});
+  fases.forEach(([rot,v,va,cor],i)=>{
+    const y=1.92+i*1.02,fr=v/base,ant=va/(A.tot||1);
+    txt(s,rot,{x:0.85,y,w:2.6,h:0.24,fontSize:10,bold:true});
+    txt(s,R.int(v),{x:0.85,y:y+0.24,w:2.6,h:0.34,fontSize:17,bold:true,color:cor});
+    txt(s,R.p1(fr)+' do total',{x:0.85,y:y+0.58,w:2.6,h:0.2,fontSize:7.5,color:K.mut});
+    barraP(pres,s,3.6,y+0.12,4.6,0.3,fr,cor);
+    const dv=vr(v,va),sv=setaR(dv,true);
+    txt(s,dv==null?'—':`${sv.t} ${R.sg(dv)}${R.d1(Math.abs(dv*100))}%`,{x:3.6,y:y+0.48,w:2.2,h:0.22,fontSize:8,bold:true,color:sv.c});
+    txt(s,`antes ${R.p1(ant)} · agora ${R.p1(fr)}`,{x:5.9,y:y+0.48,w:2.3,h:0.22,fontSize:7.5,color:K.mut,align:'right'});
+    if(i<fases.length-1){const prox=fases[i+1][1],tx=v?prox/v:null;
+      txt(s,`↓ ${R.p1(tx)} seguem para a próxima etapa`,{x:3.6,y:y+0.74,w:4.6,h:0.2,fontSize:7.5,color:K.sub})}});
+  /* perdas */
+  card(pres,s,8.72,1.32,4.01,2.5);
+  txt(s,'Onde o funil perde',{x:8.92,y:1.44,w:3.6,h:0.26,fontSize:10.5,bold:true});
+  const perdas=[['Discador / sem tabulação',F.tot-F.trab],['Não atenderam',F.trab-F.resp],
+    ['Responderam e não qualificaram',Math.max(0,F.resp-F.qual)],['Qualificados sem fechar',Math.max(0,F.qual-F.venda)]];
+  const rowsP=[cabT(['Etapa','Leads','% do total'])];
+  perdas.forEach(([rot,v])=>rowsP.push([{text:rot,options:{color:K.tx2,align:'left',fit:'shrink'}},
+    {text:R.int(v),options:{bold:true,color:K.rd2}},R.p1(v/base)]));
+  tbl(pres,s,8.9,1.8,3.65,1.6,rowsP,[1.95,0.85,0.85]);
+  const maior=perdas.slice().sort((a,b)=>b[1]-a[1])[0];
+  const convG=F.tot?F.venda/F.tot:null,convA=A.tot?A.venda/A.tot:null;
+  caixaTexto(pres,s,8.72,4.02,4.01,3.0,'Leitura do funil',
+    `De ${R.int(F.tot)} leads recebidos, ${R.int(F.venda)} viraram contrato — conversão de ${R.p2(convG)}${convA!=null?` contra ${R.p2(convA)} no período anterior`:''}. `+
+    `A maior perda está em "${maior[0]}", com ${R.int(maior[1])} leads (${R.p1(maior[1]/base)} do total). `+
+    `${F.trab?`A taxa de resposta sobre os leads trabalhados é de ${R.p1(F.resp/F.trab)}.`:''} `+
+    `${F.qual?`Dos qualificados, ${R.p1(F.venda/F.qual)} fecharam.`:''}`,
+    convA!=null&&convG!=null&&convG>=convA?K.gr:K.am)}
+
+/* ───── 3. Comparativo entre empresas ───── */
+function rnEmpresas(pres,D){
+  const s=slideBase(pres,'Performance por Empresa','Comparativo',
+    `Todas as empresas no mesmo período (${D.periodo})`,'GWA CONSULTORIA | EMPRESAS');
+  const sv=fE,svC=fCamp;fE='TODAS';fCamp=null;
+  let A={},B={};try{A=dsAgg(D.a,D.b,K_EMP);B=dsAgg(D.pa,D.pb,K_EMP)}finally{fE=sv;fCamp=svC}
+  const EM=Object.entries(A).filter(([k,o])=>k&&k!=='—'&&(o.leads>0||o.fat>0||o.inv>0))
+    .sort((x,y)=>y[1].fat-x[1].fat).map(([k,o])=>({k,o,p:B[k]||null}));
+  const tot=EM.reduce((a,x)=>({fat:a.fat+x.o.fat,inv:a.inv+x.o.inv,leads:a.leads+x.o.leads,nv:a.nv+x.o.nv}),{fat:0,inv:0,leads:0,nv:0});
+  /* cartões do topo */
+  [['Faturamento total',R.m0(tot.fat),K.gr],['Investimento total',R.m0(tot.inv),K.bl],
+   ['ROAS consolidado',(tot.inv?R.x2(tot.fat/tot.inv):'—')+'x',K.am],['Empresas com movimento',R.int(EM.length),K.pu]]
+    .forEach(([rot,v,cor],i)=>{const x=0.62+i*3.05;card(pres,s,x,1.3,2.9,0.9);
+      s.addShape(pres.shapes.RECTANGLE,{x,y:1.3,w:2.9,h:0.04,fill:{color:cor},line:{color:cor}});
+      txt(s,rot,{x:x+0.16,y:1.42,w:2.6,h:0.2,fontSize:8.5,color:K.sub});
+      txt(s,v,{x:x+0.16,y:1.62,w:2.6,h:0.44,fontSize:19,bold:true,fit:'shrink'})});
+  /* tabela */
+  card(pres,s,0.62,2.4,12.11,2.72,K.card2,K.ln);
+  txt(s,'Indicadores por empresa',{x:0.85,y:2.5,w:5,h:0.28,fontSize:11,bold:true});
+  const rows=[cabT(['Empresa','Leads','Vendas','Conv','Investimento','Faturamento','ROAS','Margem','Fat. vs ant.'])];
+  EM.forEach(e=>{const dv=e.p?vr(e.o.fat,e.p.fat):null,sv2=setaR(dv,true),aqui=e.k===fE;
+    rows.push([{text:(aqui?'● ':'')+e.k,options:{bold:true,color:aqui?K.or:K.txt,align:'left'}},
+      R.int(e.o.leads),{text:R.int(e.o.nv),options:{bold:true,color:K.gr}},R.p2(e.o.conv),R.m0(e.o.inv),
+      {text:R.m0(e.o.fat),options:{bold:true}},{text:(e.o.roas==null?'—':R.x2(e.o.roas)+'x'),options:{bold:true,color:e.o.roas>=3?K.gr:e.o.roas>=1?K.am:K.rd}},
+      R.p1(e.o.margem),{text:dv==null?'—':`${sv2.t} ${R.sg(dv)}${R.d1(Math.abs(dv*100))}%`,options:{bold:true,color:sv2.c}}])});
+  rows.push([{text:'TOTAL',options:{bold:true,color:K.or,align:'left'}},{text:R.int(tot.leads),options:{bold:true}},
+    {text:R.int(tot.nv),options:{bold:true,color:K.gr}},{text:R.p2(tot.leads?tot.nv/tot.leads:null),options:{bold:true}},
+    {text:R.m0(tot.inv),options:{bold:true}},{text:R.m0(tot.fat),options:{bold:true}},
+    {text:(tot.inv?R.x2(tot.fat/tot.inv)+'x':'—'),options:{bold:true,color:K.or}},
+    {text:R.p1(tot.fat?(tot.fat-tot.inv)/tot.fat:null),options:{bold:true}},'']);
+  tbl(pres,s,0.8,2.86,11.75,2.16,rows,[1.65,1.1,1.1,1.1,1.6,1.6,1.1,1.2,1.3]);
+  /* gráficos */
+  card(pres,s,0.62,5.26,6.2,1.76);
+  txt(s,'Faturamento x Investimento por empresa',{x:0.85,y:5.34,w:5,h:0.24,fontSize:9.5,bold:true,color:K.sub});
+  s.addChart(pres.charts.BAR,[{name:'Investimento',labels:EM.map(e=>e.k),values:EM.map(e=>Math.round(e.o.inv))},
+    {name:'Faturamento',labels:EM.map(e=>e.k),values:EM.map(e=>Math.round(e.o.fat))}],
+    {x:0.8,y:5.6,w:5.85,h:1.3,barDir:'col',chartColors:[K.sl,K.gr],showLegend:true,legendPos:'b',legendColor:K.sub,legendFontSize:7,
+     catAxisLabelColor:K.sub,catAxisLabelFontSize:7.5,valAxisLabelColor:K.mut,valAxisLabelFontSize:6.5,
+     valGridLine:{color:K.ln,size:0.5},catGridLine:{style:'none'},barGapWidthPct:50});
+  const melhor=EM.filter(e=>e.o.inv>0).sort((a,b)=>(b.o.roas||0)-(a.o.roas||0))[0];
+  const pior=EM.filter(e=>e.o.inv>0).sort((a,b)=>(a.o.roas||0)-(b.o.roas||0))[0];
+  caixaTexto(pres,s,7.02,5.26,5.71,1.76,'Leitura entre empresas',
+    `${melhor?`${melhor.k} tem o melhor retorno: ROAS ${R.x2(melhor.o.roas)}x com ${R.m0(melhor.o.inv)} investidos.`:''} `+
+    `${pior&&melhor&&pior.k!==melhor.k?`${pior.k} é o ponto de atenção, com ROAS ${R.x2(pior.o.roas)}x.`:''} `+
+    `${tot.fat?`A ${EM[0].k} responde por ${R.p1(EM[0].o.fat/tot.fat)} do faturamento do grupo.`:''}`,K.bl)}
+
+/* ───── 4. Investimento x Retorno por mídia ───── */
+function rnInvest(pres,D){
+  const s=slideBase(pres,'Investimento x Retorno','Por mídia',
+    `Para onde foi o dinheiro e o que ele trouxe (${D.periodo})`,'GWA CONSULTORIA | MÍDIA');
+  const C=D.camps.filter(c=>c.o.inv>0||c.o.fat>0),T=D.T;
+  const top=C.slice(0,8);
+  [['Investido no período',R.m0(T.inv),K.bl],['Faturamento gerado',R.m0(T.fat),K.gr],
+   ['Retorno líquido',R.m0(T.lucro),K.pu],['Custo por venda (CAC)',R.m2(T.cac),K.am]]
+    .forEach(([rot,v,cor],i)=>{const x=0.62+i*3.05;card(pres,s,x,1.3,2.9,0.9);
+      s.addShape(pres.shapes.RECTANGLE,{x,y:1.3,w:2.9,h:0.04,fill:{color:cor},line:{color:cor}});
+      txt(s,rot,{x:x+0.16,y:1.42,w:2.6,h:0.2,fontSize:8.5,color:K.sub});
+      txt(s,v,{x:x+0.16,y:1.62,w:2.6,h:0.44,fontSize:19,bold:true,fit:'shrink'})});
+  card(pres,s,0.62,2.4,7.3,4.62,K.card2,K.ln);
+  txt(s,'Eficiência de cada mídia',{x:0.85,y:2.5,w:5,h:0.28,fontSize:11,bold:true});
+  txt(s,'Eficiência = participação no faturamento menos participação no investimento',{x:0.85,y:2.76,w:6.8,h:0.22,fontSize:7.5,color:K.mut});
+  const rows=[cabT(['Mídia','Investido','% inv.','Faturamento','% fat.','ROAS','CAC','Eficiência'])];
+  top.forEach(c=>{const si=T.inv?c.o.inv/T.inv:0,sf=T.fat?c.o.fat/T.fat:0,ef=sf-si;
+    rows.push([{text:c.nome,options:{bold:true,color:K.txt,align:'left',fit:'shrink'}},R.m0(c.o.inv),R.p1(si),
+      {text:R.m0(c.o.fat),options:{bold:true}},R.p1(sf),
+      {text:c.o.roas==null?'—':R.x2(c.o.roas)+'x',options:{bold:true,color:c.o.roas>=3?K.gr:c.o.roas>=1?K.am:K.rd}},
+      R.m2(c.o.cac),{text:(ef>=0?'+':'−')+R.d1(Math.abs(ef*100))+'pp',options:{bold:true,color:ef>=0?K.gr:K.rd}}])});
+  tbl(pres,s,0.8,3.06,6.94,3.7,rows,[1.5,0.95,0.6,1.05,0.6,0.62,0.8,0.82]);
+  /* gráfico */
+  card(pres,s,8.12,2.4,4.61,2.3);
+  txt(s,'Investimento x Faturamento',{x:8.32,y:2.5,w:4,h:0.26,fontSize:10,bold:true,color:K.sub});
+  const g=top.slice(0,5);
+  s.addChart(pres.charts.BAR,[{name:'Investimento',labels:g.map(c=>c.nome),values:g.map(c=>Math.round(c.o.inv))},
+    {name:'Faturamento',labels:g.map(c=>c.nome),values:g.map(c=>Math.round(c.o.fat))}],
+    {x:8.25,y:2.8,w:4.35,h:1.82,barDir:'bar',chartColors:[K.sl,K.gr],showLegend:true,legendPos:'b',legendColor:K.sub,legendFontSize:7,
+     catAxisLabelColor:K.sub,catAxisLabelFontSize:7,valAxisLabelColor:K.mut,valAxisLabelFontSize:6.5,
+     valGridLine:{color:K.ln,size:0.5},catGridLine:{style:'none'},barGapWidthPct:40});
+  const best=C.filter(c=>c.o.inv>0).sort((a,b)=>(b.o.roas||0)-(a.o.roas||0))[0];
+  const worst=C.filter(c=>c.o.inv>=(T.inv||0)*0.1).sort((a,b)=>(a.o.roas||0)-(b.o.roas||0))[0];
+  caixaTexto(pres,s,8.12,4.86,4.61,2.16,'Onde está o retorno',
+    `${best?`${best.nome} tem o melhor ROAS (${R.x2(best.o.roas)}x) com ${R.p1(T.inv?best.o.inv/T.inv:null)} do investimento.`:''} `+
+    `${worst&&best&&worst.k!==best.k?`${worst.nome} consome ${R.p1(T.inv?worst.o.inv/T.inv:null)} da verba e devolve ROAS ${R.x2(worst.o.roas)}x — é a primeira realocação a estudar.`:''} `+
+    `${T.inv?`Cada R$ 1,00 investido voltou como ${R.x2(T.roas)} no período.`:''}`,K.or)}
+
+/* ───── 5. Evolução no ano ───── */
+function rnEvol(pres,D){
+  const ano=parse(D.b).getFullYear(),mf=parse(D.b).getMonth();
+  const s=slideBase(pres,'Evolução no Ano',`${MES3[0]} a ${MES3[mf]}/${ano}`,
+    `Leads, investimento, faturamento e retorno mês a mês — ${empNome()}`,'GWA CONSULTORIA | EVOLUÇÃO');
+  const M=[];
+  for(let m=0;m<=mf;m++){const ini=`${ano}-${String(m+1).padStart(2,'0')}-01`;
+    const fim=m===mf?D.b:iso(new Date(ano,m+1,0));
+    const o=dsTot(ini,fim);M.push({m,n:MES3[m],o,parcial:m===mf})}
+  const soma=M.reduce((a,x)=>({leads:a.leads+x.o.leads,nv:a.nv+x.o.nv,inv:a.inv+x.o.inv,fat:a.fat+x.o.fat}),{leads:0,nv:0,inv:0,fat:0});
+  [['Leads no ano',R.int(soma.leads),K.bl],['Vendas no ano',R.int(soma.nv),K.gr],
+   ['Investido no ano',R.m0(soma.inv),K.pu],['Faturado no ano',R.m0(soma.fat),K.am]]
+    .forEach(([rot,v,cor],i)=>{const x=0.62+i*3.05;card(pres,s,x,1.3,2.9,0.9);
+      s.addShape(pres.shapes.RECTANGLE,{x,y:1.3,w:2.9,h:0.04,fill:{color:cor},line:{color:cor}});
+      txt(s,rot,{x:x+0.16,y:1.42,w:2.6,h:0.2,fontSize:8.5,color:K.sub});
+      txt(s,v,{x:x+0.16,y:1.62,w:2.6,h:0.44,fontSize:19,bold:true,fit:'shrink'})});
+  card(pres,s,0.62,2.4,12.11,2.34);
+  txt(s,'Faturamento e investimento por mês',{x:0.85,y:2.5,w:6,h:0.26,fontSize:10.5,bold:true,color:K.sub});
+  s.addChart(pres.charts.BAR,[{name:'Investimento',labels:M.map(x=>x.n),values:M.map(x=>Math.round(x.o.inv))},
+    {name:'Faturamento',labels:M.map(x=>x.n),values:M.map(x=>Math.round(x.o.fat))}],
+    {x:0.8,y:2.8,w:11.75,h:1.86,barDir:'col',chartColors:[K.sl,K.gr],showLegend:true,legendPos:'b',legendColor:K.sub,legendFontSize:7.5,
+     catAxisLabelColor:K.sub,catAxisLabelFontSize:8,valAxisLabelColor:K.mut,valAxisLabelFontSize:7,
+     valGridLine:{color:K.ln,size:0.5},catGridLine:{style:'none'},barGapWidthPct:45});
+  card(pres,s,0.62,4.86,12.11,2.16,K.card2,K.ln);
+  txt(s,'Indicadores mês a mês',{x:0.85,y:4.94,w:5,h:0.26,fontSize:10.5,bold:true});
+  const rows=[cabT(['Mês',...M.map(x=>x.n+(x.parcial?'*':''))])];
+  const linhasE=[['Leads',x=>R.int(x.o.leads)],['Vendas',x=>R.int(x.o.nv)],['Conversão',x=>R.p2(x.o.conv)],
+    ['Investimento',x=>R.m0(x.o.inv)],['Faturamento',x=>R.m0(x.o.fat)],['ROAS',x=>x.o.roas==null?'—':R.x2(x.o.roas)+'x']];
+  linhasE.forEach(([rot,f])=>rows.push([{text:rot,options:{bold:true,color:K.txt,align:'left'}},
+    ...M.map(x=>({text:f(x),options:rot==='ROAS'?{bold:true,color:(x.o.roas||0)>=3?K.gr:(x.o.roas||0)>=1?K.am:K.rd}:{}}))]));
+  const cw=[1.5].concat(M.map(()=>(10.25/Math.max(1,M.length))));
+  tbl(pres,s,0.8,5.3,11.75,1.6,rows,cw);
+  txt(s,'* mês ainda em andamento (até '+dc(D.b)+')',{x:0.85,y:6.84,w:6,h:0.2,fontSize:7,color:K.mut})}
+
+/* ───── 6. Ranking de campanhas ───── */
+function rnRanking(pres,D){
+  const s=slideBase(pres,'Ranking de Campanhas','Do melhor ao pior retorno',
+    `Todas as campanhas com movimento no período (${D.periodo})`,'GWA CONSULTORIA | RANKING');
+  const C=D.camps.slice().sort((a,b)=>((b.o.roas==null?-1:b.o.roas))-((a.o.roas==null?-1:a.o.roas))||b.o.fat-a.o.fat);
+  const T=D.T;
+  const nota=c=>{let n=0;const r=c.o.roas,cv=c.o.conv,mg=c.o.margem;
+    n+=r==null?0:Math.min(40,r*10);n+=cv==null?0:Math.min(30,cv*1000);n+=mg==null?0:Math.min(30,mg*40);
+    return Math.round(Math.min(100,n))};
+  const nR=Math.max(2,C.length+2),rhR=Math.min(0.42,4.86/nR),hCard=Math.max(2.1,Math.min(5.72,0.7+nR*rhR+0.2));
+  card(pres,s,0.62,1.3,12.11,hCard,K.card2,K.ln);
+  txt(s,'Ranking por retorno sobre investimento',{x:0.85,y:1.4,w:6,h:0.28,fontSize:11.5,bold:true});
+  txt(s,'Nota 0 a 100 combinando ROAS, conversão e margem após mídia',{x:0.85,y:1.68,w:7,h:0.22,fontSize:7.5,color:K.mut});
+  const rows=[cabT(['#','Campanha','Leads','Vendas','Conv','Investido','Faturamento','ROAS','Margem','CAC','Nota'])];
+  C.forEach((c,i)=>{const nt=nota(c),cor=nt>=70?K.gr:nt>=45?K.am:K.rd;
+    rows.push([{text:String(i+1),options:{bold:true,color:K.mut,align:'left'}},
+      {text:c.nome,options:{bold:true,color:K.txt,align:'left',fit:'shrink'}},
+      R.int(c.o.leads),{text:R.int(c.o.nv),options:{bold:true,color:K.gr}},R.p2(c.o.conv),R.m0(c.o.inv),
+      {text:R.m0(c.o.fat),options:{bold:true}},
+      {text:c.o.roas==null?'—':R.x2(c.o.roas)+'x',options:{bold:true,color:cor}},R.p1(c.o.margem),R.m2(c.o.cac),
+      {text:String(nt),options:{bold:true,color:cor}}])});
+  if(!C.length)rows.push([{text:'—',options:{align:'left'}},{text:'Sem campanha com movimento no período',options:{color:K.mut,align:'left'}},'','','','','','','','','']);
+  rows.push([{text:'',options:{align:'left'}},{text:'TOTAL',options:{bold:true,color:K.or,align:'left'}},
+    {text:R.int(T.leads),options:{bold:true}},{text:R.int(T.nv),options:{bold:true,color:K.gr}},
+    {text:R.p2(T.conv),options:{bold:true}},{text:R.m0(T.inv),options:{bold:true}},{text:R.m0(T.fat),options:{bold:true}},
+    {text:T.roas==null?'—':R.x2(T.roas)+'x',options:{bold:true,color:K.or}},{text:R.p1(T.margem),options:{bold:true}},
+    {text:R.m2(T.cac),options:{bold:true}},'']);
+  tbl(pres,s,0.8,2.0,11.75,nR*rhR,rows,[0.5,2.3,0.95,0.95,0.95,1.3,1.4,0.85,0.95,1.05,0.6]);
+  const yL=1.3+hCard+0.2;
+  if(7.02-yL>=1.1){const lider=C[0],ultimo=C.filter(c=>c.o.inv>0)[C.filter(c=>c.o.inv>0).length-1];
+    caixaTexto(pres,s,0.62,yL,12.11,7.02-yL,'Leitura do ranking',
+      `${lider?`${lider.nome} lidera com ROAS ${R.x2(lider.o.roas)}x, ${R.int(lider.o.nv)} vendas e ${R.m0(lider.o.fat)} de faturamento.`:'Sem campanha com movimento no período.'} `+
+      `${ultimo&&lider&&ultimo.k!==lider.k?`Na outra ponta, ${ultimo.nome} entrega ROAS ${R.x2(ultimo.o.roas)}x com ${R.m0(ultimo.o.inv)} investidos — vale revisar criativo, público e oferta antes de manter a verba.`:''} `+
+      `${T.inv?`A conta inteira fechou o período em ROAS ${R.x2(T.roas)}x com margem de ${R.p1(T.margem)} após mídia.`:''}`,K.or)}}
+
+/* ───── 7. Oportunidades de otimização ───── */
+function rnOport(pres,D){
+  const s=slideBase(pres,'Oportunidades','Onde dá para melhorar agora',
+    `Pontos de atenção e ganho potencial no período (${D.periodo})`,'GWA CONSULTORIA | OPORTUNIDADES');
+  const T=D.T,op=[];
+  const comInv=D.camps.filter(c=>c.o.inv>0);
+  const mediaRoas=T.roas;
+  /* 1. campanha com ROAS abaixo do geral consumindo verba relevante */
+  const fraca=comInv.filter(c=>c.o.roas!=null&&mediaRoas!=null&&c.o.roas<mediaRoas&&c.o.inv>=(T.inv||0)*0.08)
+    .sort((a,b)=>(a.o.roas-b.o.roas))[0];
+  if(fraca){const ganho=fraca.o.inv*((mediaRoas||0)-(fraca.o.roas||0));
+    op.push({t:'Realocar verba de '+fraca.nome,c:K.rd,
+      n:R.m0(fraca.o.inv),r:'investido no período',
+      d:`ROAS de ${R.x2(fraca.o.roas)}x contra ${R.x2(mediaRoas)}x da média. Levando essa verba para a média da conta, o faturamento subiria cerca de ${R.m0(ganho)}.`})}
+  /* 2. não atende */
+  const tb=tabsCamp(D.a,D.b,'*');
+  const na=Object.entries(tb.m).filter(([t])=>ehNaoAt(t)).reduce((q,[,v])=>q+v,0);
+  if(tb.t&&na/tb.t>0.25){const alvo=0.25,exc=na-tb.t*alvo;
+    op.push({t:'Reduzir o "Não atende"',c:K.am,n:R.p1(na/tb.t),r:'dos leads do período',
+      d:`São ${R.int(na)} leads que não atenderam. Trazendo para 25%, ${R.int(exc)} leads voltariam para o funil — cerca de ${R.int(exc*(T.conv||0))} vendas a mais com a conversão atual.`})}
+  /* 3. linha com pior aproveitamento */
+  const lin=(D.linhasTop&&D.linhasTop.length?D.linhasTop:D.linhas).filter(l=>l.rec>=30);
+  const piorL=lin.slice().sort((a,b)=>(a.pResp||0)-(b.pResp||0))[0],melhorL=lin.slice().sort((a,b)=>(b.pResp||0)-(a.pResp||0))[0];
+  if(piorL&&melhorL&&piorL!==melhorL&&(melhorL.pResp||0)-(piorL.pResp||0)>0.08){
+    op.push({t:'Equalizar a linha '+piorL.nome,c:K.bl,n:R.p1(piorL.pResp),r:'de resposta na linha',
+      d:`A linha ${melhorL.nome} responde ${R.p1(melhorL.pResp)} com volume parecido. Igualar o atendimento recuperaria cerca de ${R.int(piorL.tr*((melhorL.pResp||0)-(piorL.pResp||0)))} contatos.`})}
+  /* 4. formulário crítico */
+  const fCrit=(D.forms||[]).map(f=>({f,na:(f.tab['Não atende']||0)/(f.t||1),v:Object.entries(f.tab).filter(([t])=>kind(t)==='g').reduce((q,[,n])=>q+n,0)}))
+    .filter(x=>x.f.t>=30&&(x.na>=0.6||x.v===0)).sort((a,b)=>b.na-a.na)[0];
+  if(fCrit)op.push({t:'Revisar o formulário '+(fCrit.f.nome||nomeForm(fCrit.f.f)),c:K.pu,n:R.p1(fCrit.na),r:'de "Não atende" nesse formulário',
+    d:`${R.int(fCrit.f.t)} leads no período e ${fCrit.v?R.int(fCrit.v)+' vendas':'nenhuma venda'}. Vale revisar a oferta e a qualificação antes de manter a verba.`});
+  /* 5. tempo de fechamento */
+  if(D.tempo&&D.tempo.med!=null&&D.tempo.med>12)
+    op.push({t:'Encurtar o tempo de fechamento',c:K.or,n:R.d1(D.tempo.med)+' dias',r:'de média até a venda',
+      d:`${R.int(D.tempo.lentas)} vendas levaram mais de 30 dias. Cada dia a menos antecipa caixa e reduz a perda de lead frio.`});
+  /* 6. quando está tudo bem */
+  if(!op.length)op.push({t:'Operação dentro do esperado',c:K.gr,n:R.x2(T.roas)+'x',r:'de ROAS no período',
+    d:'Nenhum ponto crítico encontrado com as regras atuais. Vale testar aumento de verba na campanha de melhor retorno.'});
+  const V=op.slice(0,4),n=V.length,w=(12.11-(n-1)*0.2)/n;
+  V.forEach((o,i)=>{const x=0.62+i*(w+0.2);
+    card(pres,s,x,1.32,w,3.3);
+    s.addShape(pres.shapes.RECTANGLE,{x,y:1.32,w,h:0.05,fill:{color:o.c},line:{color:o.c}});
+    selo(pres,s,x+0.18,1.5,Math.min(1.3,w-0.36),0.26,'AÇÃO '+(i+1),o.c);
+    txt(s,o.t,{x:x+0.18,y:1.88,w:w-0.36,h:0.5,fontSize:12,bold:true,fit:'shrink'});
+    txt(s,o.n,{x:x+0.18,y:2.44,w:w-0.36,h:0.5,fontSize:22,bold:true,color:o.c,fit:'shrink'});
+    txt(s,o.r,{x:x+0.18,y:2.94,w:w-0.36,h:0.24,fontSize:8,color:K.mut,fit:'shrink'});
+    txt(s,o.d,{x:x+0.18,y:3.22,w:w-0.36,h:1.3,fontSize:8.5,color:K.tx2,valign:'top',fit:'shrink'})});
+  /* resumo embaixo */
+  card(pres,s,0.62,4.84,6.2,2.18,K.card2,K.ln);
+  txt(s,'Onde a conta está hoje',{x:0.85,y:4.94,w:5,h:0.26,fontSize:10.5,bold:true});
+  const rowsR=[cabT(['Indicador','Período','Anterior'])];
+  [['ROAS',x=>x.roas==null?'—':R.x2(x.roas)+'x'],['Conversão',x=>R.p2(x.conv)],['CAC',x=>R.m2(x.cac)],
+   ['CPL',x=>R.m2(x.cpl)],['Margem após mídia',x=>R.p1(x.margem)]]
+    .forEach(([rot,f])=>rowsR.push([{text:rot,options:{color:K.tx2,align:'left'}},{text:f(D.T),options:{bold:true}},{text:f(D.P),options:{color:K.mut}}]));
+  tbl(pres,s,0.8,5.32,5.85,1.6,rowsR,[2.6,1.65,1.6]);
+  caixaTexto(pres,s,7.02,4.84,5.71,2.18,'Prioridade da reunião',
+    `${V[0].t}: ${V[0].d}`,V[0].c)}
+
+/* ───── 8. Metas e projeção do mês ───── */
+function rnProj(pres,D){
+  const b=parse(D.b),ano=b.getFullYear(),mes=b.getMonth();
+  const ini=`${ano}-${String(mes+1).padStart(2,'0')}-01`,fimMes=iso(new Date(ano,mes+1,0));
+  const ndMes=new Date(ano,mes+1,0).getDate(),decor=Math.max(1,Math.min(ndMes,b.getDate()));
+  const s=slideBase(pres,'Projeção do Mês',`${MESC[mes]} ${ano}`,
+    `Ritmo até ${dc(D.b)} (${decor} de ${ndMes} dias) e fechamento projetado`,'GWA CONSULTORIA | PROJEÇÃO');
+  const M=dsTot(ini,D.b),fator=ndMes/decor;
+  /* mês anterior inteiro, para comparar o fechamento */
+  const aIni=iso(new Date(ano,mes-1,1)),aFim=iso(new Date(ano,mes,0)),A=dsTot(aIni,aFim);
+  const proj={leads:M.leads*fator,nv:M.nv*fator,fat:M.fat*fator,inv:M.inv*fator};
+  [['Dias corridos',`${decor} de ${ndMes}`,R.p0(decor/ndMes)+' do mês',K.bl],
+   ['Faturamento até agora',R.m0(M.fat),`projeta ${R.m0(proj.fat)}`,K.gr],
+   ['Investimento até agora',R.m0(M.inv),`projeta ${R.m0(proj.inv)}`,K.pu],
+   ['ROAS do mês',R.x2(M.roas)+'x',A.roas!=null?`mês passado ${R.x2(A.roas)}x`:'sem base',K.am]]
+    .forEach(([rot,v,rod,cor],i)=>{const x=0.62+i*3.05;card(pres,s,x,1.3,2.9,1.08);
+      s.addShape(pres.shapes.RECTANGLE,{x,y:1.3,w:2.9,h:0.04,fill:{color:cor},line:{color:cor}});
+      txt(s,rot,{x:x+0.16,y:1.42,w:2.6,h:0.2,fontSize:8.5,color:K.sub});
+      txt(s,v,{x:x+0.16,y:1.62,w:2.6,h:0.44,fontSize:19,bold:true,color:cor,fit:'shrink'});
+      txt(s,rod,{x:x+0.16,y:2.08,w:2.6,h:0.22,fontSize:7.5,color:K.mut,fit:'shrink'})});
+  /* barras: realizado x fechamento do mês passado */
+  card(pres,s,0.62,2.58,7.3,4.44,K.card2,K.ln);
+  txt(s,'Ritmo do mês contra o fechamento anterior',{x:0.85,y:2.7,w:6,h:0.3,fontSize:11.5,bold:true});
+  txt(s,`Projeção = realizado ÷ ${decor} dias × ${ndMes} dias do mês`,{x:0.85,y:3.0,w:6.8,h:0.22,fontSize:7.5,color:K.mut});
+  const met=[['Leads',M.leads,proj.leads,A.leads,v=>R.int(v),K.bl],
+    ['Vendas',M.nv,proj.nv,A.nv,v=>R.int(v),K.gr],
+    ['Faturamento',M.fat,proj.fat,A.fat,v=>R.m0(v),K.or],
+    ['Investimento',M.inv,proj.inv,A.inv,v=>R.m0(v),K.pu]];
+  met.forEach(([rot,at,pj,ant,f,cor],i)=>{const y=3.36+i*0.88;
+    txt(s,rot,{x:0.85,y,w:2.2,h:0.24,fontSize:10,bold:true});
+    txt(s,f(at),{x:0.85,y:y+0.22,w:2.2,h:0.3,fontSize:14,bold:true,color:cor});
+    const base=Math.max(ant||0,pj||0)||1;
+    barraP(pres,s,3.2,y+0.08,4.0,0.22,(at||0)/base,cor);
+    barraP(pres,s,3.2,y+0.36,4.0,0.12,(ant||0)/base,K.sl);
+    txt(s,`projeção ${f(pj)}`,{x:3.2,y:y+0.52,w:2.4,h:0.2,fontSize:7.5,color:K.tx2});
+    const dv=vr(pj,ant),sv=setaR(dv,rot!=='Investimento');
+    txt(s,ant?`${sv.t} ${R.sg(dv)}${R.d1(Math.abs((dv||0)*100))}% vs ${f(ant)} do mês passado`:'sem mês anterior',
+      {x:5.0,y:y+0.52,w:2.2,h:0.2,fontSize:7.5,bold:true,color:sv.c,align:'right'})});
+  /* ritmo diário */
+  card(pres,s,8.12,2.58,4.61,2.0);
+  txt(s,'Média por dia',{x:8.32,y:2.68,w:4,h:0.26,fontSize:10.5,bold:true,color:K.sub});
+  const rowsD=[cabT(['Por dia','Mês','Mês passado'])];
+  [['Leads',M.leads/decor,A.leads/Math.max(1,new Date(ano,mes,0).getDate()),v=>R.d1(v)],
+   ['Vendas',M.nv/decor,A.nv/Math.max(1,new Date(ano,mes,0).getDate()),v=>R.d1(v)],
+   ['Faturamento',M.fat/decor,A.fat/Math.max(1,new Date(ano,mes,0).getDate()),v=>R.m0(v)],
+   ['Investimento',M.inv/decor,A.inv/Math.max(1,new Date(ano,mes,0).getDate()),v=>R.m0(v)]]
+    .forEach(([rot,at,ant,f])=>rowsD.push([{text:rot,options:{color:K.tx2,align:'left'}},
+      {text:f(at),options:{bold:true}},{text:f(ant),options:{color:K.mut}}]));
+  tbl(pres,s,8.3,3.0,4.25,1.44,rowsD,[1.55,1.35,1.35]);
+  const dvF=vr(proj.fat,A.fat);
+  caixaTexto(pres,s,8.12,4.74,4.61,2.28,'O que o mês deve fechar',
+    `Mantido o ritmo de ${decor} ${decor===1?'dia':'dias'}, ${MESC[mes]} fecha em torno de ${R.m0(proj.fat)} de faturamento e ${R.int(proj.nv)} vendas, com ${R.m0(proj.inv)} de mídia. `+
+    `${dvF!=null?`Isso é ${dvF>=0?'acima':'abaixo'} do mês passado em ${R.d1(Math.abs(dvF*100))}%.`:''} `+
+    `${M.roas!=null?`O ROAS do mês está em ${R.x2(M.roas)}x.`:''} A projeção é linear e não considera sazonalidade do fim do mês.`,
+    dvF==null?K.bl:(dvF>=0?K.gr:K.am))}
+
+/* ═════ catálogo de slides da reunião ═════
+   p (padrão) = já fazia parte da apresentação; novo = fica na biblioteca, desligado.
+   pai = o slide vive dentro do bloco por campanha (liga/desliga, mas não reordena sozinho). */
+const RN_CAT=[
+  {k:'capa',    n:'Capa',                   d:'Abertura com os 4 indicadores do período'},
+  {k:'exec',    n:'Resumo Executivo',       d:'Faturamento, mídia, lucro e ROAS contra as metas, com status por indicador',novo:1},
+  {k:'mes',     n:'Comparativo Mensal',     d:'Mesmo trecho do mês passado contra o atual, 12 indicadores'},
+  {k:'leads',   n:'Leads do Mês',           d:'Volume por mídia, linha de WhatsApp, formulário e semana'},
+  {k:'funil',   n:'Funil de Conversão',     d:'Do lead recebido ao contrato, com a perda de cada etapa',novo:1},
+  {k:'camp',    n:'Por campanha',           d:'KPIs vs meta e Tabulações e Funil de cada mídia'},
+  {k:'aprov',   n:'Indicadores de Aproveitamento', d:'Eficiência operacional da campanha principal',pai:'camp'},
+  {k:'target',  n:'Target e Churn',         d:'Qualidade da audiência (campanhas com 50+ leads)',pai:'camp'},
+  {k:'linha',   n:'Performance por Linha',  d:'Linhas de WhatsApp da campanha principal',pai:'camp'},
+  {k:'balanc',  n:'Balanceador de contratos',d:'Peso de cada campanha nos contratos do período'},
+  {k:'form',    n:'Análise de Formulário',  d:'Um slide por formulário de cadastro com volume relevante'},
+  {k:'qual',    n:'Qualidade Operacional',  d:'Distribuição percentual das tabulações por mídia'},
+  {k:'vmes',    n:'Vendas no Mês',          d:'Vendas fechadas dentro do próprio período, por mídia e linha'},
+  {k:'tempo',   n:'Tempo até a Venda',      d:'Tempo médio, mediana e faixas de fechamento por mídia'},
+  {k:'invest',  n:'Investimento x Retorno', d:'Eficiência de cada mídia: share de verba contra share de faturamento',novo:1},
+  {k:'ranking', n:'Ranking de Campanhas',   d:'Todas as campanhas ordenadas por retorno, com nota de 0 a 100',novo:1},
+  {k:'empresas',n:'Performance por Empresa',d:'Comparativo entre GWA, M12, OFF e IND no mesmo período',novo:1},
+  {k:'custos',  n:'Custos vs Receita',      d:'Peso temporal do custo contra a receita'},
+  {k:'ticket',  n:'Ticket Médio no Ano',    d:'Evolução do ticket médio mês a mês'},
+  {k:'evol',    n:'Evolução no Ano',        d:'Leads, vendas, mídia, faturamento e ROAS mês a mês',novo:1},
+  {k:'semanal', n:'Performance Semanal',    d:'Semana a semana, comparando com a última semana fechada'},
+  {k:'proj',    n:'Projeção do Mês',        d:'Ritmo do mês, média por dia e fechamento projetado',novo:1},
+  {k:'bm',      n:'Performance por BM',     d:'Contas do Meta agrupadas por Business Manager'},
+  {k:'oport',   n:'Oportunidades de otimização',d:'Pontos de atenção com número, ação sugerida e ganho estimado',novo:1},
+  {k:'fim',     n:'Encerramento',           d:'Slide de agradecimento'}
+];
+const RN_MAP=(()=>{const m={};RN_CAT.forEach(c=>m[c.k]=c);return m})();
+function rnPadrao(){const sel={},ordem=[];RN_CAT.forEach(c=>{sel[c.k]=c.novo?0:1;if(!c.pai)ordem.push(c.k)});return{sel,ordem,tema:'escuro'}}
+/* configuração efetiva: o que está salvo em CFG.rn por cima do padrão */
+function rnCfg(){const P=rnPadrao(),C=(CFG.rn&&typeof CFG.rn==='object')?CFG.rn:{};
+  const sel=Object.assign({},P.sel);Object.keys(C.sel||{}).forEach(k=>{if(P.sel[k]!==undefined)sel[k]=C.sel[k]?1:0});
+  const ordem=(Array.isArray(C.ordem)?C.ordem:[]).filter((k,i,a)=>P.ordem.indexOf(k)>=0&&a.indexOf(k)===i);
+  P.ordem.forEach((k,i)=>{if(ordem.indexOf(k)<0)ordem.splice(Math.min(i,ordem.length),0,k)});
+  return{sel,ordem,tema:C.tema==='pb'?'pb':'escuro'}}
+function rnGrava(c,msg){CFG.rn={sel:c.sel,ordem:c.ordem,tema:c.tema};salvaCfg();rnCache=null;
+  logEv('Reunião',msg||'slides da apresentação salvos',true,c.ordem.filter(k=>c.sel[k]).length);
+  if(msg)aviso(msg);render()}
+/* quantos slides a apresentação deve gerar (estimativa para a tela) */
+function rnQtd(C){let n=0;C.ordem.forEach(k=>{if(!C.sel[k])return;
+  if(k==='camp')n+=2;else if(k==='form')n+=1;else n+=1});return n}
+
+/* ═════ Administração → Reunião: biblioteca e ordem dos slides ═════ */
+function vSlides(){
+  const C=rnCfg(),dentro=C.ordem.filter(k=>C.sel[k]),fora=C.ordem.filter(k=>!C.sel[k]);
+  const subs=k=>RN_CAT.filter(c=>c.pai===k);
+  const bNovo=c=>c.novo?'<span class="tg o">novo</span>':'';
+  const linhaIn=(k,i)=>{const c=RN_MAP[k];
+    return `<li class="sl-i"><span class="sl-n">${i+1}</span>
+      <div class="sl-tx"><b>${esc(c.n)}</b> ${bNovo(c)}<div class="kp-h">${esc(c.d)}</div>
+        ${subs(k).length?`<div class="sl-sub">${subs(k).map(x=>`<span class="sl-s1"><label><input type="checkbox" data-sl-sub="${esc(x.k)}"${C.sel[x.k]?' checked':''}> ${esc(x.n)}</label>
+          <button class="lnk" data-sl-pv="${esc(x.k)}" aria-label="Ver prévia de ${esc(x.n)}">prévia</button></span>`).join('')}</div>`:''}</div>
+      <div class="sl-ac"><button class="btn sm" data-sl-up="${esc(k)}" aria-label="Subir ${esc(c.n)}"${i===0?' disabled':''}>↑</button>
+        <button class="btn sm" data-sl-dn="${esc(k)}" aria-label="Descer ${esc(c.n)}"${i===dentro.length-1?' disabled':''}>↓</button>
+        <button class="btn sm" data-sl-pv="${esc(k)}" aria-label="Ver prévia de ${esc(c.n)}">Prévia</button>
+        <button class="btn sm" data-sl-off="${esc(k)}" aria-label="Tirar ${esc(c.n)} da apresentação">Tirar</button></div></li>`};
+  const linhaOut=k=>{const c=RN_MAP[k];
+    return `<li class="sl-i sl-o"><span class="sl-n">+</span>
+      <div class="sl-tx"><b>${esc(c.n)}</b> ${bNovo(c)}<div class="kp-h">${esc(c.d)}</div></div>
+      <div class="sl-ac"><button class="btn sm" data-sl-pv="${esc(k)}" aria-label="Ver prévia de ${esc(c.n)}">Prévia</button>
+        <button class="btn pri sm" data-sl-on="${esc(k)}" aria-label="Adicionar ${esc(c.n)}">Adicionar</button></div></li>`};
+  return `<div class="card wide sl-c"><div class="ch" style="padding:15px 16px 6px"><h3>Slides da apresentação</h3>
+      <span class="m">${dentro.length} na reunião · ${fora.length} na biblioteca</span></div>
+    <p class="info" style="margin:0 16px 10px">Os slides que já existiam continuam ligados. Os da biblioteca entram só quando você adicionar.
+      Use ↑ e ↓ para mudar a ordem e <b>Prévia</b> para ver um slide sozinho na tela, com os dados do período escolhido lá em cima. Tudo fica salvo neste navegador.</p>
+    <div class="sl-top" style="margin:0 16px 12px">
+      <div class="chips" role="group" aria-label="Estilo da apresentação">
+        <span class="info" style="margin:0 6px 0 0">Estilo:</span>
+        <button data-sl-tema="escuro" aria-pressed="${C.tema!=='pb'}">Escuro com laranja</button>
+        <button data-sl-tema="pb" aria-pressed="${C.tema==='pb'}">Preto e branco</button></div>
+      <button class="btn" id="slPadrao">Restaurar padrão</button></div>
+    <h4 class="cfg-t" style="margin:0 16px 8px">Na apresentação <span class="m">(${dentro.length}) · nesta ordem</span></h4>
+    <ol class="sl-l">${dentro.map(linhaIn).join('')||'<li class="info">Nenhum slide selecionado.</li>'}</ol>
+    <h4 class="cfg-t" style="margin:14px 16px 8px">Biblioteca <span class="m">(${fora.length}) · disponíveis para adicionar</span></h4>
+    <ol class="sl-l">${fora.map(linhaOut).join('')||'<li class="info" style="margin:0 16px 12px">Todos os slides já estão na apresentação.</li>'}</ol>
+    <div class="acts" style="padding:12px 16px"><button class="btn pri" id="slSalva">Salvar preferências</button>
+      <span class="info" style="margin:0">As mudanças já ficam salvas na hora; o botão só confirma.</span></div></div>`}
+function bindSlides(){const g=id=>document.getElementById(id);
+  const mexe=(f,msg)=>{const C=rnCfg();f(C);rnGrava(C,msg)};
+  document.querySelectorAll('[data-sl-on]').forEach(b=>b.onclick=()=>mexe(C=>{C.sel[b.dataset.slOn]=1},'Slide "'+RN_MAP[b.dataset.slOn].n+'" adicionado'));
+  document.querySelectorAll('[data-sl-off]').forEach(b=>b.onclick=()=>mexe(C=>{C.sel[b.dataset.slOff]=0},'Slide "'+RN_MAP[b.dataset.slOff].n+'" tirado da apresentação'));
+  document.querySelectorAll('[data-sl-sub]').forEach(c=>c.onchange=()=>mexe(C=>{C.sel[c.dataset.slSub]=c.checked?1:0}));
+  const move=(k,dir)=>mexe(C=>{const vis=C.ordem.filter(x=>C.sel[x]),i=vis.indexOf(k),j=i+dir;
+    if(i<0||j<0||j>=vis.length)return;const alvo=vis[j];
+    const a=C.ordem.indexOf(k),b=C.ordem.indexOf(alvo);C.ordem[a]=alvo;C.ordem[b]=k});
+  document.querySelectorAll('[data-sl-up]').forEach(b=>b.onclick=()=>move(b.dataset.slUp,-1));
+  document.querySelectorAll('[data-sl-dn]').forEach(b=>b.onclick=()=>move(b.dataset.slDn,1));
+  document.querySelectorAll('[data-sl-tema]').forEach(b=>b.onclick=()=>mexe(C=>{C.tema=b.dataset.slTema},'Estilo: '+(b.dataset.slTema==='pb'?'preto e branco':'escuro com laranja')));
+  document.querySelectorAll('[data-sl-pv]').forEach(b=>b.onclick=()=>{
+    if(fE==='TODAS'){aviso('Escolha uma empresa no filtro de cima');return}
+    gerarReuniao('apresentar',b.dataset.slPv)});
+  if(g('slPadrao'))g('slPadrao').onclick=()=>{const P=rnPadrao();rnGrava(P,'Slides e ordem voltaram ao padrão')};
+  if(g('slSalva'))g('slSalva').onclick=()=>{const C=rnCfg();rnGrava(C,'Preferências dos slides salvas')}}
 
 /* ───── render ───── */
 const VIEWS={resumo:vInicio,leads:vLeads,camp:vCamp,emp:vEmp,tab:vTab,fat:vFat,vendas:vVendas,perf:vPerf,relat:vRel,admin:vAdmin};
@@ -5035,8 +5626,8 @@ function bind(){
   if(tab==='admin'&&aTab==='reuniao'&&admOk()){const g=id=>document.getElementById(id);
     if(g('btReuniao'))g('btReuniao').onclick=()=>gerarReuniao('baixar');
     if(g('btApresentar'))g('btApresentar').onclick=()=>gerarReuniao('apresentar');
-    document.querySelectorAll('[data-rs]').forEach(c=>c.onchange=()=>{rnSecoes[c.dataset.rs]=c.checked?1:0});
-    bindKpis();bindNomes();bindVinculo();bindSemCanal();bindBmEmp()}
+    bindSlides();
+    bindKpis();bindNomes();bindVinculo();bindSemCanal();bindBmCamp();bindBmEmp()}
   if(tab==='admin'&&aTab==='tv'&&admOk())bindTv();
   if(tab==='admin'&&aTab==='email'&&admOk())bindEmail();
   if(tab==='admin'&&aTab==='offline'&&admOk())bindOffline();
