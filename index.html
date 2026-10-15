@@ -1583,8 +1583,11 @@ function offParseD(off,hojeIso){
     out.prog+=+(off[i][24])||0;
     const pts=dias.filter(([c,s])=>s<=corte&&(+(off[i][c])||0)>0).map(([c,s])=>[s,+(off[i][c])||0,(+(off[i][c])||0)*unit]);
     const base=pts.reduce((q,p)=>q+p[2],0),alvo=parc==null?base:parc;if(!(alvo>0))continue;
-    const m=out.c[camp]={};out.tot+=alvo;
-    if(base>0)pts.forEach(([s,q,v])=>{m[s]={v:v*alvo/base,q}});else m[corte]={v:alvo,q:0}}
+    /* a mesma campanha pode ter várias linhas na grade (ex.: duas saídas da METROPOLITANA no mesmo dia):
+       cada linha tem seu custo unitário e sua coluna AA, então soma-se linha a linha em vez de substituir */
+    const m=out.c[camp]||(out.c[camp]={});out.tot+=alvo;
+    const soma=(s,q,v)=>{const cel=m[s]||(m[s]={v:0,q:0});cel.v+=v;cel.q+=q};
+    if(base>0)pts.forEach(([s,q,v])=>soma(s,q,v*alvo/base));else soma(corte,0,alvo)}
   return out}
 function offLinhasD(pular){const out=[],M=(OFFH&&OFFH.meses)||{};
   const fora=Array.isArray(pular)?pular:(pular?[pular]:[]);
