@@ -750,6 +750,7 @@ const CFG_PADRAO={
     col:{lanc:"A",servico:"J",valor:"L",parcela:"N",venc:"P",dataLead:"S",midia:"Z",empresa:"AA",confirm:"D",consultor:"R",card:"C",status:"V"}},
   custos:{id:"1_Q029qNPIE66vVxsgGCA7kHfk5B0Yr0_7Fa2yiXzqEc",abaMeta:"RELATORIO_CAMPANHAS_2026",abaAds:"Custo campanhas Ads",
     abaOff:"Custo OFFLINE",abaAtivas:"CAMPANHAS_ATIVAS",
+    abaMetro:"CUSTO METROPOLITANA SAIDAS",abaHist:"OFFLINE CUSTAS - HISTORICO",
     meta:{mes:"A",gasto:"I",campanha:"L",empresa:"M",empConta:"F",atualiz:"K",conta:"D",nome:"B",bm:"N"},
     ativas:{conta:"A",status:"E",empresa:"L",bm:"O"},
     ads:{dia:"A",status:"E",canal:"F",custo:"K",orcamento:"P",campanha:"Q",empresa:"R"}},
@@ -777,11 +778,12 @@ function mesclar(a,b){for(const k in b){const v=b[k];
   if(v&&typeof v==='object'&&!Array.isArray(v)&&a[k]&&typeof a[k]==='object')mesclar(a[k],v);else a[k]=v}return a}
 let CFG=clone(CFG_PADRAO);
 try{const s=JSON.parse(localStorage.getItem('gwa.cfg')||'null');if(s)mesclar(CFG,s)}catch(e){}
-let SID,SNAME,CAMP,TAB,ORI,CAN,DAT,ID,FSID,FGID,KSID,SH_META,SH_ADS,SH_OFF,SH_ATV;
+let SID,SNAME,CAMP,TAB,ORI,CAN,DAT,ID,FSID,FGID,KSID,SH_META,SH_ADS,SH_OFF,SH_ATV,SH_METRO,SH_HIST;
 function aplicaCfg(){const c=CFG.leads.col;SID=CFG.leads.id;SNAME=CFG.leads.aba;
   CAMP=c.campanha;TAB=c.tabulacao;ORI=c.origem;CAN=c.canal;DAT=c.data;ID=c.id;
   FSID=CFG.fin.id;FGID=CFG.fin.gid;KSID=CFG.custos.id;SH_META=CFG.custos.abaMeta;SH_ADS=CFG.custos.abaAds;
-  SH_OFF=CFG.custos.abaOff;SH_ATV=CFG.custos.abaAtivas}
+  SH_OFF=CFG.custos.abaOff;SH_ATV=CFG.custos.abaAtivas;
+  SH_METRO=CFG.custos.abaMetro||'';SH_HIST=CFG.custos.abaHist||''}
 aplicaCfg();
 function salvaCfg(){try{localStorage.setItem('gwa.cfg',JSON.stringify(CFG));return true}catch(e){return false}}
 /* ═════ LOGS de cada consulta às planilhas ═════ */
@@ -1470,7 +1472,7 @@ const pctN=v=>v==null?'—':dd1(v*100)+'%';
 const xN=v=>v==null?'—':dd1(v)+'x';
 
 /* ───── montagem da base consolidada de custos ───── */
-function buildCusto(meta,ads,off){
+function buildCusto(meta,ads,off,metro,hist){
   const out=[];
   /* 1. META (RELATORIO_CAMPANHAS_2026) — mensal: A mes, I valor gasto, L campanha, M empresa */
   /* colunas pedidas: A mes, I gasto, L campanha, M empresa (+ F empresa da conta e K atualizacao, so como apoio) */
@@ -1505,29 +1507,50 @@ function buildCusto(meta,ads,off){
   });
   /* 3. OFFLINE: grade de inserções do mês da planilha, só até "Atualizado em" e ajustada para bater com a
      coluna AA (custo realizado até hoje). Meses anteriores vêm do histórico gravado no serviço (a aba só tem o mês corrente). */
-  const OP=offParseD(off,iso(hoje));
-  if(OP)Object.keys(OP.c).forEach(camp=>Object.keys(OP.c[camp]).forEach(d=>{const p=OP.c[camp][d];
-    out.push({d,camp,emp:empOf(camp),val:p.v,src:'OFFLINE',canal:'Offline',ins:p.q,apx:false})}));
-  OFF_MES=OP?OP.mes:'';OFF_CORTE=OP?OP.corte:'';OFF_INFO=OP?{tot:OP.tot,prog:OP.prog}:null;
-  offLinhasD(OP?OP.mes:null).forEach(x=>out.push({d:x.d,camp:x.camp,emp:empOf(x.camp),val:x.val,src:'OFFLINE',canal:'Offline',apx:false,
+  const hojeI=iso(hoje);
+  OFF_ABAS=[];const mesesFolha={};
+  [[off,SH_OFF],[metro,SH_METRO],[hist,SH_HIST]].forEach(([dados,nome])=>{
+    if(!nome)return;const P=offParseD(dados,hojeI);if(!P)return;
+    OFF_ABAS.push({aba:nome,mes:P.mes,corte:P.corte,tot:P.tot,prog:P.prog,camps:Object.keys(P.c)});
+    mesesFolha[P.mes]=1;
+    Object.keys(P.c).forEach(camp=>Object.keys(P.c[camp]).forEach(d=>{const q=P.c[camp][d];
+      out.push({d,camp,emp:empOff(camp),val:q.v,src:'OFFLINE',canal:'Offline',ins:q.q,apx:false,aba:nome})}))});
+  const atual=OFF_ABAS.find(x=>x.aba===SH_OFF)||OFF_ABAS[0]||null;
+  OFF_MES=atual?atual.mes:'';OFF_CORTE=atual?atual.corte:'';
+  OFF_INFO=atual?{tot:OFF_ABAS.filter(x=>x.mes===atual.mes).reduce((a,x)=>a+x.tot,0),
+    prog:OFF_ABAS.filter(x=>x.mes===atual.mes).reduce((a,x)=>a+x.prog,0)}:null;
+  /* o histórico gravado no serviço só preenche os meses que as abas não trazem */
+  offLinhasD(Object.keys(mesesFolha)).forEach(x=>out.push({d:x.d,camp:x.camp,emp:empOff(x.camp),val:x.val,src:'OFFLINE',canal:'Offline',apx:false,
     obs:x.fonte==='manual'?'Offline lançado na Administração (rateado por dia)':'Offline gravado no histórico'}));
   return out}
+/* campanha de offline sem sufixo de empresa (CHUPIM, FELIPE CAMPOS…) entra na OFF, como diz a própria planilha */
+function empOff(c){const e=empOf(c);return e==='—'?'OFF':e}
 
 /* ── custo offline: leitura da aba (coluna AA) e histórico gravado no serviço ── */
-let OFF_MES='',OFF_CORTE='',OFF_INFO=null,OFFH=null,offhBusy=false,offhFalha=0;
+let OFF_MES='',OFF_CORTE='',OFF_INFO=null,OFF_ABAS=[],OFFH=null,offhBusy=false,offhFalha=0;
 try{const c=JSON.parse(localStorage.getItem('gwa.offh')||'null');if(c&&c.meses)OFFH=c}catch(e){}
 function offParseD(off,hojeIso){
   if(!off||!off.length)return null;
   const A=i=>String(off[i]&&off[i][0]!=null?off[i][0]:'').trim();
-  let hdr=-1,fim=off.length,mesTxt='',upd=null;
+  let hdr=-1,fim=off.length,mesTxt='',upd=null,topo='';
   off.forEach((r,i)=>{const a=A(i);
     if(hdr<0&&/CAMPANHA\s+PADRON/i.test(a))hdr=i;
+    if(hdr<0&&i<5)topo+=' '+a;
     if(hdr>=0&&fim===off.length&&i>hdr&&/^TOTAL/i.test(a))fim=i;
     if(/M.S\s+DA\s+PROGRAMA/i.test(a))mesTxt=String(r[1]||'').trim();
     if(!mesTxt&&/^M.s\s*:/i.test(a))mesTxt=a.replace(/^M.s\s*:\s*/i,'');
     (r||[]).forEach(v=>{const m=String(v==null?'':v).match(/Atualizado\s+em:?\s*(\d{1,2})\/(\d{1,2})/i);if(m)upd=m})});
-  const t=mesTxt.toLowerCase().match(/([a-zç]{3})[a-zç]*\.?\s*\/\s*(\d{4})/);if(!t||!MESPT[t[1]]||hdr<0)return null;
-  const y=+t[2],mo=MESPT[t[1]],mes=y+'-'+String(mo).padStart(2,'0'),ult=new Date(y,mo,0).getDate();
+  if(hdr<0)return null;
+  let y,mo;
+  const t=mesTxt.toLowerCase().match(/([a-zç]{3})[a-zç]*\.?\s*\/\s*(\d{4})/);
+  if(t&&MESPT[t[1]]){y=+t[2];mo=MESPT[t[1]]}
+  else{/* aba de histórico: às vezes só o nome do mês ("SETEMBRO"). Assume o mês já fechado mais recente. */
+    const cab=((mesTxt||'')+' '+topo).toLowerCase();
+    const m2=cab.match(/\b(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-zç]*\b/);
+    if(!m2||!MESPT[m2[1]])return null;
+    mo=MESPT[m2[1]];const hj=hojeIso||iso(hoje),hy=+hj.slice(0,4),hm=+hj.slice(5,7);
+    y=mo<=hm?hy:hy-1;const ya=(cab.match(/\b(20\d{2})\b/)||[])[1];if(ya)y=+ya}
+  const mes=y+'-'+String(mo).padStart(2,'0'),ult=new Date(y,mo,0).getDate();
   let corte=mes+'-'+String(ult).padStart(2,'0');
   if(upd&&+upd[2]===mo)corte=mes+'-'+String(Math.min(+upd[1],ult)).padStart(2,'0');
   else if(hojeIso&&hojeIso.slice(0,7)===mes)corte=hojeIso;
@@ -1545,14 +1568,15 @@ function offParseD(off,hojeIso){
     if(base>0)pts.forEach(([s,q,v])=>{m[s]={v:v*alvo/base,q}});else m[corte]={v:alvo,q:0}}
   return out}
 function offLinhasD(pular){const out=[],M=(OFFH&&OFFH.meses)||{};
-  Object.keys(M).forEach(mes=>{if(mes===pular)return;const o=M[mes],man=(o.manual&&o.manual.c)||{},pl=(o.planilha&&o.planilha.c)||{};
+  const fora=Array.isArray(pular)?pular:(pular?[pular]:[]);
+  Object.keys(M).forEach(mes=>{if(fora.indexOf(mes)>=0)return;const o=M[mes],man=(o.manual&&o.manual.c)||{},pl=(o.planilha&&o.planilha.c)||{};
     Object.keys(pl).forEach(cp=>{if(man[cp]!=null)return;Object.keys(pl[cp]).forEach(d=>out.push({d,camp:cp,val:+pl[cp][d]||0,fonte:'gravado'}))});
     const y=+mes.slice(0,4),mo=+mes.slice(5,7),nd=new Date(y,mo,0).getDate();
     Object.keys(man).forEach(cp=>{const v=+man[cp]||0;if(!v)return;
       for(let d=1;d<=nd;d++)out.push({d:mes+'-'+String(d).padStart(2,'0'),camp:cp,val:v/nd,fonte:'manual'})})});
   return out}
 function offhAplica(meses){OFFH={t:Date.now(),meses:meses||{}};try{localStorage.setItem('gwa.offh',JSON.stringify(OFFH))}catch(e){}
-  if(RAW.meta||RAW.ads||RAW.off){if(ingCusto(RAW.meta||[],RAW.ads||[],RAW.off||[],RAW.atv||[]))renderAuto()}}
+  if(RAW.meta||RAW.ads||RAW.off){if(ingCusto(RAW.meta||[],RAW.ads||[],RAW.off||[],RAW.atv||[],RAW.metro||[],RAW.hist||[]))renderAuto()}}
 function offhCarrega(forcar){
   if(offhBusy||!emUrl())return;if(!forcar&&OFFH&&Date.now()-OFFH.t<30*60e3)return;
   if(!forcar&&Date.now()-offhFalha<5*60e3)return;offhBusy=true;
@@ -2759,7 +2783,9 @@ async function testaConexoes(cfg){
     ['Faturamento',()=>jp(F.id,"&gid="+F.gid,`select ${F.col.lanc} limit 1`,20000,'Teste · Faturamento')],
     ['Custo Meta',()=>jp(K.id,"&sheet="+encodeURIComponent(K.abaMeta),`select ${K.meta.mes} limit 1`,20000,'Teste · Meta')],
     ['Custo Google',()=>jp(K.id,"&sheet="+encodeURIComponent(K.abaAds),`select ${K.ads.dia} limit 1`,20000,'Teste · Google')],
-    ['Custo Offline',()=>jp(K.id,"&sheet="+encodeURIComponent(K.abaOff)+"&headers=0",`select * limit 1`,20000,'Teste · Offline')]];
+    ['Custo Offline',()=>jp(K.id,"&sheet="+encodeURIComponent(K.abaOff)+"&headers=0",`select * limit 1`,20000,'Teste · Offline')],
+    ['Metropolitana',()=>K.abaMetro?jp(K.id,"&sheet="+encodeURIComponent(K.abaMetro)+"&headers=0",`select * limit 1`,20000,'Teste · Metropolitana'):Promise.resolve([])],
+    ['Offline histórico',()=>K.abaHist?jp(K.id,"&sheet="+encodeURIComponent(K.abaHist)+"&headers=0",`select * limit 1`,20000,'Teste · Offline histórico'):Promise.resolve([])]];
   const res=await Promise.all(testes.map(async([nm,f])=>{const t=performance.now();
     try{await f();return [nm,true,Math.round(performance.now()-t)]}catch(e){return [nm,false,e.message]}}));
   const el2=document.getElementById('aTesteRes');
@@ -2859,7 +2885,8 @@ function aConfig(){const C=CFG,f=C.faixas;
       <div class="cfg-b"><h4>Faturamento <a href="${link(C.fin.id)}" target="_blank" rel="noopener">abrir</a></h4>${campo('c_f_id','ID da planilha',C.fin.id)}${campo('c_f_gid','gid da aba',C.fin.gid)}</div>
       <div class="cfg-b"><h4>Custos <a href="${link(C.custos.id)}" target="_blank" rel="noopener">abrir</a></h4>${campo('c_k_id','ID da planilha',C.custos.id)}
         ${campo('c_k_meta','Aba Meta',C.custos.abaMeta)}${campo('c_k_ads','Aba Google',C.custos.abaAds)}
-        ${campo('c_k_off','Aba Offline',C.custos.abaOff)}${campo('c_k_atv','Aba contas Meta',C.custos.abaAtivas)}</div>
+        ${campo('c_k_off','Aba Offline',C.custos.abaOff)}${campo('c_k_atv','Aba contas Meta',C.custos.abaAtivas)}
+        ${campo('c_k_metro','Aba Metropolitana',C.custos.abaMetro||'')}${campo('c_k_hist','Aba Offline histórico',C.custos.abaHist||'')}</div>
     </div></div>
   <div class="card wide"><div class="ch"><h3>Colunas usadas</h3><span class="m">se alguém inserir uma coluna na planilha, corrija a letra aqui</span></div>
     <h4 class="cfg-t">Leads</h4>${cols('c_lc_',C.leads.col,ROT)}
@@ -2884,6 +2911,7 @@ function leCfg(){
   const c=clone(CFG);
   c.leads.id=v('c_l_id');c.leads.aba=v('c_l_aba');c.fin.id=v('c_f_id');c.fin.gid=v('c_f_gid');
   c.custos.id=v('c_k_id');c.custos.abaMeta=v('c_k_meta');c.custos.abaAds=v('c_k_ads');c.custos.abaOff=v('c_k_off');c.custos.abaAtivas=v('c_k_atv');
+  c.custos.abaMetro=v('c_k_metro');c.custos.abaHist=v('c_k_hist');
   const lc=(pref,obj)=>Object.keys(obj).forEach(k=>{obj[k]=v(pref+k).toUpperCase()});
   lc('c_lc_',c.leads.col);lc('c_fc_',c.fin.col);lc('c_mc_',c.custos.meta);lc('c_ac_',c.custos.ads);
   Object.keys(c.faixas).forEach(k=>{const x=parseFloat(v('c_x_'+k).replace(',','.'));if(isFinite(x))c.faixas[k]=x});
@@ -2921,7 +2949,7 @@ function bindAdmin(){
     document.querySelectorAll('select.empc').forEach(sl=>{const k=sl.dataset.c,v=sl.value;
       if(v){if(ec[k]!==v){ec[k]=v;mudouEmp++}}else if(ec[k]){delete ec[k];mudouEmp++}});
     CFG.apelidos=ap;CFG.empCamp=ec;salvaCfg();if(typeof rnCache!=='undefined')rnCache=null;
-    if(mudouEmp&&(RAW.meta||RAW.ads||RAW.off))ingCusto(RAW.meta||[],RAW.ads||[],RAW.off||[],RAW.atv||[]);
+    if(mudouEmp&&(RAW.meta||RAW.ads||RAW.off))ingCusto(RAW.meta||[],RAW.ads||[],RAW.off||[],RAW.atv||[],RAW.metro||[],RAW.hist||[]);
     logEv('Administração','nomes e empresas de campanha salvos',true,Object.keys(ap).length+Object.keys(ec).length);
     aMsg=mudouEmp?`Salvo. ${mudouEmp} ${mudouEmp===1?'campanha mudou':'campanhas mudaram'} de empresa — os totais já foram recalculados.`:'Nomes salvos. Eles já aparecem nos relatórios e no Excel.';render()});
   q('aCfgTesta',()=>{const r=leCfg();if(r.erros.length){document.getElementById('aTesteRes').innerHTML=r.erros.map(e=>`<span class="tg r">${esc(e)}</span>`).join(' ');return}testaConexoes(r.c)});
@@ -3513,42 +3541,48 @@ const OA={busy:'',msg:'',erro:''};
 const mesBR=m=>{const [y,mo]=String(m).split('-');return (MESC_P?MESC_P[+mo-1]:mo)+'/'+y};
 function aOffline(){
   if(!OFFH&&!offhBusy)setTimeout(()=>offhCarrega(true),0);
-  const M=(OFFH&&OFFH.meses)||{},ks=Object.keys(M).sort().reverse(),temK=!!emChave();
-  const live=CUSTO.filter(x=>x.src==='OFFLINE'&&OFF_MES&&x.d.slice(0,7)===OFF_MES&&!x.obs);
-  const liveTot=live.reduce((q,x)=>q+x.val,0),porC={};live.forEach(x=>porC[x.camp]=(porC[x.camp]||0)+x.val);
-  const camps=[...new Set([...CUSTO.filter(x=>x.src==='OFFLINE').map(x=>x.camp),...Object.values(M).flatMap(o=>[...Object.keys((o.planilha&&o.planilha.c)||{}),...Object.keys((o.manual&&o.manual.c)||{})])])].sort();
-  const somaPl=o=>Object.values((o&&o.c)||{}).reduce((q,m)=>q+Object.values(m).reduce((a,b)=>a+(+b||0),0),0);
+  const M=(OFFH&&OFFH.meses)||{},temK=!!emChave();
+  const abasMes={};OFF_ABAS.forEach(a=>{abasMes[a.mes]=1});
+  const ks=Object.keys(M).filter(k=>!abasMes[k]).sort().reverse();
+  const totAba=a=>{const t={};CUSTO.forEach(x=>{if(x.src==='OFFLINE'&&x.aba===a.aba)t[x.camp]=(t[x.camp]||0)+x.val});return t};
+  const linhaAba=a=>{const t=totAba(a),tot=Object.values(t).reduce((q,v)=>q+v,0);
+    return `<tr><td class="lft"><b>${esc(a.aba)}</b><div class="kp-h">${esc(mesBR(a.mes))}${a.corte?' · realizado até '+esc(dc(a.corte)):''}</div></td>
+      <td class="lft">${Object.entries(t).sort((x,y)=>y[1]-x[1]).map(([c,v])=>`<div class="oa-c"><span>${esc(c)}</span><b>${mo2(v)}</b></div>`).join('')||'—'}</td>
+      <td><b>${mo2(tot)}</b></td><td>${a.prog?mo2(a.prog):'—'}</td></tr>`};
+  const porMes={};CUSTO.forEach(x=>{if(x.src!=='OFFLINE')return;const k=x.d.slice(0,7);porMes[k]=(porMes[k]||0)+x.val});
   const linhaMes=k=>{const o=M[k],pl=(o.planilha&&o.planilha.c)||{},man=(o.manual&&o.manual.c)||{};
     const cs=[...new Set([...Object.keys(pl),...Object.keys(man)])].sort();
     const tot=cs.reduce((q,cp)=>q+(man[cp]!=null?+man[cp]:Object.values(pl[cp]||{}).reduce((a,b)=>a+(+b||0),0)),0);
-    return `<tr><td class="lft"><b>${esc(mesBR(k))}</b>${k===OFF_MES?' <span class="oa-tag">na planilha agora</span>':''}</td>
+    return `<tr><td class="lft"><b>${esc(mesBR(k))}</b></td>
       <td class="lft">${cs.map(cp=>`<div class="oa-c"><span>${esc(cp)}</span><b>${mo2(man[cp]!=null?+man[cp]:Object.values(pl[cp]||{}).reduce((a,b)=>a+(+b||0),0))}</b>
         ${man[cp]!=null?`<em>manual</em>${temK?`<button class="lnk" data-oarm="${esc(k)}|${esc(cp)}" aria-label="Remover lançamento manual">remover</button>`:''}`:'<em>gravado da planilha</em>'}</div>`).join('')||'—'}</td>
-      <td><b>${mo2(tot)}</b></td><td>${o.planilha?esc(dc(o.planilha.upd)+(o.planilha.corte?' · até '+dc(o.planilha.corte):'')):'—'}</td></tr>`};
+      <td><b>${mo2(tot)}</b></td><td>${o.planilha?esc(dc(o.planilha.upd)):'—'}</td></tr>`};
   return `<div class="card wide oa">
     <div class="ch"><h3>Custo offline</h3><span class="m">${offhBusy?'<span class="em-spin"></span> lendo histórico…':`<button class="lnk" id="oaRecarrega">atualizar</button>`}</span></div>
-    <p class="info" style="margin-top:0">A aba <b>Custo OFFLINE</b> só tem o mês corrente e é apagada depois que o mês é pago. Por isso o serviço de e-mail grava, de hora em hora,
-      o custo <b>realizado</b> (coluna AA, até a data de "Atualizado em") de cada campanha. O painel usa a planilha para o mês dela e o histórico gravado para os meses anteriores.</p>
+    <p class="info" style="margin-top:0">O painel lê <b>três abas</b> da planilha REPORTE GWA, todas com a mesma grade de inserções:
+      <b>${esc(SH_OFF||'—')}</b> e <b>${esc(SH_METRO||'—')}</b> com o mês em andamento, e <b>${esc(SH_HIST||'—')}</b> com o mês já fechado.
+      De cada uma vêm só os dias com inserção até a data de "Atualizado em", ajustados para bater com a coluna <b>CUSTO REALIZADO</b> (AA).
+      Você só preenche a programação na planilha; o painel não escreve nada nela.</p>
     ${OA.msg?`<div class="okmsg" role="status">${esc(OA.msg)}</div>`:''}${OA.erro?`<div class="em-err" role="alert">${esc(OA.erro)}</div>`:''}
     <div class="em-st">
-      <div><span>Mês na planilha</span><b>${OFF_MES?esc(mesBR(OFF_MES)):'—'}</b></div>
+      <div><span>Abas lidas</span><b>${OFF_ABAS.length}</b></div>
+      <div><span>Mês em andamento</span><b>${OFF_MES?esc(mesBR(OFF_MES)):'—'}</b></div>
       <div><span>Realizado até</span><b>${OFF_CORTE?esc(dc(OFF_CORTE)):'—'}</b></div>
-      <div><span>Realizado (coluna AA)</span><b>${mo2(liveTot)}</b></div>
-      <div><span>Programado no mês</span><b>${OFF_INFO&&OFF_INFO.prog?mo2(OFF_INFO.prog):'—'}</b></div></div>
-    ${Object.keys(porC).length?`<p class="info" style="margin:0 0 10px">${Object.entries(porC).map(([c,v])=>esc(c)+': <b>'+mo2(v)+'</b>').join(' · ')}</p>`:''}
-    <div class="em-ac" style="margin-top:4px"><button class="btn" id="oaGravar"${!temK||OA.busy?' disabled':''}>${OA.busy==='gravar'?'<span class="em-spin"></span> Gravando…':'Gravar o mês da planilha agora'}</button>
-      ${temK?'':'<span class="info" style="margin:0">Para gravar ou lançar, saia e entre de novo na Administração.</span>'}</div></div>
-  <div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Meses gravados</h3><span class="m">${ks.length} ${ks.length===1?'mês':'meses'}</span></div>
-    ${ks.length?`<div class="tw"><table class="xl oa-t"><thead><tr><th>Mês</th><th>Campanhas</th><th>Total</th><th>Gravado em</th></tr></thead><tbody>${ks.map(linhaMes).join('')}</tbody></table></div>`
-      :'<p class="info" style="margin:0 16px 14px">Nenhum mês gravado ainda.</p>'}</div>
-  <div class="card wide"><div class="ch"><h3>Lançar custo offline de um mês</h3><span class="m">para meses que já saíram da planilha</span></div>
-    <p class="info" style="margin-top:0">Use quando um mês sumiu da planilha antes de ser gravado (ex.: setembro). O valor total da campanha é rateado igualmente pelos dias do mês
-      e substitui o que estiver gravado para aquela campanha naquele mês. Deixe o valor vazio para remover.</p>
-    <form class="vin-f oa-f" id="oaForm" autocomplete="off">
-      <label class="cf"><span>Mês</span><input id="oaMes" type="month" value="${esc(oaMesPadrao())}"></label>
-      <label class="cf" style="flex:1"><span>Campanha (padronizada)</span><input id="oaCamp" list="oaCamps" placeholder="ex.: JOGO ABERTO-OFF"><datalist id="oaCamps">${camps.map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label>
-      <label class="cf"><span>Valor total do mês (R$)</span><input id="oaVal" inputmode="decimal" placeholder="ex.: 47.009,97"></label>
-      <button class="btn pri" type="submit"${!temK||OA.busy?' disabled':''}>${OA.busy==='manual'?'<span class="em-spin"></span> Salvando…':'Salvar'}</button></form></div>`}
+      <div><span>Realizado no mês</span><b>${mo2(porMes[OFF_MES]||0)}</b></div></div>
+    ${OFF_ABAS.length?'':'<p class="warn" style="margin:10px 0 0">Nenhuma aba de offline foi lida. Confira os nomes em Administração → Configuração → Custos.</p>'}</div>
+  <div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Abas de offline na planilha</h3>
+      <span class="m">${OFF_ABAS.length} ${OFF_ABAS.length===1?'aba':'abas'} · valores do que já foi realizado</span></div>
+    ${OFF_ABAS.length?`<div class="tw"><table class="xl oa-t"><thead><tr><th>Aba / mês</th><th>Campanhas</th><th>Realizado</th><th>Programado</th></tr></thead>
+      <tbody>${OFF_ABAS.map(linhaAba).join('')}</tbody></table></div>`
+      :'<p class="info" style="margin:0 16px 14px">Nada lido ainda.</p>'}
+    <p class="info" style="margin:0 16px 14px">Para fechar um mês: deixe a programação dele na aba <b>${esc(SH_HIST||'de histórico')}</b> e comece a nova na aba <b>${esc(SH_OFF||'do mês')}</b>.
+      O painel passa a usar a do histórico para aquele mês sozinho — não precisa lançar nada aqui.</p></div>
+  ${ks.length?`<div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Meses guardados no serviço</h3>
+      <span class="m">${ks.length} ${ks.length===1?'mês':'meses'} fora das abas</span></div>
+    <p class="info" style="margin:0 16px 10px">Meses antigos que ficaram gravados antes de existir a aba de histórico. Se um mês aparecer nas duas pontas, a planilha manda.</p>
+    <div class="tw"><table class="xl oa-t"><thead><tr><th>Mês</th><th>Campanhas</th><th>Total</th><th>Gravado em</th></tr></thead><tbody>${ks.map(linhaMes).join('')}</tbody></table></div>
+    <div class="acts" style="padding:12px 16px"><button class="btn" id="oaGravar"${!temK||OA.busy?' disabled':''}>${OA.busy==='gravar'?'<span class="em-spin"></span> Gravando…':'Gravar o mês da planilha no serviço'}</button>
+      <span class="info" style="margin:0">Opcional — a leitura das abas já cobre o dia a dia.</span></div></div>`:''}`}
 function oaMesPadrao(){const d=new Date(hoje.getFullYear(),hoje.getMonth()-1,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
 function oaAcao(tipo,a,extra,msg){OA.busy=tipo;OA.erro='';OA.msg='';render();
   emCall(a,extra,60000).then(r=>{offhAplica(r.meses);OA.msg=typeof msg==='function'?msg(r):msg;logEv('Custos · histórico offline',tipo,true)})
@@ -5810,8 +5844,8 @@ function ingFin(r){
   if(!rows.length)return false;
   FIN_ALL=rows;aplicaStatus();finLive=true;finErr='';
   FRESH.fin=rows.reduce((a,x)=>x.dc&&x.dc>a?x.dc:a,'');return true}
-function ingCusto(meta,ads,off,atv){
-  const c=buildCusto(meta,ads,off);
+function ingCusto(meta,ads,off,atv,metro,hist){
+  const c=buildCusto(meta,ads,off,metro||RAW.metro,hist||RAW.hist);
   if(!c.length)return false;
   CUSTO=c;ATIVAS=atv||[];buildCampOn();limpaBmManual();cusLive=true;cusErr='';
   FRESH.meta=(meta||[]).reduce((a,r)=>{const d=gdate(r[5]);return d&&d>a?d:a},'');
@@ -5821,13 +5855,13 @@ function ingCusto(meta,ads,off,atv){
 /* cache local: abre o painel na hora com os últimos dados e atualiza por trás */
 function salvaCache(){
   try{localStorage.setItem('gwa.cache',JSON.stringify({t:Date.now(),d1,d2,fO,fC,cube:RAW.cube,ser:RAW.ser,
-    fin:RAW.fin,meta:RAW.meta,ads:RAW.ads,off:RAW.off,atv:RAW.atv}))}
+    fin:RAW.fin,meta:RAW.meta,ads:RAW.ads,off:RAW.off,atv:RAW.atv,metro:RAW.metro,hist:RAW.hist}))}
   catch(e){try{localStorage.removeItem('gwa.cache')}catch(_){}}}
 function hidrata(){
   try{const c=JSON.parse(localStorage.getItem('gwa.cache')||'null');if(!c)return false;
-    Object.assign(RAW,{fin:c.fin,meta:c.meta,ads:c.ads,off:c.off,atv:c.atv});
+    Object.assign(RAW,{fin:c.fin,meta:c.meta,ads:c.ads,off:c.off,atv:c.atv,metro:c.metro,hist:c.hist});
     if(c.fin)ingFin(c.fin);
-    if(c.meta||c.ads||c.off)ingCusto(c.meta,c.ads,c.off,c.atv);
+    if(c.meta||c.ads||c.off)ingCusto(c.meta,c.ads,c.off,c.atv,c.metro,c.hist);
     if(c.d1===d1&&c.d2===d2&&(c.fO||'TODAS')===fO&&(c.fC||'TODAS')===fC&&c.cube){RAW.cube=c.cube;RAW.ser=c.ser||[];ingLeads(c.cube,c.ser||[]);live=true}
     cacheTs=c.t;return true}catch(e){return false}}
 
@@ -5884,11 +5918,13 @@ function metaSuspeita(meta,ant){
 async function loadCusto(){
   if(cusBusy)return;cusBusy=true;offhCarrega(false);
   try{const m=CFG.custos.meta,a=CFG.custos.ads,t=CFG.custos.ativas||{};
-    let [meta,ads,off,atv]=await Promise.all([
+    let [meta,ads,off,atv,metro,hist]=await Promise.all([
       gvizK(SH_META,`select ${m.mes}, ${m.gasto}, ${m.campanha}, ${m.empresa}, ${m.empConta}, ${m.atualiz}, ${m.conta||'D'}, ${m.nome||'B'}, ${m.bm||'N'}`).catch(()=>null),
       gvizK(SH_ADS,`select ${a.dia}, ${a.status}, ${a.canal}, ${a.custo}, ${a.orcamento}, ${a.campanha}, ${a.empresa}`).catch(()=>null),
       gvizK(SH_OFF,"select *",0).catch(()=>null),
-      gvizK(SH_ATV,`select ${t.conta||'A'}, ${t.status||'E'}, ${t.empresa||'L'}, ${t.bm||'O'}`).catch(()=>null)
+      gvizK(SH_ATV,`select ${t.conta||'A'}, ${t.status||'E'}, ${t.empresa||'L'}, ${t.bm||'O'}`).catch(()=>null),
+      SH_METRO?gvizK(SH_METRO,"select *",0).catch(()=>null):Promise.resolve(null),
+      SH_HIST?gvizK(SH_HIST,"select *",0).catch(()=>null):Promise.resolve(null)
     ]);
     if(meta){const sus=metaSuspeita(meta,RAW.meta);
       if(sus&&metaTent<3){metaTent++;cusAviso=sus;
@@ -5899,7 +5935,8 @@ async function loadCusto(){
       else{if(sus)logEv('Custos · '+SH_META,'aceita após 3 tentativas: '+sus,false,meta.length);metaTent=0;cusAviso=sus?sus:''}}
     /* se uma aba falhar, mantém a última versão boa dela */
     const M=meta||RAW.meta||[],A=ads||RAW.ads||[],O=off||RAW.off||[],V=atv||RAW.atv||[];
-    if(ingCusto(M,A,O,V)){Object.assign(RAW,{meta:M,ads:A,off:O,atv:V});salvaCache();renderAuto()}
+    const MT=metro||RAW.metro||[],HS=hist||RAW.hist||[];
+    if(ingCusto(M,A,O,V,MT,HS)){Object.assign(RAW,{meta:M,ads:A,off:O,atv:V,metro:MT,hist:HS});salvaCache();renderAuto()}
     else {cusErr='sem linhas';renderAuto()}
   }catch(e){cusErr=e&&e.message?e.message:'erro';renderAuto()}
   finally{cusBusy=false}}
