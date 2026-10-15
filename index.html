@@ -767,7 +767,8 @@ const CFG_PADRAO={
   semCanal:{},   /* empresa -> número (4 dígitos) que recebe os leads que chegaram sem canal */
   bmCamp:{},     /* campanha -> 1 (é Meta, entra no slide de BM) ou 0 (não é Meta) */
   rn:{sel:{},ordem:[],tema:'escuro'},  /* slides da reunião: quais entram, em que ordem e o estilo */
-  empCamp:{},    /* campanha -> empresa responsável (vale acima do sufixo do nome e da coluna da planilha) */
+  empCamp:{"JOGO ABERTO-24H":"OFF"},  /* campanha -> empresa responsável (vale acima do sufixo do nome e da coluna da planilha) */
+  leadCamp:{"JOGO ABERTO - 24H":"JOGO ABERTO-24H"},  /* origem/canal na base -> campanha que recebe esses leads no painel */
   offMap:{},     /* campanha da grade de offline -> campanha mapeada que recebe o custo (CHUPIM -> METROPOLITANA-OFF) */
   offAba:{"CUSTO METROPOLITANA SAIDAS":"METROPOLITANA-OFF"},  /* aba de offline -> campanha mapeada padrão das campanhas dela */
   empresas:["GWA","M12","OFF","IND"],  /* empresas que ganham botão no filtro de cima e nos seletores */
@@ -2862,7 +2863,27 @@ function aMapa(){
       <td><input class="ap" data-c="${esc(k)}" value="${esc((CFG.apelidos||{})[k]||'')}" placeholder="${esc(k.replace(/-[A-Z0-9]+$/,''))}" aria-label="Nome de ${esc(k)} nos relatórios"></td></tr>`}).join('')}</tbody></table></div>
     <div class="acts" style="padding:12px 16px"><button class="btn pri" id="aApSalva">Salvar nomes e empresas</button>
       <span class="info" style="margin:0">A <b>empresa responsável</b> manda em todo o painel (leads, custo, reunião). Em "automático" vale o sufixo do nome ou a coluna da planilha.
-        O nome nos relatórios muda só o que aparece na tela; a planilha nunca é alterada.</span></div></div>`+aBM()}
+        O nome nos relatórios muda só o que aparece na tela; a planilha nunca é alterada.</span></div></div>`+vLeadCamp()+aBM()}
+/* ── leads que a planilha mandou para a campanha errada ── */
+function vLeadCamp(){
+  const R=CFG.leadCamp||{},ks=Object.keys(R).filter(k=>String(k||'').trim());
+  const mov={};(RAW.rec||[]).forEach(r=>{const a=nc(r[3]),b=nc(r[4]),q=+r[5]||0;
+    ks.forEach(k=>{const nk=nc(k);if(nk&&(nk===a||nk===b))mov[k]=(mov[k]||0)+q})});
+  const alvos=campsAlvo();
+  const linha=(k,v,i)=>`<tr><td class="lft"><input data-lck="${i}" value="${esc(k)}" placeholder="como está na base" aria-label="Origem ou canal na base"></td>
+    <td class="lft"><input data-lcv="${i}" list="lcCamps" value="${esc(v)}" placeholder="campanha de destino" aria-label="Campanha que recebe"></td>
+    <td>${mov[k]!=null?n(mov[k]):'—'}</td></tr>`;
+  return `<div class="card t wide"><div class="ch" style="padding:15px 16px 8px"><h3>Leads que vão para outra campanha</h3>
+      <span class="m">origem ou canal na base → campanha no painel</span></div>
+    <p class="info" style="margin:0 16px 10px">A aba <i>Mapeamento de Leads</i> da planilha de leads manda alguns leads para uma campanha e o
+      faturamento guarda a venda em outra — foi o caso do <b>JOGO ABERTO - 24H</b>, cujos leads caíam em JOGO ABERTO-OFF enquanto as vendas ficavam numa linha
+      sozinha. Escreva aqui o valor exato que está na coluna <b>ORIGEM</b> ou <b>CANAL</b> da base e a campanha que deve receber esses leads.
+      Eles saem da campanha que a planilha deu e entram na de destino, em todas as telas e na reunião. A planilha nunca é alterada.</p>
+    <datalist id="lcCamps">${alvos.map(c=>`<option value="${esc(c)}"></option>`).join('')}</datalist>
+    <div class="tw"><table class="xl"><thead><tr><th>Origem ou canal na base</th><th>Campanha que recebe</th><th>Leads movidos</th></tr></thead>
+      <tbody>${ks.map((k,i)=>linha(k,R[k],i)).join('')}${linha('','',ks.length)}</tbody></table></div>
+    <div class="acts" style="padding:12px 16px"><button class="btn pri" id="lcSalva">Salvar e recarregar os leads</button>
+      <span class="info" style="margin:0">Apague a linha para desfazer. "Leads movidos" conta o período já carregado.</span></div></div>`}
 /* ── empresas da casa: quais ganham botão no filtro de cima ── */
 function vEmpresas(){
   const OKE=EMPS_OK(),achadas={};
@@ -2974,6 +2995,15 @@ function bindAdmin(){
     if(mudouEmp&&(RAW.meta||RAW.ads||RAW.off))ingCusto(RAW.meta||[],RAW.ads||[],RAW.off||[],RAW.atv||[],RAW.metro||[],RAW.hist||[]);
     logEv('Administração','nomes e empresas de campanha salvos',true,Object.keys(ap).length+Object.keys(ec).length);
     aMsg=mudouEmp?`Salvo. ${mudouEmp} ${mudouEmp===1?'campanha mudou':'campanhas mudaram'} de empresa — os totais já foram recalculados.`:'Nomes salvos. Eles já aparecem nos relatórios e no Excel.';render()});
+  q('lcSalva',()=>{const R={};
+    document.querySelectorAll('[data-lck]').forEach(i=>{const k=i.value.trim();if(!k)return;
+      const v=(document.querySelector(`[data-lcv="${i.dataset.lck}"]`)||{}).value||'';
+      if(v.trim())R[k]=nc(v)});
+    CFG.leadCamp=R;salvaCfg();if(typeof rnCache!=='undefined')rnCache=null;
+    try{localStorage.removeItem('gwa.cache')}catch(e){}
+    logEv('Administração','leads redirecionados de campanha',true,Object.keys(R).length);
+    aMsg=Object.keys(R).length?'Salvo. Recarregando os leads com a nova divisão…':'Regras removidas. Recarregando os leads…';
+    render();load()});
   q('aCfgTesta',()=>{const r=leCfg();if(r.erros.length){document.getElementById('aTesteRes').innerHTML=r.erros.map(e=>`<span class="tg r">${esc(e)}</span>`).join(' ');return}testaConexoes(r.c)});
   q('aCfgSalva',()=>{const r=leCfg();if(r.erros.length){document.getElementById('aTesteRes').innerHTML=r.erros.map(e=>`<span class="tg r">${esc(e)}</span>`).join(' ');return}
     CFG=r.c;salvaCfg();aplicaCfg();logEv('Administração','configuração salva',true);aMsg='Configuração salva. Recarregando os dados…';
@@ -5890,10 +5920,40 @@ function tique(){if(busy)return;
 function renderAuto(){if(tab==='admin'){renderAdminStatus&&renderAdminStatus();return}
   quieto=true;document.body.classList.add('quieto');render()}
 
-function ingLeads(cube,serie){
-  CUBE=cube.filter(r=>r[0]!=null).map(r=>[nc(r[0]),r[1]==null?'':String(r[1]).trim(),
-    r[2]==null?'':String(r[2]).trim(),r[3]==null?'':String(r[3]).trim(),+r[4]||0]);
-  SER=serie.map(r=>[gdate(r[0]),r[1]==null?'':nc(r[1]),r[2]==null?'':String(r[2]).trim(),+r[3]||0]).filter(r=>r[0]);
+/* ── leads que a planilha mandou para uma campanha mas pertencem a outra ──
+   A aba "Mapeamento de Leads" joga, por exemplo, tudo que chega pelo canal "JOGO ABERTO - 24H"
+   dentro de JOGO ABERTO-OFF, enquanto o faturamento guarda o 24H como campanha própria. A regra
+   abaixo (Administração → Mapeamento) devolve esses leads para a campanha certa, sem mexer na planilha. */
+let RE_K=null,RE_S='';
+function reRegras(){const R=CFG.leadCamp||{},s=JSON.stringify(R);
+  if(RE_S!==s){RE_S=s;RE_K=Object.entries(R).filter(([k,v])=>String(k||'').trim()&&String(v||'').trim()).map(([k,v])=>[nc(k),nc(v)])}
+  return RE_K}
+function reCamp(camp,ori,can){const K=reRegras();if(!K.length)return camp;
+  const a=nc(ori),b=nc(can);
+  for(let i=0;i<K.length;i++){const k=K[i][0];if(k&&(k===a||k===b))return K[i][1]}
+  return camp}
+/* a série diária não traz origem/canal: a consulta extra diz quantos leads de cada dia saem de uma campanha e entram na outra */
+/* condição da consulta extra: o valor vai exatamente como está na base (origem ou canal) */
+function reCond(){const R=CFG.leadCamp||{};
+  return Object.keys(R).filter(k=>String(k||'').trim()&&String(R[k]||'').trim())
+    .map(k=>{const e=String(k).trim().replace(/'/g,"\\'");return `${ORI} = '${e}' or ${CAN} = '${e}'`}).join(' or ')}
+function reSerie(ser,rec){
+  if(!rec||!rec.length||!reRegras().length)return ser;
+  const idx={},ch=r=>r[0]+'|'+r[1]+'|'+r[2];
+  ser.forEach(r=>{idx[ch(r)]=r});
+  const extra=[];
+  rec.forEach(r=>{const d=gdate(r[0]);if(!d)return;
+    const de=r[1]==null?'':nc(r[1]),tb=r[2]==null?'':String(r[2]).trim(),q=+r[5]||0;
+    const para=reCamp(de,r[3],r[4]);
+    if(!q||!para||para===de)return;
+    const o=idx[d+'|'+de+'|'+tb];if(o)o[3]=Math.max(0,o[3]-q);
+    const k=d+'|'+para+'|'+tb,p=idx[k];
+    if(p)p[3]+=q;else{const nv=[d,para,tb,q];idx[k]=nv;extra.push(nv)}});
+  return ser.concat(extra).filter(r=>r[3]>0)}
+function ingLeads(cube,serie,rec){
+  CUBE=cube.filter(r=>r[0]!=null).map(r=>{const ori=r[2]==null?'':String(r[2]).trim(),can=r[3]==null?'':String(r[3]).trim();
+    return [reCamp(nc(r[0]),ori,can),r[1]==null?'':String(r[1]).trim(),ori,can,+r[4]||0]});
+  SER=reSerie(serie.map(r=>[gdate(r[0]),r[1]==null?'':nc(r[1]),r[2]==null?'':String(r[2]).trim(),+r[3]||0]).filter(r=>r[0]),rec);
   FRESH.leads=SER.reduce((a,r)=>r[3]>0&&r[0]>a?r[0]:a,'')}
 function ingFin(r){
   const rows=r.filter(x=>x[0]!=null).map(x=>({
@@ -5915,7 +5975,7 @@ function ingCusto(meta,ads,off,atv,metro,hist){
 
 /* cache local: abre o painel na hora com os últimos dados e atualiza por trás */
 function salvaCache(){
-  try{localStorage.setItem('gwa.cache',JSON.stringify({t:Date.now(),d1,d2,fO,fC,cube:RAW.cube,ser:RAW.ser,
+  try{localStorage.setItem('gwa.cache',JSON.stringify({t:Date.now(),d1,d2,fO,fC,cube:RAW.cube,ser:RAW.ser,rec:RAW.rec,
     fin:RAW.fin,meta:RAW.meta,ads:RAW.ads,off:RAW.off,atv:RAW.atv,metro:RAW.metro,hist:RAW.hist}))}
   catch(e){try{localStorage.removeItem('gwa.cache')}catch(_){}}}
 function hidrata(){
@@ -5923,7 +5983,7 @@ function hidrata(){
     Object.assign(RAW,{fin:c.fin,meta:c.meta,ads:c.ads,off:c.off,atv:c.atv,metro:c.metro,hist:c.hist});
     if(c.fin)ingFin(c.fin);
     if(c.meta||c.ads||c.off)ingCusto(c.meta,c.ads,c.off,c.atv,c.metro,c.hist);
-    if(c.d1===d1&&c.d2===d2&&(c.fO||'TODAS')===fO&&(c.fC||'TODAS')===fC&&c.cube){RAW.cube=c.cube;RAW.ser=c.ser||[];ingLeads(c.cube,c.ser||[]);live=true}
+    if(c.d1===d1&&c.d2===d2&&(c.fO||'TODAS')===fO&&(c.fC||'TODAS')===fC&&c.cube){RAW.cube=c.cube;RAW.ser=c.ser||[];RAW.rec=c.rec||[];ingLeads(c.cube,c.ser||[],c.rec||[]);live=true}
     cacheTs=c.t;return true}catch(e){return false}}
 
 let recarga=false;
@@ -5936,14 +5996,16 @@ async function load(){
     const from=P[0]||d1;
     loadFin();loadCusto();
     /* a série diária é a consulta mais pesada: tempo maior e, se falhar, o resto segue ao vivo */
-    const [rc,rs]=await Promise.allSettled([
+    const cond=reCond();
+    const [rc,rs,rr]=await Promise.allSettled([
       gviz(`select ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID})${wh()} group by ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,40000),
-      gviz(`select ${DAT}, ${CAMP}, ${TAB}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}'${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}`,60000)
+      gviz(`select ${DAT}, ${CAMP}, ${TAB}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}'${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}`,60000),
+      cond?gviz(`select ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${cond})${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,60000):Promise.resolve([])
     ]);
     if(rc.status!=='fulfilled')throw rc.reason;
     serieErr=rs.status!=='fulfilled';
-    RAW.cube=rc.value;RAW.ser=serieErr?[]:rs.value;
-    ingLeads(RAW.cube,RAW.ser);
+    RAW.cube=rc.value;RAW.ser=serieErr?[]:rs.value;RAW.rec=rr.status==='fulfilled'?rr.value:[];
+    ingLeads(RAW.cube,RAW.ser,RAW.rec);
     live=true;ultOk=Date.now();salvaCache();
     logEv('Painel','atualização completa dos leads',true,RAW.cube.length+RAW.ser.length,Math.round(performance.now()-t0));
   }catch(e){
