@@ -768,7 +768,7 @@ const CFG_PADRAO={
   bmCamp:{},     /* campanha -> 1 (é Meta, entra no slide de BM) ou 0 (não é Meta) */
   rn:{sel:{},ordem:[],tema:'escuro'},  /* slides da reunião: quais entram, em que ordem e o estilo */
   empCamp:{"JOGO ABERTO-24H":"OFF"},  /* campanha -> empresa responsável (vale acima do sufixo do nome e da coluna da planilha) */
-  leadCamp:{"JOGO ABERTO - 24H":"JOGO ABERTO-24H"},  /* origem/canal na base -> campanha que recebe esses leads no painel */
+  leadCamp:{"JOGO ABERTO-24H":"JOGO ABERTO-24H"},  /* origem/canal na base -> campanha que recebe esses leads no painel */
   offMap:{},     /* campanha da grade de offline -> campanha mapeada que recebe o custo (CHUPIM -> METROPOLITANA-OFF) */
   offAba:{"CUSTO METROPOLITANA SAIDAS":"METROPOLITANA-OFF"},  /* aba de offline -> campanha mapeada padrão das campanhas dela */
   empresas:["GWA","M12","OFF","IND"],  /* empresas que ganham botão no filtro de cima e nos seletores */
@@ -2876,8 +2876,8 @@ function vLeadCamp(){
   return `<div class="card t wide"><div class="ch" style="padding:15px 16px 8px"><h3>Leads que vão para outra campanha</h3>
       <span class="m">origem ou canal na base → campanha no painel</span></div>
     <p class="info" style="margin:0 16px 10px">A aba <i>Mapeamento de Leads</i> da planilha de leads manda alguns leads para uma campanha e o
-      faturamento guarda a venda em outra — foi o caso do <b>JOGO ABERTO - 24H</b>, cujos leads caíam em JOGO ABERTO-OFF enquanto as vendas ficavam numa linha
-      sozinha. Escreva aqui o valor exato que está na coluna <b>ORIGEM</b> ou <b>CANAL</b> da base e a campanha que deve receber esses leads.
+      faturamento guarda a venda em outra — foi o caso do <b>JOGO ABERTO-24H</b>, cujos leads caíam em JOGO ABERTO-OFF enquanto as vendas ficavam numa linha
+      sozinha. Escreva aqui o valor que está na coluna <b>ORIGEM</b> ou <b>CANAL</b> da base (hífen com ou sem espaço dá no mesmo) e a campanha que deve receber esses leads.
       Eles saem da campanha que a planilha deu e entram na de destino, em todas as telas e na reunião. A planilha nunca é alterada.</p>
     <datalist id="lcCamps">${alvos.map(c=>`<option value="${esc(c)}"></option>`).join('')}</datalist>
     <div class="tw"><table class="xl"><thead><tr><th>Origem ou canal na base</th><th>Campanha que recebe</th><th>Leads movidos</th></tr></thead>
@@ -5933,10 +5933,16 @@ function reCamp(camp,ori,can){const K=reRegras();if(!K.length)return camp;
   for(let i=0;i<K.length;i++){const k=K[i][0];if(k&&(k===a||k===b))return K[i][1]}
   return camp}
 /* a série diária não traz origem/canal: a consulta extra diz quantos leads de cada dia saem de uma campanha e entram na outra */
-/* condição da consulta extra: o valor vai exatamente como está na base (origem ou canal) */
-function reCond(){const R=CFG.leadCamp||{};
-  return Object.keys(R).filter(k=>String(k||'').trim()&&String(R[k]||'').trim())
-    .map(k=>{const e=String(k).trim().replace(/'/g,"\\'");return `${ORI} = '${e}' or ${CAN} = '${e}'`}).join(' or ')}
+/* condição da consulta extra. A planilha escreve o mesmo nome de dois jeitos ("JOGO ABERTO-24H" na
+   coluna ORIGEM e "JOGO ABERTO - 24H" no nome da campanha), então cada regra vira as duas grafias,
+   comparadas em maiúsculas — é a mesma indiferença de hífen que o nc() aplica do lado do painel. */
+function reVars(k){const s=String(k||'').trim();if(!s)return[];
+  const a=nc(s),b=a.replace(/\s*-\s*/g,' - ');
+  return [...new Set([a,b])].map(v=>v.replace(/'/g,"\\'"))}
+function reCond(semUpper){const R=CFG.leadCamp||{},L=[],f=c=>semUpper?c:`upper(${c})`;
+  Object.keys(R).filter(k=>String(k||'').trim()&&String(R[k]||'').trim())
+    .forEach(k=>reVars(k).forEach(v=>{L.push(`${f(ORI)} = '${v}'`);L.push(`${f(CAN)} = '${v}'`)}));
+  return L.join(' or ')}
 function reSerie(ser,rec){
   if(!rec||!rec.length||!reRegras().length)return ser;
   const idx={},ch=r=>r[0]+'|'+r[1]+'|'+r[2];
@@ -6005,6 +6011,10 @@ async function load(){
     if(rc.status!=='fulfilled')throw rc.reason;
     serieErr=rs.status!=='fulfilled';
     RAW.cube=rc.value;RAW.ser=serieErr?[]:rs.value;RAW.rec=rr.status==='fulfilled'?rr.value:[];
+    /* se a planilha recusar o upper(), tenta de novo com comparação direta antes de desistir */
+    if(cond&&rr.status!=='fulfilled'){const c2=reCond(true);
+      RAW.rec=await gviz(`select ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${c2})${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,60000)
+        .catch(e=>{logEv('Painel','leads redirecionados de campanha',false,0,0,(e&&e.message)||'erro na consulta extra');return []})}
     ingLeads(RAW.cube,RAW.ser,RAW.rec);
     live=true;ultOk=Date.now();salvaCache();
     logEv('Painel','atualização completa dos leads',true,RAW.cube.length+RAW.ser.length,Math.round(performance.now()-t0));
