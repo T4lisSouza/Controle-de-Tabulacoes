@@ -768,6 +768,8 @@ const CFG_PADRAO={
   bmCamp:{},     /* campanha -> 1 (é Meta, entra no slide de BM) ou 0 (não é Meta) */
   rn:{sel:{},ordem:[],tema:'escuro'},  /* slides da reunião: quais entram, em que ordem e o estilo */
   empCamp:{},    /* campanha -> empresa responsável (vale acima do sufixo do nome e da coluna da planilha) */
+  offMap:{},     /* campanha da grade de offline -> campanha mapeada que recebe o custo (CHUPIM -> METROPOLITANA-OFF) */
+  offAba:{"CUSTO METROPOLITANA SAIDAS":"METROPOLITANA-OFF"},  /* aba de offline -> campanha mapeada padrão das campanhas dela */
   empresas:["GWA","M12","OFF","IND"],  /* empresas que ganham botão no filtro de cima e nos seletores */
   tv:{periodo:"mes",vel:"media",zoom:"auto",tema:"dark",telas:[]},
   kpi:{lista:["nv","leads","mld","conv","tmed","lf","cpl","inv","margem","icr","roi","roas","cpa","tk"],
@@ -1513,18 +1515,35 @@ function buildCusto(meta,ads,off,metro,hist){
     if(!nome)return;const P=offParseD(dados,hojeI);if(!P)return;
     OFF_ABAS.push({aba:nome,mes:P.mes,corte:P.corte,tot:P.tot,prog:P.prog,camps:Object.keys(P.c)});
     mesesFolha[P.mes]=1;
-    Object.keys(P.c).forEach(camp=>Object.keys(P.c[camp]).forEach(d=>{const q=P.c[camp][d];
-      out.push({d,camp,emp:empOff(camp),val:q.v,src:'OFFLINE',canal:'Offline',ins:q.q,apx:false,aba:nome})}))});
+    Object.keys(P.c).forEach(camp=>{const alvo=offCamp(camp,nome);
+      Object.keys(P.c[camp]).forEach(d=>{const q=P.c[camp][d];
+        out.push({d,camp:alvo,emp:empOff(alvo),val:q.v,src:'OFFLINE',canal:'Offline',ins:q.q,apx:false,aba:nome,orig:camp})})})});
   const atual=OFF_ABAS.find(x=>x.aba===SH_OFF)||OFF_ABAS[0]||null;
   OFF_MES=atual?atual.mes:'';OFF_CORTE=atual?atual.corte:'';
   OFF_INFO=atual?{tot:OFF_ABAS.filter(x=>x.mes===atual.mes).reduce((a,x)=>a+x.tot,0),
     prog:OFF_ABAS.filter(x=>x.mes===atual.mes).reduce((a,x)=>a+x.prog,0)}:null;
   /* o histórico gravado no serviço só preenche os meses que as abas não trazem */
-  offLinhasD(Object.keys(mesesFolha)).forEach(x=>out.push({d:x.d,camp:x.camp,emp:empOff(x.camp),val:x.val,src:'OFFLINE',canal:'Offline',apx:false,
-    obs:x.fonte==='manual'?'Offline lançado na Administração (rateado por dia)':'Offline gravado no histórico'}));
+  offLinhasD(Object.keys(mesesFolha)).forEach(x=>{const alvo=offCamp(x.camp,'');
+    out.push({d:x.d,camp:alvo,emp:empOff(alvo),val:x.val,src:'OFFLINE',canal:'Offline',apx:false,orig:x.camp,
+      obs:x.fonte==='manual'?'Offline lançado na Administração (rateado por dia)':'Offline gravado no histórico'})});
   return out}
 /* campanha de offline sem sufixo de empresa (CHUPIM, FELIPE CAMPOS…) entra na OFF, como diz a própria planilha */
 function empOff(c){const e=empOf(c);return e==='—'?'OFF':e}
+/* ── de qual campanha mapeada é o custo de uma linha da grade de offline ──
+   A grade traz o nome da inserção (CHUPIM, FELIPE CAMPOS…), que não é o mesmo da campanha mapeada
+   que carrega os leads e o faturamento (METROPOLITANA-OFF). Sem esse encaixe o custo cai numa linha
+   sozinha e a campanha com os leads aparece zerada. A conversão fica em Administração → Custo offline. */
+function offCamp(camp,aba){
+  const M=CFG.offMap||{},A=CFG.offAba||{};
+  const direto=M[camp]||M[nc(camp)];if(direto)return nc(direto);
+  const padrao=aba&&(A[aba]||A[nc(aba)]);if(padrao)return nc(padrao);
+  return camp}
+/* campanhas que realmente têm leads ou faturamento — são os destinos possíveis do custo de offline */
+function campsAlvo(){const s=new Set();
+  (CUBE||[]).forEach(x=>{if(x[0])s.add(x[0])});
+  (SER||[]).forEach(r=>{if(r[1])s.add(r[1])});
+  (FIN||[]).forEach(x=>{if(x.mi)s.add(x.mi)});
+  return [...s].filter(c=>c&&c!==BL&&c!=='NÃO MAPEADA').sort()}
 
 /* ── custo offline: leitura da aba (coluna AA) e histórico gravado no serviço ── */
 let OFF_MES='',OFF_CORTE='',OFF_INFO=null,OFF_ABAS=[],OFFH=null,offhBusy=false,offhFalha=0;
@@ -3544,10 +3563,12 @@ function aOffline(){
   const M=(OFFH&&OFFH.meses)||{},temK=!!emChave();
   const abasMes={};OFF_ABAS.forEach(a=>{abasMes[a.mes]=1});
   const ks=Object.keys(M).filter(k=>!abasMes[k]).sort().reverse();
-  const totAba=a=>{const t={};CUSTO.forEach(x=>{if(x.src==='OFFLINE'&&x.aba===a.aba)t[x.camp]=(t[x.camp]||0)+x.val});return t};
-  const linhaAba=a=>{const t=totAba(a),tot=Object.values(t).reduce((q,v)=>q+v,0);
+  /* agrupa pelo nome que está na grade (orig) e guarda para qual campanha mapeada o custo foi */
+  const totAba=a=>{const t={};CUSTO.forEach(x=>{if(x.src==='OFFLINE'&&x.aba===a.aba){const k=x.orig||x.camp;
+    const o=t[k]||(t[k]={v:0,alvo:x.camp});o.v+=x.val}});return t};
+  const linhaAba=a=>{const t=totAba(a),tot=Object.values(t).reduce((q,o)=>q+o.v,0);
     return `<tr><td class="lft"><b>${esc(a.aba)}</b><div class="kp-h">${esc(mesBR(a.mes))}${a.corte?' · realizado até '+esc(dc(a.corte)):''}</div></td>
-      <td class="lft">${Object.entries(t).sort((x,y)=>y[1]-x[1]).map(([c,v])=>`<div class="oa-c"><span>${esc(c)}</span><b>${mo2(v)}</b></div>`).join('')||'—'}</td>
+      <td class="lft">${Object.entries(t).sort((x,y)=>y[1].v-x[1].v).map(([c,o])=>`<div class="oa-c"><span>${esc(c)}${o.alvo!==c?` <em>→ ${esc(o.alvo)}</em>`:''}</span><b>${mo2(o.v)}</b></div>`).join('')||'—'}</td>
       <td><b>${mo2(tot)}</b></td><td>${a.prog?mo2(a.prog):'—'}</td></tr>`};
   const porMes={};CUSTO.forEach(x=>{if(x.src!=='OFFLINE')return;const k=x.d.slice(0,7);porMes[k]=(porMes[k]||0)+x.val});
   const linhaMes=k=>{const o=M[k],pl=(o.planilha&&o.planilha.c)||{},man=(o.manual&&o.manual.c)||{};
@@ -3557,6 +3578,34 @@ function aOffline(){
       <td class="lft">${cs.map(cp=>`<div class="oa-c"><span>${esc(cp)}</span><b>${mo2(man[cp]!=null?+man[cp]:Object.values(pl[cp]||{}).reduce((a,b)=>a+(+b||0),0))}</b>
         ${man[cp]!=null?`<em>manual</em>${temK?`<button class="lnk" data-oarm="${esc(k)}|${esc(cp)}" aria-label="Remover lançamento manual">remover</button>`:''}`:'<em>gravado da planilha</em>'}</div>`).join('')||'—'}</td>
       <td><b>${mo2(tot)}</b></td><td>${o.planilha?esc(dc(o.planilha.upd)):'—'}</td></tr>`};
+  /* encaixe entre o nome que está na grade de inserções e a campanha mapeada que recebe o custo */
+  function cardEncaixe(){
+    if(!OFF_ABAS.length)return '';
+    const todas={};
+    OFF_ABAS.forEach(a=>{const t=totAba(a);Object.entries(t).forEach(([c,o])=>{
+      const g=todas[c]||(todas[c]={v:0,alvo:o.alvo,abas:new Set()});g.v+=o.v;g.abas.add(a.aba)})});
+    const alvos=campsAlvo();
+    const dl=`<datalist id="omCamps">${alvos.map(c=>`<option value="${esc(c)}"></option>`).join('')}</datalist>`;
+    const linhas=Object.entries(todas).sort((x,y)=>y[1].v-x[1].v).map(([c,o])=>{
+      const man=(CFG.offMap||{})[c]||'',ok=alvos.indexOf(o.alvo)>=0;
+      return `<tr><td class="lft">${[...o.abas].map(x=>esc(x)).join('<br>')}</td>
+        <td class="lft"><b>${esc(c)}</b></td><td>${mo2(o.v)}</td>
+        <td class="lft"><input data-om="${esc(c)}" list="omCamps" value="${esc(man)}" placeholder="${esc(o.alvo)}" aria-label="Campanha que recebe o custo de ${esc(c)}"></td>
+        <td>${!alvos.length?'<span class="tg s">—</span>':`<span class="tg ${ok?'g':'r'}">${ok?'tem leads/vendas':'sozinha no painel'}</span>`}</td></tr>`}).join('');
+    return `<div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Para onde vai o custo de cada campanha</h3>
+        <span class="m">nome na grade → campanha mapeada</span></div>
+      <p class="info" style="margin:0 16px 10px">A grade de offline traz o nome da inserção (<b>CHUPIM</b>, <b>FELIPE CAMPOS</b>…), que nem sempre é o nome da
+        <b>campanha mapeada</b> que recebe os leads e o faturamento (<b>METROPOLITANA-OFF</b>). Quando os dois nomes são diferentes, o custo fica numa linha
+        sozinha e a campanha que tem os leads aparece com custo zerado. Aqui você diz qual campanha recebe cada nome — a planilha nunca é alterada.</p>
+      ${dl}
+      <div class="tw"><table class="xl oa-t"><thead><tr><th>Aba</th><th>Campanha padrão da aba</th></tr></thead>
+        <tbody>${OFF_ABAS.map(a=>`<tr><td class="lft"><b>${esc(a.aba)}</b></td>
+          <td class="lft"><input data-oma="${esc(a.aba)}" list="omCamps" value="${esc((CFG.offAba||{})[a.aba]||'')}" placeholder="manter o nome da grade" aria-label="Campanha padrão da aba ${esc(a.aba)}"></td></tr>`).join('')}</tbody></table></div>
+      <p class="info" style="margin:10px 16px">O <b>padrão da aba</b> vale para toda campanha dela que não tenha um destino próprio abaixo — assim, campanha nova que você lançar no mês já entra certa.</p>
+      <div class="tw"><table class="xl oa-t"><thead><tr><th>Aba</th><th>Nome na grade</th><th>Custo lido</th><th>Campanha que recebe</th><th>Situação</th></tr></thead>
+        <tbody>${linhas||'<tr><td colspan="5">Nada lido ainda.</td></tr>'}</tbody></table></div>
+      <div class="acts" style="padding:12px 16px"><button class="btn pri" id="omSalva">Salvar encaixe</button>
+        <span class="info" style="margin:0">Em branco usa o padrão da aba; sem padrão, fica com o próprio nome da grade.</span></div></div>`}
   return `<div class="card wide oa">
     <div class="ch"><h3>Custo offline</h3><span class="m">${offhBusy?'<span class="em-spin"></span> lendo histórico…':`<button class="lnk" id="oaRecarrega">atualizar</button>`}</span></div>
     <p class="info" style="margin-top:0">O painel lê <b>três abas</b> da planilha REPORTE GWA, todas com a mesma grade de inserções:
@@ -3577,6 +3626,7 @@ function aOffline(){
       :'<p class="info" style="margin:0 16px 14px">Nada lido ainda.</p>'}
     <p class="info" style="margin:0 16px 14px">Para fechar um mês: deixe a programação dele na aba <b>${esc(SH_HIST||'de histórico')}</b> e comece a nova na aba <b>${esc(SH_OFF||'do mês')}</b>.
       O painel passa a usar a do histórico para aquele mês sozinho — não precisa lançar nada aqui.</p></div>
+  ${cardEncaixe()}
   ${ks.length?`<div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Meses guardados no serviço</h3>
       <span class="m">${ks.length} ${ks.length===1?'mês':'meses'} fora das abas</span></div>
     <p class="info" style="margin:0 16px 10px">Meses antigos que ficaram gravados antes de existir a aba de histórico. Se um mês aparecer nas duas pontas, a planilha manda.</p>
@@ -3590,6 +3640,14 @@ function oaAcao(tipo,a,extra,msg){OA.busy=tipo;OA.erro='';OA.msg='';render();
     .finally(()=>{OA.busy='';if(tab==='admin'&&aTab==='offline')render()})}
 function bindOffline(){const g=id=>document.getElementById(id);
   if(g('oaRecarrega'))g('oaRecarrega').onclick=()=>{OA.msg='';offhCarrega(true);render()};
+  if(g('omSalva'))g('omSalva').onclick=()=>{const m={},A={};
+    document.querySelectorAll('[data-om]').forEach(i=>{const v=nc(i.value);if(v)m[i.dataset.om]=v});
+    document.querySelectorAll('[data-oma]').forEach(i=>{const v=nc(i.value),k=i.dataset.oma;
+      if(v)A[k]=v;else if((CFG_PADRAO.offAba||{})[k])A[k]=''});
+    CFG.offMap=m;CFG.offAba=A;salvaCfg();if(typeof rnCache!=='undefined')rnCache=null;
+    if(RAW.meta||RAW.ads||RAW.off||RAW.metro)ingCusto(RAW.meta||[],RAW.ads||[],RAW.off||[],RAW.atv||[],RAW.metro||[],RAW.hist||[]);
+    logEv('Administração','encaixe de campanhas de offline salvo',true,Object.keys(m).length+Object.keys(A).length);
+    OA.erro='';OA.msg='Encaixe salvo. O custo de offline já foi recolocado nas campanhas.';render()};
   if(g('oaGravar'))g('oaGravar').onclick=()=>oaAcao('gravar','offGravar',{},r=>r.r?`Gravado: ${mesBR(r.r.mes)} até ${dc(r.r.corte)} — ${mo2(r.r.tot)}.`:'Planilha lida; nada novo para gravar.');
   document.querySelectorAll('[data-oarm]').forEach(b=>b.onclick=()=>{const [m,c]=b.dataset.oarm.split('|');
     oaAcao('manual','offManual',{mes:m,camp:c,valor:''},`Lançamento manual de ${c} em ${mesBR(m)} removido.`)});
