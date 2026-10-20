@@ -575,6 +575,7 @@ td.z{opacity:.35}
 .rn-m{margin-bottom:12px} @media(min-width:760px){.rn-m{grid-template-columns:repeat(4,1fr)}}
 .rn-err{margin-top:10px;color:#E5484D;font-size:13px;font-weight:600}
 input.bmc,input.bml{width:100%;min-width:120px}
+.rn-lk a.btn{text-decoration:none}.rn-lk{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:10px 0 4px}.rn-lk input{width:100%;font:12px ui-monospace,monospace}
 .rn-bs{display:flex;gap:8px;flex-wrap:wrap}
 .rn-b,.rn-b2{display:inline-flex;align-items:center;gap:8px}
 .rn-b svg,.rn-b2 svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -790,7 +791,9 @@ function aplicaCfg(){const c=CFG.leads.col;SID=CFG.leads.id;SNAME=CFG.leads.aba;
   SH_OFF=CFG.custos.abaOff;SH_ATV=CFG.custos.abaAtivas;
   SH_METRO=CFG.custos.abaMetro||'';SH_HIST=CFG.custos.abaHist||'';SH_ANUN=CFG.custos.abaAnun||'';HORA=c.hora||'CG'}
 aplicaCfg();
-function salvaCfg(){try{localStorage.setItem('gwa.cfg',JSON.stringify(CFG));return true}catch(e){return false}}
+/* aberto por link de reunião: a configuração do link vale só nesta visita e nunca sobrescreve a deste navegador */
+var RN_LINK=null;
+function salvaCfg(){if(RN_LINK)return true;try{localStorage.setItem('gwa.cfg',JSON.stringify(CFG));return true}catch(e){return false}}
 /* ═════ LOGS de cada consulta às planilhas ═════ */
 const LOGS=[];
 try{const l=JSON.parse(localStorage.getItem('gwa.logs')||'[]');if(Array.isArray(l))LOGS.push(...l.slice(0,200))}catch(e){}
@@ -2296,7 +2299,9 @@ const S={hdr:1,txt:2,int:3,money:4,pct:5,dec:6,tot:7,title:8,totInt:9,totMoney:1
 const MESX=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 const dl=s=>{if(!s)return'—';const d=parse(s);return `${d.getDate()} de ${MESX[d.getMonth()]} de ${d.getFullYear()}`};
 const dc=s=>s?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):'—';
-const curto=c=>{if(c&&CFG.apelidos&&CFG.apelidos[c])return CFG.apelidos[c];if(fE==='TODAS'||!c)return c;const s=String(c).replace(new RegExp('-'+fE+'$','i'),'').trim();return s||c};
+const curto=c=>{if(c&&CFG.apelidos&&CFG.apelidos[c])return CFG.apelidos[c];if(fE==='TODAS'||!c)return c;const s=String(c).replace(new RegExp('-'+fE+'$','i'),'').trim();
+  /* não tira o sufixo se outra campanha ficaria com o mesmo nome (JOGO ABERTO-OFF x JOGO ABERTO-24H) */
+  if(s&&s!==c&&typeof campBaseDup==='function'&&campBaseDup(s))return c;return s||c};
 const empNome=()=>fE==='TODAS'?'Todas as empresas':fE;
 const dsOkC=x=>(fE==='TODAS'||x.emp===fE)&&(!fCamp||x.camp===fCamp)&&onOk(x.camp);
 const dsOkL=c=>!c||((fE==='TODAS'||empOf(c)===fE)&&(!fCamp||c===fCamp)&&onOk(c));
@@ -4023,6 +4028,47 @@ function tvDoLink(){const h=location.hash;if(!h.startsWith('#slide'))return fals
     if(c&&Array.isArray(c.telas)){CFG.tv=c;salvaCfg()}}catch(e){}}
   return true}
 
+/* ═════ Link da reunião ═════
+   O link leva a configuração que gerou a reunião (empresa, período, slides, ordem, estilo, nomes e todos os
+   mapeamentos do painel). Quem abre carrega o painel do site, busca os dados e já cai na apresentação,
+   sem login de administração. Os números são buscados de novo na hora — mês fechado dá o mesmo resultado.
+   Vai comprimido (deflate) quando o navegador permite; o prefixo "z" marca isso. */
+let rnLinkUrl='',rnLinkErr='',rnLinkTxt='';
+const b64u=u8=>{let b='';for(let i=0;i<u8.length;i+=0x8000)b+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));
+  return btoa(b).replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_')};
+const u8b64=t=>{const b=atob(t.replace(/-/g,'+').replace(/_/g,'/'));const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u};
+async function rnLinkGera(){
+  const c=clone(CFG);delete c.tv;
+  const o={v:1,e:fE,a:d1,b:d2,cfg:c,t:Date.now()};
+  const bytes=new TextEncoder().encode(JSON.stringify(o));let cod;
+  if(typeof CompressionStream!=='undefined'){
+    const z=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
+    cod='z'+b64u(z)}
+  else cod='j'+b64u(bytes);
+  return location.href.split('#')[0]+'#reuniao='+cod}
+async function rnLinkLe(){
+  const m=location.hash.match(/^#reuniao=([zj])([A-Za-z0-9_-]+)/);if(!m)return null;
+  try{let u=u8b64(m[2]);
+    if(m[1]==='z')u=new Uint8Array(await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    const o=JSON.parse(new TextDecoder().decode(u));
+    if(!o||!o.e||!/^\d{4}-\d{2}-\d{2}$/.test(o.a)||!/^\d{4}-\d{2}-\d{2}$/.test(o.b)||!o.cfg)return null;return o}
+  catch(e){logEv('Reunião','link inválido',false,0,0,e.message);return null}}
+function rnLinkAplica(o){
+  RN_LINK=o;
+  CFG=mesclar(clone(CFG_PADRAO),o.cfg);aplicaCfg();
+  fE=o.e;d1=o.a;d2=o.b;per='custom';tab='resumo'}
+/* espera a primeira carga completa (leads, faturamento, custos e horários dos anúncios) e abre a apresentação */
+function rnLinkInicia(){
+  const t0=Date.now(),tit=`Reunião Online · ${fE} · ${dc(d1)} a ${dc(d2)}`;
+  pvAbre(tit);pvMsg('Carregando os dados do painel…');
+  const tenta=()=>{
+    const pronto=ultOk>=t0&&!busy&&!cusBusy&&!finBusy&&!anunBusy;
+    if(pronto||Date.now()-t0>120000){
+      if(!pronto)logEv('Reunião','link: gerado sem esperar a carga completa',false);
+      gerarReuniao('apresentar');return}
+    setTimeout(tenta,500)};
+  setTimeout(tenta,800)}
+
 /* ── Administração → Modo slide ── */
 let tvAdd=false;
 function aTv(){const C=tvCfg(),L=C.telas,emps=['TODAS',...new Set(CUBE.map(x=>empOf(x[0])).filter(e=>e!=='—'))];
@@ -4542,7 +4588,18 @@ const corTab=t=>{const h=TABRX.find(([r])=>r.test(t));return K[h?h[1]:'sl']};
 const ehTarget=t=>{const k=kind(t);return k==='g'||(k==='o')};          /* Negociando, Pré-venda e Venda */
 const ehNaoAt=t=>/n[ãa]o atende/i.test(t||'');
 const ehSemTrab=t=>!t||t==='-'||/discador/i.test(t);
-const nomeCampPadrao=c=>{const s=String(c).replace(/-[A-Z0-9]+$/,'');return s.charAt(0)+s.slice(1).toLowerCase()};
+/* nome bonito da campanha: tira o sufixo (-OFF, -24H…) — a não ser que duas campanhas fiquem com o mesmo nome
+   (JOGO ABERTO-OFF e JOGO ABERTO-24H viravam "Jogo aberto" duas vezes); aí o sufixo fica: "Jogo aberto OFF" / "Jogo aberto 24H" */
+let _nbK='',_nbM={};
+function campBaseDup(base){
+  const cu=typeof CUBE!=='undefined'&&CUBE?CUBE:[],se=typeof SER!=='undefined'&&SER?SER:[];
+  const k=cu.length+'|'+se.length+'|'+Object.keys(CFG.empCamp||{}).length;
+  if(k!==_nbK){_nbK=k;_nbM={};const set=new Set();cu.forEach(x=>x&&x[0]&&set.add(x[0]));se.forEach(r=>r&&r[1]&&set.add(r[1]));
+    Object.keys(CFG.empCamp||{}).forEach(c=>set.add(c));Object.values(CFG.leadCamp||{}).forEach(c=>c&&set.add(c));
+    set.forEach(c=>{const b=String(c).replace(/-[A-Z0-9]+$/,'');(_nbM[b]=_nbM[b]||new Set()).add(c)})}
+  return !!(_nbM[base]&&_nbM[base].size>1)}
+const nomeCampPadrao=c=>{const s=String(c).replace(/-[A-Z0-9]+$/,''),suf=(String(c).match(/-([A-Z0-9]+)$/)||[])[1];
+  const b=s.charAt(0)+s.slice(1).toLowerCase();return suf&&campBaseDup(s)?b+' '+suf:b};
 const nomeCamp=c=>{const a=(CFG.apelidos||{})[c];return a?a:nomeCampPadrao(c)};
 
 /* ── dados de uma campanha (atual e anterior) ── */
@@ -4593,7 +4650,7 @@ let rnCache=null;
 async function gerarReuniao(modo,soSec){
   const apresentar=modo==='apresentar';
   if(rnBusy)return;
-  if(!admOk()){aviso('Entre na Administração para usar a Reunião');return}
+  if(!admOk()&&!RN_LINK){aviso('Entre na Administração para usar a Reunião');return}
   if(fE==='TODAS'){aviso('Escolha uma empresa no filtro de cima');return}
   const CF=rnCfg();rnTema(CF.tema);
   const titulo=soSec?`Prévia · ${(RN_MAP[soSec]||{}).n||soSec} · ${fE}`:`Reunião Online · ${fE} · ${dc(d1)} a ${dc(d2)}`;
@@ -5278,7 +5335,7 @@ function rnMes(pres,D){
 
 /* ═════ Leads do mês: de onde vieram, com os números ═════ */
 function rnLeads(pres,D){
-  const T=D.T,P=D.P,s=slideBase(pres,'Leads do Mês',D.mesAno,`Volume de leads por mídia, linha e formulário (${D.periodo})`,'GWA CONSULTORIA | VOLUME DE LEADS');
+  const T=D.T,P=D.P,s=slideBase(pres,'Leads do Mês',D.mesAno,`Volume de leads por mídia, formulário e semana (${D.periodo})`,'GWA CONSULTORIA | VOLUME DE LEADS');
   [['Leads no período',R.int(T.leads),vr(T.leads,P.leads),K.bl],['Média por dia',R.int(D.dias?T.leads/D.dias:null),null,K.pu],
    ['Vendas',R.int(T.nv),vr(T.nv,P.nv),K.gr],['Conversão',R.p2(T.conv),vr(T.conv,P.conv),K.am]].forEach(([l,v,dv,cor],i)=>{
     const x=0.62+i*3.05;card(pres,s,x,1.32,2.9,0.92);s.addShape(pres.shapes.RECTANGLE,{x,y:1.32,w:2.9,h:0.04,fill:{color:cor},line:{color:cor}});
@@ -5286,12 +5343,12 @@ function rnLeads(pres,D){
     txt(s,v,{x:x+0.15,y:1.64,w:2.2,h:0.42,fontSize:18,bold:true});
     txt(s,dv==null?'':R.sg(dv)+R.d1(Math.abs(dv*100))+'%',{x:x+1.75,y:1.74,w:1.0,h:0.24,fontSize:8.5,bold:true,align:'right',color:dv==null?K.mut:dv>=0?K.gr:K.rd})});
   /* cada quadro: faixa colorida no topo, cabeçalho destacado, linhas zebradas e altura que preenche o cartão */
-  const tabela=(x,y,w,h,tit,sub,rows,colW,cor)=>{card(pres,s,x,y,w,h);
+  const tabela=(x,y,w,h,tit,sub,rows,colW,cor,cheio)=>{card(pres,s,x,y,w,h);
     s.addShape(pres.shapes.RECTANGLE,{x:x+0.01,y,w:w-0.02,h:0.035,fill:{color:cor||K.or},line:{color:cor||K.or}});
     txt(s,tit,{x:x+0.2,y:y+0.12,w:w-2.4,h:0.26,fontSize:10.5,bold:true});
     txt(s,sub,{x:x+w-2.5,y:y+0.15,w:2.3,h:0.22,fontSize:7.5,color:K.mut,align:'right'});
-    const rh0=(h-0.64)/rows.length,rh=rows.length<=7?Math.max(0.26,Math.min(0.46,rh0)):rh0;
-    const fs=rh>=0.25?8.5:Math.max(4.8,Math.min(8.5,rh*26));
+    const rh0=(h-0.64)/rows.length,rh=cheio?Math.min(0.75,rh0):rows.length<=7?Math.max(0.26,Math.min(0.46,rh0)):rh0;
+    const fs=cheio&&rh>=0.5?10.5:rh>=0.25?8.5:Math.max(4.8,Math.min(8.5,rh*26));
     const cel=(c,i)=>{const o=(c&&typeof c==='object')?{text:c.text,options:Object.assign({},c.options)}:{text:c,options:{}};
       if(!o.options.color)o.options.color=K.tx2;
       if(!o.options.fill)o.options.fill={color:i===0?'1C1C1C':(i%2?'161616':'0E0E0E')};
@@ -5305,11 +5362,6 @@ function rnLeads(pres,D){
   const mid=D.camps.slice(0,5).map(c=>[{text:c.nome,options:{bold:true,color:K.txt,align:'left'}},vLead(R.int(c.o.leads)),
     R.p1(T.leads?c.o.leads/T.leads:null),{text:R.int(c.o.nv),options:{bold:true,color:K.gr}},R.p2(c.o.leads?c.o.nv/c.o.leads:null),{text:R.int(c.p?c.p.leads:null),options:{color:K.mut}}]);
   tabela(0.62,2.42,6.2,2.3,'Por mídia','leads · % · vendas · conv.',[hd(['Mídia','Leads','%','Vendas','Conv','Mês ant.']),...mid],[1.5,0.8,0.7,0.8,0.8,0.9],K.bl);
-  /* por linha de WhatsApp */
-  const ln=D.linhas.map(l=>[{text:l.nome,options:{bold:true,color:l.outras?K.mut:K.txt,align:'left'}},vLead(R.int(l.rec)),
-    R.p1(T.leads?l.rec/T.leads:null),R.int(l.q),{text:R.int(l.v),options:{bold:true,color:K.gr}}]);
-  const hLin=Math.max(2.3,Math.min(4.6,0.66+(ln.length+1)*0.26));
-  tabela(7.02,2.42,5.71,hLin,'Por linha de WhatsApp','recebidos · qualificados · vendas',[hd(['Linha','Leads','%','Qualif.','Vendas']),...(ln.length?ln:[[{text:'Sem linha com volume',options:{color:K.mut}},'—','—','—','—']])],[1.4,0.9,0.8,0.95,0.95],K.gr);
   /* por formulário */
   const fm=(D.forms||[]).slice(0,5).map(f=>{const v=Object.entries(f.tab).filter(([t])=>/^venda/i.test(t)).reduce((q,[,n])=>q+n,0);
     const nj=(f.fs||[]).length;
@@ -5318,8 +5370,8 @@ function rnLeads(pres,D){
   /* por semana */
   const sem=(D.W||[]).filter(w=>!w.ant).map(w=>[{text:w.n.replace('Semana ','S'),options:{bold:true,color:K.txt,align:'left'}},vLead(R.int(w.leads)),
     {text:R.int(w.nv),options:{bold:true,color:K.gr}},R.p2(w.conv)]);
-  const ySem=Math.max(4.88,2.42+hLin+0.16),hSem=7.02-ySem;
-  if(hSem>=1.2)tabela(7.02,ySem,5.71,hSem,'Por semana','leads · vendas · conversão',[hd(['Semana','Leads','Vendas','Conv']),...(sem.length?sem:[[{text:'Sem semana fechada',options:{color:K.mut}},'—','—','—']])],[1.4,1.2,1.1,1.25],K.am)}
+  /* sem o quadro de linhas de WhatsApp: a semana ocupa a coluna direita inteira (mesma altura de mídia + formulário) */
+  tabela(7.02,2.42,5.71,4.6,'Por semana','leads · vendas · conversão',[hd(['Semana','Leads','Vendas','Conv']),...(sem.length?sem:[[{text:'Sem semana fechada',options:{color:K.mut}},'—','—','—']])],[1.4,1.2,1.1,1.25],K.am,true)}
 
 /* ═════ Vendas fechadas dentro do próprio mês (tabulação Venda na base) ═════ */
 function rnVendaMes(pres,D){
@@ -5429,7 +5481,14 @@ function vReuniao(){
       <h2 class="dsn">${temEmp?esc(fE):'Escolha uma empresa'}</h2>
       <p class="dsp">${dl(d1)} a ${dl(d2)} <span>· comparado com ${dc(pa)} a ${dc(pb)}</span></p></div>
       <div class="rn-bs"><button class="btn pri rn-b" id="btApresentar"${dis}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18M5 4v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4M12 15v4M8 21l4-2 4 2M10 7.5v4l3.5-2z"/></svg>${rnBusy?'Preparando…':'Apresentar'}</button>
-        <button class="btn rn-b2" id="btReuniao"${dis}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Baixar .pptx</button></div></div>
+        <button class="btn rn-b2" id="btReuniao"${dis}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Baixar .pptx</button>
+        <button class="btn rn-b2" id="btRnLink"${dis}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>Gerar link</button></div></div>
+    ${rnLinkErr?`<p class="rn-err" role="alert">${esc(rnLinkErr)}</p>`:''}
+    ${rnLinkUrl?`<div class="rn-lk"><label class="cf" style="flex:1"><span>Link da reunião · ${esc(rnLinkTxt)}</span>
+        <input id="rnLinkIn" readonly value="${esc(rnLinkUrl)}" aria-label="Link da reunião"></label>
+        <button class="btn" id="rnLinkCp" type="button">Copiar</button><a class="btn" href="${esc(rnLinkUrl)}" target="_blank" rel="noopener">Abrir</a></div>
+      <p class="info rn-dica">Quem abrir o link vê esta reunião em tela cheia, sem login, com os mesmos slides, ordem, estilo e nomes. Os números são buscados na hora
+        (mês fechado dá o mesmo resultado). ${location.protocol==='file:'?'<b>Atenção: este painel foi aberto do arquivo do computador — o link só funciona aqui. Abra o painel pelo site (GitHub) e gere o link lá para usar em qualquer lugar.</b>':'Funciona no celular, no notebook e na TV.'}</p>`:''}
     ${rnMsg?`<p class="${/^Erro/.test(rnMsg)?'rn-err':'info'}" role="status">${esc(rnMsg)}</p>`:''}
     ${avisoParcial('reuniao')}
     ${!temEmp?`<p class="dsh-hint">Selecione GWA, M12, OFF ou IND no filtro de empresa. A apresentação é sempre de uma empresa por vez.</p>`
@@ -5989,7 +6048,7 @@ const RN_CAT=[
   {k:'capa',    n:'Capa',                   d:'Abertura com os 4 indicadores do período'},
   {k:'exec',    n:'Resumo Executivo',       d:'Faturamento, mídia, lucro e ROAS contra as metas, com status por indicador',novo:1},
   {k:'mes',     n:'Comparativo Mensal',     d:'Mesmo trecho do mês passado contra o atual, 12 indicadores'},
-  {k:'leads',   n:'Leads do Mês',           d:'Volume por mídia, linha de WhatsApp, formulário e semana'},
+  {k:'leads',   n:'Leads do Mês',           d:'Volume por mídia, formulário e semana'},
   {k:'funil',   n:'Funil de Conversão',     d:'Do lead recebido ao contrato, com a perda de cada etapa',novo:1},
   {k:'camp',    n:'Por campanha',           d:'KPIs vs meta e Tabulações e Funil de cada mídia'},
   {k:'aprov',   n:'Indicadores de Aproveitamento', d:'Eficiência operacional da campanha principal',pai:'camp'},
@@ -6159,6 +6218,14 @@ function bind(){
   if(tab==='admin'&&aTab==='reuniao'&&admOk()){const g=id=>document.getElementById(id);
     if(g('btReuniao'))g('btReuniao').onclick=()=>gerarReuniao('baixar');
     if(g('btApresentar'))g('btApresentar').onclick=()=>gerarReuniao('apresentar');
+    if(g('btRnLink'))g('btRnLink').onclick=async()=>{rnLinkErr='';
+      try{rnLinkUrl=await rnLinkGera();rnLinkTxt=`${fE} · ${dc(d1)} a ${dc(d2)}`;logEv('Reunião','link gerado: '+fE+' '+d1+' a '+d2,true,rnLinkUrl.length);
+        let ok=false;try{await navigator.clipboard.writeText(rnLinkUrl);ok=true}catch(e){}
+        aviso(ok?'Link copiado':'Link gerado — copie abaixo')}
+      catch(e){rnLinkUrl='';rnLinkErr='Não deu para gerar o link: '+e.message}
+      render()};
+    if(g('rnLinkCp'))g('rnLinkCp').onclick=async()=>{const i=g('rnLinkIn');
+      try{await navigator.clipboard.writeText(rnLinkUrl);aviso('Link copiado')}catch(e){i.select();document.execCommand('copy');aviso('Link copiado')}};
     bindSlides();
     bindKpis();bindNomes();bindVinculo();bindSemCanal();bindBmCamp();bindBmEmp();bindSync()}
   if(tab==='admin'&&aTab==='tv'&&admOk())bindTv();
@@ -6399,8 +6466,13 @@ window.addEventListener('appinstalled',()=>{instEvt=null;document.getElementById
 document.getElementById('btInst').onclick=async()=>{if(!instEvt)return;instEvt.prompt();try{await instEvt.userChoice}catch(e){}instEvt=null;document.getElementById('btInst').hidden=true};
 document.getElementById('btTema').onclick=()=>{aplicaTema(temaEf()==='dark'?'light':'dark');render()};
 document.getElementById('btAdm').onclick=()=>{tab=tab==='admin'?'resumo':'admin';render();window.scrollTo({top:0})};
-hidrata();
-render();tique();load();agenda();
-setTimeout(()=>{try{syPuxa(false)}catch(e){}},1200);   /* configuração compartilhada entre computadores */
-if(tvDoLink())setTimeout(()=>tvLiga(false),400);
+(async()=>{
+  /* link de reunião: aplica a configuração dele (só nesta visita) antes de buscar os dados */
+  let L=null;try{L=await rnLinkLe()}catch(e){}
+  if(L)rnLinkAplica(L);
+  hidrata();
+  render();tique();load();agenda();
+  if(!RN_LINK)setTimeout(()=>{try{syPuxa(false)}catch(e){}},1200);   /* configuração compartilhada entre computadores */
+  if(RN_LINK)rnLinkInicia();
+  else if(tvDoLink())setTimeout(()=>tvLiga(false),400)})();
 </script></body></html>
