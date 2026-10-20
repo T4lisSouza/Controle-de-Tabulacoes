@@ -3621,25 +3621,33 @@ function mesIsoDe(s){const t=String(s==null?'':s).trim();if(!t)return'';
 function anunIng(rows){
   ANUN=[];ANUN_M={};ANUN_ERR='';
   if(!rows||!rows.length){ANUN_ERR=SH_ANUN?'a aba não respondeu ou está vazia':'nenhuma aba de extrato configurada';return}
-  let hdr=-1,mesTopo='';
-  for(let i=0;i<Math.min(rows.length,20);i++){const r=rows[i]||[],a=String(r[0]==null?'':r[0]).trim();
-    if(/M.S\s+DA\s+PROGRAMA/i.test(a))mesTopo=String(r[1]||'').trim();
-    if(hdr<0&&/^DIA$/i.test(a))hdr=i}
-  if(hdr<0){ANUN_ERR='não achei a linha de cabeçalho que começa com DIA';return}
-  let semMes=0;
-  for(let i=hdr+1;i<rows.length;i++){const r=rows[i]||[];
-    const dia=+String(r[0]==null?'':r[0]).replace(/\D/g,'');if(!dia||dia>31)continue;
-    const h=hhmm(r[1]),tit=String(r[2]==null?'':r[2]).trim();
-    const mes=mesIsoDe(String(r[6]==null?'':r[6]).trim())||mesIsoDe(mesTopo);
-    if(!mes){semMes++;continue}
-    if(!h||!tit)continue;
+  /* o mês pode vir na coluna G de cada linha ou numa linha de cabeçalho; o cabeçalho às vezes nem volta
+     na consulta, então a leitura não depende dele: vale toda linha que tenha dia na coluna A e hora na B */
+  let mesTopo='';
+  rows.forEach(r=>{const a=String((r||[])[0]==null?'':r[0]).trim();if(!a)return;
+    if(/M.S\s+DA\s+PROGRAMA/i.test(a))mesTopo=mesIsoDe(String(r[1]||'').trim())||mesTopo;
+    else if(/^M.s\s*:/i.test(a))mesTopo=mesIsoDe(a.replace(/^M.s\s*:\s*/i,'').split('|')[0].trim())||mesTopo});
+  let linhas=0,semMes=0,semHora=0;
+  rows.forEach(r=>{r=r||[];
+    const a=String(r[0]==null?'':r[0]).trim();
+    if(!/^\d{1,2}([.,]0+)?$/.test(a))return;        /* linha de inserção: coluna A é só o dia */
+    const dia=parseInt(a,10);if(!(dia>=1&&dia<=31))return;
+    const tit=String(r[2]==null?'':r[2]).trim();if(!tit)return;
+    const h=hhmm(r[1]);
+    linhas++;
+    if(!h){semHora++;return}
+    const mes=mesIsoDe(String(r[6]==null?'':r[6]).trim())||mesTopo;
+    if(!mes){semMes++;return}
     const d=mes+'-'+String(dia).padStart(2,'0');
     const o={d,h,t:d+' '+h,cod:anunCod(tit),tit,prog:String(r[4]==null?'':r[4]).trim(),dur:+r[5]||0};
-    ANUN.push(o);(ANUN_M[mes]=ANUN_M[mes]||[]).push(o)}
-  const ord=(a,b)=>a.t<b.t?-1:a.t>b.t?1:0;
+    ANUN.push(o);(ANUN_M[mes]=ANUN_M[mes]||[]).push(o)});
+  const ord=(x,y)=>x.t<y.t?-1:x.t>y.t?1:0;
   ANUN.sort(ord);Object.keys(ANUN_M).forEach(k=>ANUN_M[k].sort(ord));
-  if(!ANUN.length)ANUN_ERR='nenhuma linha com dia, hora, título e mês';
-  else if(semMes)ANUN_ERR=semMes+(semMes===1?' linha ficou':' linhas ficaram')+' de fora: a coluna MÊS está vazia e o cabeçalho não traz o mês';}
+  if(!linhas)ANUN_ERR='nenhuma linha de inserção: a coluna A precisa ter o dia (1 a 31), a B o horário e a C o título';
+  else if(!ANUN.length)ANUN_ERR=semMes?'preencha a coluna G (MÊS) das linhas, ou a linha "MÊS DA PROGRAMAÇÃO" no topo da aba'
+    :'os horários da coluna B não foram reconhecidos';
+  else if(semMes)ANUN_ERR=semMes+(semMes===1?' linha ficou':' linhas ficaram')+' de fora: sem mês na coluna G e sem mês no topo da aba';
+  else if(semHora)ANUN_ERR=semHora+(semHora===1?' linha ficou':' linhas ficaram')+' de fora: horário da coluna B em branco';}
 /* o anúncio de um instante: o último que foi ao ar até ali, dentro do mesmo mês */
 function anunEm(d,h){const L=ANUN_M[String(d||'').slice(0,7)];if(!L||!L.length)return'';
   const t=d+' '+(h||'00:00');
@@ -3650,13 +3658,25 @@ function anunEm(d,h){const L=ANUN_M[String(d||'').slice(0,7)];if(!L||!L.length)r
 /* a campanha pode estar escrita com ou sem espaço no hífen; compara dos dois jeitos */
 function anunCond(semUpper){const c=anunCfg().camp,f=x=>semUpper?x:`upper(${x})`;
   return reVars(c).map(v=>`${f(CAMP)} = '${v}'`).join(' or ')||`${CAMP} = '${c}'`}
+/* a consulta dos horários roda por fora do load(): é a mais pesada e não pode segurar o painel nem a reunião */
+let anunBusy=false;
+async function loadAnunLeads(from){
+  if(anunBusy)return;anunBusy=true;
+  const q=u=>`select ${ID}, ${DAT}, ${HORA}, ${TAB} where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${anunCond(u)})`;
+  try{let r;
+    try{r=await gviz(q(),60000)}catch(e){r=await gviz(q(true),60000)}
+    RAW.lead=r;anunLeads(r);salvaCache();renderAuto()}
+  catch(e){logEv('Painel','leads por anúncio',false,0,0,(e&&e.message)||'erro na consulta de horários')}
+  finally{anunBusy=false}}
 function anunLeads(rows){LEADH=(rows||[]).map(r=>({k:r[0]==null?'':String(r[0]).trim(),d:gdate(r[1]),h:hhmm(r[2]),
   tb:r[3]==null?'':String(r[3]).trim()})).filter(x=>x.d)}
 /* números de cada anúncio no intervalo: leads, tabulações, vendas, faturamento e custo rateado */
 function anunDados(a,b){
-  const m={},g=c=>m[c]||(m[c]={cod:c,leads:0,tb:{},ins:0,inv:0,nv:0,fat:0,tot:0,dsum:0,dn:0});
+  const camp0=anunCfg().camp;
+  const m={},g=c=>m[c]||(m[c]={cod:c,sem:c===camp0,leads:0,tb:{},ins:0,inv:0,nv:0,fat:0,tot:0,dsum:0,dn:0});
   const card={};
-  LEADH.forEach(x=>{if(x.d<a||x.d>b)return;const c=anunEm(x.d,x.h);if(!c)return;
+  /* sem extrato naquele mês, o lead fica na própria campanha — "JOGO ABERTO-OFF" mesmo */
+  LEADH.forEach(x=>{if(x.d<a||x.d>b)return;const c=anunEm(x.d,x.h)||camp0;
     const o=g(c);o.leads++;const k=x.tb||'—';o.tb[k]=(o.tb[k]||0)+1;if(x.k)card[x.k]=c});
   FIN.forEach(x=>{if(!finOk(x))return;const d=finDate(x);if(!d||d<a||d>b)return;
     const c=card[x.ck];if(c)g(c).fat+=x.v});
@@ -3664,11 +3684,12 @@ function anunDados(a,b){
     const c=card[x.ck];if(!c)return;const o=g(c);o.nv++;o.tot+=x.tot;
     const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=t;o.dn++}});
   const dia={};ANUN.forEach(x=>{if(x.d<a||x.d>b)return;(dia[x.d]=dia[x.d]||[]).push(x.cod);g(x.cod).ins++});
-  const camp=anunCfg().camp;let semExtrato=0,custoTot=0;
+  const camp=camp0;let semExtrato=0,custoTot=0;
   CUSTO.forEach(x=>{if(x.src!=='OFFLINE'||x.camp!==camp||x.d<a||x.d>b)return;custoTot+=x.val;
-    const L=dia[x.d];if(!L||!L.length){semExtrato+=x.val;return}
+    const L=dia[x.d];
+    if(!L||!L.length){semExtrato+=x.val;g(camp0).inv+=x.val;return}   /* dia sem extrato fica na campanha */
     const q=x.val/L.length;L.forEach(c=>{g(c).inv+=q})});
-  const L=Object.values(m).map(dsDeriva).sort((p,q)=>q.leads-p.leads||q.fat-p.fat);
+  const L=Object.values(m).map(dsDeriva).sort((p,q)=>(p.sem?1:0)-(q.sem?1:0)||q.leads-p.leads||q.fat-p.fat);
   const T=dsDeriva(L.reduce((o,x)=>{o.leads+=x.leads;o.ins+=x.ins;o.inv+=x.inv;o.nv+=x.nv;o.fat+=x.fat;o.tot+=x.tot;
     o.dsum+=x.dsum;o.dn+=x.dn;return o},{leads:0,tb:{},ins:0,inv:0,nv:0,fat:0,tot:0,dsum:0,dn:0}));
   return {L,T,semExtrato,custoTot,camp,meses:Object.keys(ANUN_M).sort()}}
@@ -3780,10 +3801,11 @@ function aAnuncios(){
   const D=anunDados(d1,d2),C=anunCfg();
   const tbs=[...new Set(D.L.flatMap(o=>Object.keys(o.tb)))]
     .sort((a,b)=>D.L.reduce((q,o)=>q+(o.tb[b]||0),0)-D.L.reduce((q,o)=>q+(o.tb[a]||0),0)).slice(0,7);
-  const comR=D.L.filter(o=>o.leads>0&&o.roas!=null&&o.roas>0).sort((a,b)=>b.roas-a.roas);
+  const comR=D.L.filter(o=>!o.sem&&o.leads>0&&o.roas!=null&&o.roas>0).sort((a,b)=>b.roas-a.roas);
   const best=comR.length>1?comR[0]:null;
-  const linha=o=>`<tr><td class="lft"><b>${esc(o.cod)}</b>${best&&o.cod===best.cod&&D.L.length>1?' <span class="tg g">melhor ROAS</span>':''}</td>
-    <td class="lft"><input data-an="${esc(o.cod)}" value="${esc((C.nomes||{})[o.cod]||'')}" placeholder="ex.: Reporte" aria-label="Nome do anúncio ${esc(o.cod)}"></td>
+  const linha=o=>`<tr${o.sem?' class="tt"':''}><td class="lft"><b>${esc(o.cod)}</b>${o.sem?' <span class="tg s">sem anúncio</span>':''}${best&&o.cod===best.cod?' <span class="tg g">melhor ROAS</span>':''}</td>
+    <td class="lft">${o.sem?'<span class="kp-h">dias sem inserção no extrato — fica na campanha</span>'
+      :`<input data-an="${esc(o.cod)}" value="${esc((C.nomes||{})[o.cod]||'')}" placeholder="ex.: Reporte" aria-label="Nome do anúncio ${esc(o.cod)}">`}</td>
     <td>${n(o.ins)}</td><td>${n(o.leads)}</td><td>${D.T.leads?pc(o.leads,D.T.leads):'—'}</td>
     <td>${n(o.nv)}</td><td>${o.conv==null?'—':pctN(o.conv)}</td>
     <td>${mo2(o.fat)}</td><td>${mo2(o.inv)}</td>
@@ -3804,10 +3826,11 @@ function aAnuncios(){
     <div class="em-st">
       <div><span>Inserções no extrato</span><b>${n(ANUN.length)}</b></div>
       <div><span>Meses com extrato</span><b>${D.meses.length?esc(D.meses.map(mesBR).join(' · ')):'—'}</b></div>
-      <div><span>Anúncios no período</span><b>${n(D.L.length)}</b></div>
+      <div><span>Anúncios no período</span><b>${n(D.L.filter(o=>!o.sem).length)}</b></div>
       <div><span>Leads atribuídos</span><b>${n(D.T.leads)}</b></div></div>
-    ${D.semExtrato>0?`<p class="warn" style="margin:10px 0 0">${mo2(D.semExtrato)} de custo caiu em dias sem nenhuma inserção no extrato — esse valor ficou de fora da divisão por anúncio.
-      Confira se o extrato desses dias foi colado.</p>`:''}</div>
+    ${D.semExtrato>0?`<p class="${ANUN.length?'warn':'info'}" style="margin:10px 0 0">${ANUN.length
+      ?`${mo2(D.semExtrato)} de custo caiu em dias sem nenhuma inserção no extrato. Esse valor e os leads desses dias ficaram na linha <b>${esc(D.camp)}</b> da tabela abaixo — confira se o extrato desses dias foi colado.`
+      :`Enquanto o extrato não for lido, tudo aparece numa linha só, como <b>${esc(D.camp)}</b> mesmo: ${mo2(D.semExtrato)} de custo e os leads do período. Nada se perde.`}</p>`:''}</div>
   <div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Desempenho por anúncio</h3>
       <span class="m">${dc(d1)} a ${dc(d2)} · custo rateado pelas inserções de cada dia</span></div>
     ${D.L.length?`<div class="tw"><table class="xl"><thead><tr><th>Anúncio</th><th>Nome na reunião</th><th>Inserções</th><th>Leads</th><th>%</th>
@@ -5471,7 +5494,7 @@ const cabT=a=>a.map((t,i)=>({text:t,options:{bold:true,fontSize:8,color:i?K.sub:
    Só entra quando a aba de extrato tem inserções no período. Cada anúncio leva os leads que
    chegaram desde que ele foi ao ar até o próximo entrar, e o custo do dia é rateado pelas
    inserções daquele dia. */
-function anunTem(D){return !!(ANUN.length&&anunDados(D.a,D.b).L.length)}
+function anunTem(D){return !!(ANUN.length&&anunDados(D.a,D.b).L.some(o=>!o.sem&&o.ins>0))}
 function rnAnun(pres,D){
   const A=anunDados(D.a,D.b);if(!A.L.length)return;const T=A.T;
   const s=slideBase(pres,'Jogo Aberto Offline','Desempenho por anúncio',
@@ -5483,8 +5506,8 @@ function rnAnun(pres,D){
     .forEach(([rot,v,cor,ex],i)=>kpiBox(pres,s,0.62+i*3.05,1.3,2.9,1.08,rot,v,cor,ex));
   /* tabela: um anúncio por linha */
   const rows=[cabT(['Anúncio','Ins.','Leads','% leads','Vendas','Conv.','Custo','CPL','Faturamento','ROAS'])];
-  A.L.forEach(o=>rows.push([{text:anunNome(o.cod),options:{bold:true,align:'left',color:K.txt}},
-    R.int(o.ins),R.int(o.leads),T.leads?R.p1(o.leads/T.leads):'—',R.int(o.nv),R.p1(o.conv),
+  A.L.forEach(o=>rows.push([{text:o.sem?o.cod+' (sem anúncio)':anunNome(o.cod),options:{bold:true,align:'left',color:o.sem?K.mut:K.txt}},
+    o.sem?'—':R.int(o.ins),R.int(o.leads),T.leads?R.p1(o.leads/T.leads):'—',R.int(o.nv),R.p1(o.conv),
     R.m0(o.inv),o.cpl==null?'—':R.m2(o.cpl),R.m0(o.fat),
     {text:o.roas==null?'—':R.x2(o.roas)+'x',options:{bold:true,color:o.roas==null?K.mut:o.roas>=(T.roas||0)?K.gr:K.am}}]));
   rows.push([{text:'Total',options:{bold:true,align:'left',color:K.or}},R.int(T.ins),R.int(T.leads),'100%',R.int(T.nv),
@@ -5495,13 +5518,13 @@ function rnAnun(pres,D){
   /* participação de leads ao lado */
   card(pres,s,8.35,2.62,4.36,hT);
   txt(s,'Participação nos leads',{x:8.55,y:2.76,w:4,h:0.24,fontSize:9.5,bold:true,color:K.sub});
-  const vis=A.L.slice(0,6);
+  const vis=A.L.filter(o=>o.leads>0).slice(0,6);
   vis.forEach((o,i)=>{const y=3.08+i*Math.min(0.46,(hT-0.6)/Math.max(1,vis.length));
     txt(s,anunNome(o.cod),{x:8.55,y,w:1.5,h:0.2,fontSize:8.5,color:K.txt,bold:true});
     txt(s,`${R.int(o.leads)} · ${T.leads?R.p1(o.leads/T.leads):'—'}`,{x:11.3,y,w:1.25,h:0.2,fontSize:8.5,color:K.sub,align:'right'});
     barraP(pres,s,8.55,y+0.21,3.96,0.1,T.leads?o.leads/T.leads:0,[K.or,K.bl,K.gr,K.am,K.pu,K.rd][i%6])});
   /* leitura */
-  const ord=A.L.filter(o=>o.leads>0);
+  const ord=A.L.filter(o=>!o.sem&&o.leads>0);
   const maisLeads=ord[0];
   const comR=ord.filter(o=>o.roas!=null&&o.roas>0).sort((a,b)=>b.roas-a.roas);
   const melhor=comR[0],pior=comR.length>1?comR[comR.length-1]:null;
@@ -5510,7 +5533,7 @@ function rnAnun(pres,D){
   if(maisLeads)L.push(`${anunNome(maisLeads.cod)} puxou o volume: ${R.int(maisLeads.leads)} leads em ${R.int(maisLeads.ins)} ${maisLeads.ins===1?'inserção':'inserções'} (${T.leads?R.p1(maisLeads.leads/T.leads):'—'} do total).`);
   if(cpl)L.push(`Menor CPL: ${anunNome(cpl.cod)}, a ${R.m2(cpl.cpl)} por lead.`);
   if(melhor)L.push(`Melhor retorno: ${anunNome(melhor.cod)}, com ROAS de ${R.x2(melhor.roas)}x${pior?` contra ${R.x2(pior.roas)}x de ${anunNome(pior.cod)}`:''}.`);
-  if(A.semExtrato>0)L.push(`${R.m0(A.semExtrato)} de custo caiu em dias sem inserção no extrato e ficou fora da divisão.`);
+  if(A.semExtrato>0)L.push(`${R.m0(A.semExtrato)} de custo caiu em dias sem inserção no extrato e ficou na linha ${A.camp}.`);
   const tx=L.join(' ');
   caixaTexto(pres,s,0.62,2.62+hT+0.2,12.09,Math.min(6.95-(2.62+hT+0.2),Math.max(0.85,0.6+0.2*Math.ceil(tx.length/150))),'Leitura do período',tx,K.or);
 }
@@ -5522,7 +5545,7 @@ function rnAnunTab(pres,D){
   const s=slideBase(pres,'Jogo Aberto Offline','Tabulações por anúncio',
     `Para onde foi o lead de cada anúncio — ${D.periodo}`,'GWA CONSULTORIA | ANÚNCIOS');
   const rows=[cabT(['Anúncio','Leads',...tbs])];
-  A.L.forEach(o=>rows.push([{text:anunNome(o.cod),options:{bold:true,align:'left',color:K.txt}},R.int(o.leads),
+  A.L.forEach(o=>rows.push([{text:o.sem?o.cod+' (sem anúncio)':anunNome(o.cod),options:{bold:true,align:'left',color:o.sem?K.mut:K.txt}},R.int(o.leads),
     ...tbs.map(t=>{const q=o.tb[t]||0;return {text:q?`${R.int(q)}\n${R.p0(q/(o.leads||1))}`:'—',
       options:{color:q?(kind(t)==='g'?K.gr:kind(t)==='r'?K.rd:K.tx2):K.mut}}})]));
   const tot={};tbs.forEach(t=>tot[t]=A.L.reduce((q,o)=>q+(o.tb[t]||0),0));
@@ -5531,12 +5554,12 @@ function rnAnunTab(pres,D){
   const hT=Math.min(3.6,0.46*rows.length+0.1);
   tbl(pres,s,0.62,1.42,12.09,hT,rows,[1.6,0.8,...tbs.map(()=>(12.09-2.4)/tbs.length)]);
   /* quem converte melhor */
-  const conv=A.L.filter(o=>o.leads>=5).map(o=>({o,g:Object.entries(o.tb).filter(([t])=>kind(t)==='g').reduce((q,[,v])=>q+v,0)/o.leads}))
+  const conv=A.L.filter(o=>!o.sem&&o.leads>=5).map(o=>({o,g:Object.entries(o.tb).filter(([t])=>kind(t)==='g').reduce((q,[,v])=>q+v,0)/o.leads}))
     .sort((a,b)=>b.g-a.g);
   const L=[];
   if(conv.length)L.push(`${anunNome(conv[0].o.cod)} é o que mais leva o lead adiante: ${R.p1(conv[0].g)} dos leads dele ficam em Pré-venda, Negociando ou Venda.`);
   if(conv.length>1)L.push(`O oposto é ${anunNome(conv[conv.length-1].o.cod)}, com ${R.p1(conv[conv.length-1].g)}.`);
-  const na=A.L.map(o=>({o,n:Object.entries(o.tb).filter(([t])=>ehNaoAt(t)).reduce((q,[,v])=>q+v,0)/(o.leads||1)})).sort((a,b)=>b.n-a.n)[0];
+  const na=A.L.filter(o=>!o.sem).map(o=>({o,n:Object.entries(o.tb).filter(([t])=>ehNaoAt(t)).reduce((q,[,v])=>q+v,0)/(o.leads||1)})).sort((a,b)=>b.n-a.n)[0];
   if(na&&na.n>0.25)L.push(`${anunNome(na.o.cod)} tem a maior taxa de "Não atende" (${R.p1(na.n)}) — vale conferir o horário da inserção.`);
   const tx=L.join(' ');
   caixaTexto(pres,s,0.62,1.42+hT+0.24,12.09,Math.min(6.95-(1.42+hT+0.24),Math.max(0.85,0.6+0.2*Math.ceil(tx.length/150))),'Leitura das tabulações',tx,K.bl);
@@ -6222,12 +6245,11 @@ async function load(){
     loadFin();loadCusto();
     /* a série diária é a consulta mais pesada: tempo maior e, se falhar, o resto segue ao vivo */
     const cond=reCond();
-    const qa=u=>`select ${ID}, ${DAT}, ${HORA}, ${TAB} where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${anunCond(u)})`;
-    const [rc,rs,rr,ra]=await Promise.allSettled([
+    loadAnunLeads(from);
+    const [rc,rs,rr]=await Promise.allSettled([
       gviz(`select ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID})${wh()} group by ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,40000),
       gviz(`select ${DAT}, ${CAMP}, ${TAB}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}'${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}`,60000),
-      cond?gviz(`select ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${cond})${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,60000):Promise.resolve([]),
-      gviz(qa(),60000)
+      cond?gviz(`select ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${cond})${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,60000):Promise.resolve([])
     ]);
     if(rc.status!=='fulfilled')throw rc.reason;
     serieErr=rs.status!=='fulfilled';
@@ -6236,10 +6258,6 @@ async function load(){
     if(cond&&rr.status!=='fulfilled'){const c2=reCond(true);
       RAW.rec=await gviz(`select ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${c2})${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,60000)
         .catch(e=>{logEv('Painel','leads redirecionados de campanha',false,0,0,(e&&e.message)||'erro na consulta extra');return []})}
-    /* leads da campanha de offline com hora: é o que permite dizer de qual anúncio cada lead veio */
-    RAW.lead=ra.status==='fulfilled'?ra.value:await gviz(qa(true),60000)
-      .catch(e=>{logEv('Painel','leads por anúncio',false,0,0,(e&&e.message)||'erro na consulta de horários');return RAW.lead||[]});
-    anunLeads(RAW.lead);
     ingLeads(RAW.cube,RAW.ser,RAW.rec);
     live=true;ultOk=Date.now();salvaCache();
     logEv('Painel','atualização completa dos leads',true,RAW.cube.length+RAW.ser.length,Math.round(performance.now()-t0));
