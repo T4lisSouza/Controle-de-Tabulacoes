@@ -745,12 +745,13 @@ input.nm-in::placeholder{color:var(--ink3)}
 /* ═════ CONFIGURAÇÃO — padrão do arquivo; o que for ajustado na área administrativa fica salvo neste navegador ═════ */
 const CFG_PADRAO={
   leads:{id:"1OcI9x8g8tTOWA4eovtd3raM6SVENR94ED9T-XHFxmoY",aba:"Base de dados Comercial",
-    col:{id:"B",data:"F",origem:"J",canal:"N",campanha:"CJ",tabulacao:"CK",form:"M"}},
+    col:{id:"B",data:"F",origem:"J",canal:"N",campanha:"CJ",tabulacao:"CK",form:"M",hora:"CG"}},
   fin:{id:"1uusOH-nrI4euiYDdAaJ8QWYC4RfU45TH4K5d2IYCZX8",gid:"0",
     col:{lanc:"A",servico:"J",valor:"L",parcela:"N",venc:"P",dataLead:"S",midia:"Z",empresa:"AA",confirm:"D",consultor:"R",card:"C",status:"V"}},
   custos:{id:"1_Q029qNPIE66vVxsgGCA7kHfk5B0Yr0_7Fa2yiXzqEc",abaMeta:"RELATORIO_CAMPANHAS_2026",abaAds:"Custo campanhas Ads",
     abaOff:"Custo OFFLINE",abaAtivas:"CAMPANHAS_ATIVAS",
     abaMetro:"CUSTO METROPOLITANA SAIDAS",abaHist:"OFFLINE CUSTAS - HISTORICO",
+    abaAnun:"ANUNCIOS JOGO ABERTO",
     meta:{mes:"A",gasto:"I",campanha:"L",empresa:"M",empConta:"F",atualiz:"K",conta:"D",nome:"B",bm:"N"},
     ativas:{conta:"A",status:"E",empresa:"L",bm:"O"},
     ads:{dia:"A",status:"E",canal:"F",custo:"K",orcamento:"P",campanha:"Q",empresa:"R"}},
@@ -768,7 +769,8 @@ const CFG_PADRAO={
   bmCamp:{},     /* campanha -> 1 (é Meta, entra no slide de BM) ou 0 (não é Meta) */
   rn:{sel:{},ordem:[],tema:'escuro'},  /* slides da reunião: quais entram, em que ordem e o estilo */
   empCamp:{"JOGO ABERTO-24H":"OFF"},  /* campanha -> empresa responsável (vale acima do sufixo do nome e da coluna da planilha) */
-  leadCamp:{"JOGO ABERTO-24H":"JOGO ABERTO-24H"},  /* origem/canal na base -> campanha que recebe esses leads no painel */
+  leadCamp:{"JOGO ABERTO-24H":"JOGO ABERTO-24H"},
+  anun:{camp:"JOGO ABERTO-OFF",nomes:{}},  /* extrato de anúncios: campanha que usa a separação e o nome de cada código */  /* origem/canal na base -> campanha que recebe esses leads no painel */
   offMap:{},     /* campanha da grade de offline -> campanha mapeada que recebe o custo (CHUPIM -> METROPOLITANA-OFF) */
   offAba:{"CUSTO METROPOLITANA SAIDAS":"METROPOLITANA-OFF"},  /* aba de offline -> campanha mapeada padrão das campanhas dela */
   empresas:["GWA","M12","OFF","IND"],  /* empresas que ganham botão no filtro de cima e nos seletores */
@@ -781,12 +783,12 @@ function mesclar(a,b){for(const k in b){const v=b[k];
   if(v&&typeof v==='object'&&!Array.isArray(v)&&a[k]&&typeof a[k]==='object')mesclar(a[k],v);else a[k]=v}return a}
 let CFG=clone(CFG_PADRAO);
 try{const s=JSON.parse(localStorage.getItem('gwa.cfg')||'null');if(s)mesclar(CFG,s)}catch(e){}
-let SID,SNAME,CAMP,TAB,ORI,CAN,DAT,ID,FSID,FGID,KSID,SH_META,SH_ADS,SH_OFF,SH_ATV,SH_METRO,SH_HIST;
+let SID,SNAME,CAMP,TAB,ORI,CAN,DAT,ID,FSID,FGID,KSID,SH_META,SH_ADS,SH_OFF,SH_ATV,SH_METRO,SH_HIST,SH_ANUN,HORA;
 function aplicaCfg(){const c=CFG.leads.col;SID=CFG.leads.id;SNAME=CFG.leads.aba;
   CAMP=c.campanha;TAB=c.tabulacao;ORI=c.origem;CAN=c.canal;DAT=c.data;ID=c.id;
   FSID=CFG.fin.id;FGID=CFG.fin.gid;KSID=CFG.custos.id;SH_META=CFG.custos.abaMeta;SH_ADS=CFG.custos.abaAds;
   SH_OFF=CFG.custos.abaOff;SH_ATV=CFG.custos.abaAtivas;
-  SH_METRO=CFG.custos.abaMetro||'';SH_HIST=CFG.custos.abaHist||''}
+  SH_METRO=CFG.custos.abaMetro||'';SH_HIST=CFG.custos.abaHist||'';SH_ANUN=CFG.custos.abaAnun||'';HORA=c.hora||'CG'}
 aplicaCfg();
 function salvaCfg(){try{localStorage.setItem('gwa.cfg',JSON.stringify(CFG));return true}catch(e){return false}}
 /* ═════ LOGS de cada consulta às planilhas ═════ */
@@ -2755,9 +2757,9 @@ function vAdmin(){
     <label>Senha<input name="s" type="password" required></label>
     <div class="lg-err" id="lgErr" role="alert"></div>
     <button class="btn pri" type="submit">Entrar</button></form></div>`;
-  const T=[['reuniao','Reunião'],['tv','Modo slide'],['email','E-mail diário'],['offline','Custo offline'],['saude','Saúde dos dados'],['logs','Logs'],['mapa','Mapeamento'],['config','Configuração']];
+  const T=[['reuniao','Reunião'],['tv','Modo slide'],['email','E-mail diário'],['offline','Custo offline'],['anun','Jogo Aberto Offline'],['saude','Saúde dos dados'],['logs','Logs'],['mapa','Mapeamento'],['config','Configuração']];
   ADM_PK=d1+'|'+d2+'|'+fE;
-  const f={reuniao:vReuniao,tv:aTv,email:aEmail,offline:aOffline,saude:aSaude,logs:aLogs,mapa:aMapa,config:aConfig}[aTab]||vReuniao;
+  const f={reuniao:vReuniao,tv:aTv,email:aEmail,offline:aOffline,anun:aAnuncios,saude:aSaude,logs:aLogs,mapa:aMapa,config:aConfig}[aTab]||vReuniao;
   return `<div class="adm-h"><div><div class="eyebrow">Administração</div><h2>Gestão do painel</h2></div>
     <button class="btn" id="btSair">Sair</button></div>
     <div class="chips atab" role="tablist">${T.map(([k,l])=>`<button data-at="${k}" aria-pressed="${aTab===k}">${l}</button>`).join('')}</div>
@@ -3588,6 +3590,89 @@ function bindEmail(){const g=id=>document.getElementById(id);
   if(g('emFechaPv'))g('emFechaPv').onclick=()=>{EM.previa='';render()};
   const f=g('emPvF');if(f&&EM.previa){f.srcdoc=EM.previa.replace(/<a /g,'<a target="_blank" ');f.onload=()=>{try{f.style.height=(f.contentDocument.documentElement.scrollHeight+10)+'px'}catch(e){}}}}
 
+/* ═════ ANÚNCIOS DO JOGO ABERTO OFFLINE ═════
+   A aba "ANUNCIOS JOGO ABERTO" da REPORTE GWA recebe o extrato da emissora: uma linha por inserção,
+   com dia, hora e título ("GWA II 2026 005" → anúncio 005). Cada lead da campanha fica com o último
+   anúncio que entrou no ar antes dele; os leads do mês que chegaram antes da primeira inserção ficam
+   com ela, para que nenhum lead do Jogo Aberto fique sem anúncio. Mês sem extrato não divide nada. */
+let ANUN=[],ANUN_M={},ANUN_ERR='',LEADH=[];
+function anunCfg(){const c=CFG.anun||(CFG.anun={});c.camp=nc(c.camp||'JOGO ABERTO-OFF');if(!c.nomes)c.nomes={};return c}
+const anunNome=c=>String((anunCfg().nomes||{})[c]||'').trim()||c;
+/* "GWA II 2026 005" → "005"; sem número no fim, vale o título inteiro */
+function anunCod(t){const s=String(t==null?'':t).trim();if(!s)return'';
+  const m=s.match(/(\d{2,4})\s*$/);return m?m[1]:nc(s)}
+/* "12:31:30", um horário do Sheets ou a fração do dia viram "12:31" */
+function hhmm(v){
+  if(v==null)return'';
+  if(v instanceof Date)return String(v.getHours()).padStart(2,'0')+':'+String(v.getMinutes()).padStart(2,'0');
+  if(Array.isArray(v))return String(+v[0]||0).padStart(2,'0')+':'+String(+v[1]||0).padStart(2,'0');
+  const s=String(v).trim(),m=s.match(/(\d{1,2})\s*:\s*(\d{2})/);
+  if(m)return String(+m[1]).padStart(2,'0')+':'+m[2];
+  const n=Number(s.replace(',','.'));
+  if(isFinite(n)&&n>0&&n<1){const t=Math.round(n*1440);return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')}
+  return''}
+/* "out./2026", "outubro/2026", "10/2026" ou "2026-10" → "2026-10" */
+function mesIsoDe(s){const t=String(s==null?'':s).trim();if(!t)return'';
+  let m=t.match(/^(\d{4})-(\d{2})$/);if(m)return t;
+  m=t.match(/^(\d{1,2})\s*\/\s*(\d{4})$/);if(m&&+m[1]>=1&&+m[1]<=12)return m[2]+'-'+String(+m[1]).padStart(2,'0');
+  m=t.toLowerCase().match(/([a-zç]{3})[a-zç]*\.?\s*\/\s*(\d{4})/);
+  if(m&&MESPT[m[1]])return m[2]+'-'+String(MESPT[m[1]]).padStart(2,'0');
+  return''}
+function anunIng(rows){
+  ANUN=[];ANUN_M={};ANUN_ERR='';
+  if(!rows||!rows.length){ANUN_ERR=SH_ANUN?'a aba não respondeu ou está vazia':'nenhuma aba de extrato configurada';return}
+  let hdr=-1,mesTopo='';
+  for(let i=0;i<Math.min(rows.length,20);i++){const r=rows[i]||[],a=String(r[0]==null?'':r[0]).trim();
+    if(/M.S\s+DA\s+PROGRAMA/i.test(a))mesTopo=String(r[1]||'').trim();
+    if(hdr<0&&/^DIA$/i.test(a))hdr=i}
+  if(hdr<0){ANUN_ERR='não achei a linha de cabeçalho que começa com DIA';return}
+  let semMes=0;
+  for(let i=hdr+1;i<rows.length;i++){const r=rows[i]||[];
+    const dia=+String(r[0]==null?'':r[0]).replace(/\D/g,'');if(!dia||dia>31)continue;
+    const h=hhmm(r[1]),tit=String(r[2]==null?'':r[2]).trim();
+    const mes=mesIsoDe(String(r[6]==null?'':r[6]).trim())||mesIsoDe(mesTopo);
+    if(!mes){semMes++;continue}
+    if(!h||!tit)continue;
+    const d=mes+'-'+String(dia).padStart(2,'0');
+    const o={d,h,t:d+' '+h,cod:anunCod(tit),tit,prog:String(r[4]==null?'':r[4]).trim(),dur:+r[5]||0};
+    ANUN.push(o);(ANUN_M[mes]=ANUN_M[mes]||[]).push(o)}
+  const ord=(a,b)=>a.t<b.t?-1:a.t>b.t?1:0;
+  ANUN.sort(ord);Object.keys(ANUN_M).forEach(k=>ANUN_M[k].sort(ord));
+  if(!ANUN.length)ANUN_ERR='nenhuma linha com dia, hora, título e mês';
+  else if(semMes)ANUN_ERR=semMes+(semMes===1?' linha ficou':' linhas ficaram')+' de fora: a coluna MÊS está vazia e o cabeçalho não traz o mês';}
+/* o anúncio de um instante: o último que foi ao ar até ali, dentro do mesmo mês */
+function anunEm(d,h){const L=ANUN_M[String(d||'').slice(0,7)];if(!L||!L.length)return'';
+  const t=d+' '+(h||'00:00');
+  if(t<L[0].t)return L[0].cod;
+  let lo=0,hi=L.length-1,r=0;
+  while(lo<=hi){const m=(lo+hi)>>1;if(L[m].t<=t)  {r=m;lo=m+1}else hi=m-1}
+  return L[r].cod}
+/* a campanha pode estar escrita com ou sem espaço no hífen; compara dos dois jeitos */
+function anunCond(semUpper){const c=anunCfg().camp,f=x=>semUpper?x:`upper(${x})`;
+  return reVars(c).map(v=>`${f(CAMP)} = '${v}'`).join(' or ')||`${CAMP} = '${c}'`}
+function anunLeads(rows){LEADH=(rows||[]).map(r=>({k:r[0]==null?'':String(r[0]).trim(),d:gdate(r[1]),h:hhmm(r[2]),
+  tb:r[3]==null?'':String(r[3]).trim()})).filter(x=>x.d)}
+/* números de cada anúncio no intervalo: leads, tabulações, vendas, faturamento e custo rateado */
+function anunDados(a,b){
+  const m={},g=c=>m[c]||(m[c]={cod:c,leads:0,tb:{},ins:0,inv:0,nv:0,fat:0,tot:0,dsum:0,dn:0});
+  const card={};
+  LEADH.forEach(x=>{if(x.d<a||x.d>b)return;const c=anunEm(x.d,x.h);if(!c)return;
+    const o=g(c);o.leads++;const k=x.tb||'—';o.tb[k]=(o.tb[k]||0)+1;if(x.k)card[x.k]=c});
+  FIN.forEach(x=>{if(!finOk(x))return;const d=finDate(x);if(!d||d<a||d>b)return;
+    const c=card[x.ck];if(c)g(c).fat+=x.v});
+  SALES.forEach(x=>{if(!finOk(x))return;const d=finDate(x);if(!d||d<a||d>b)return;
+    const c=card[x.ck];if(!c)return;const o=g(c);o.nv++;o.tot+=x.tot;
+    const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=t;o.dn++}});
+  const dia={};ANUN.forEach(x=>{if(x.d<a||x.d>b)return;(dia[x.d]=dia[x.d]||[]).push(x.cod);g(x.cod).ins++});
+  const camp=anunCfg().camp;let semExtrato=0,custoTot=0;
+  CUSTO.forEach(x=>{if(x.src!=='OFFLINE'||x.camp!==camp||x.d<a||x.d>b)return;custoTot+=x.val;
+    const L=dia[x.d];if(!L||!L.length){semExtrato+=x.val;return}
+    const q=x.val/L.length;L.forEach(c=>{g(c).inv+=q})});
+  const L=Object.values(m).map(dsDeriva).sort((p,q)=>q.leads-p.leads||q.fat-p.fat);
+  const T=dsDeriva(L.reduce((o,x)=>{o.leads+=x.leads;o.ins+=x.ins;o.inv+=x.inv;o.nv+=x.nv;o.fat+=x.fat;o.tot+=x.tot;
+    o.dsum+=x.dsum;o.dn+=x.dn;return o},{leads:0,tb:{},ins:0,inv:0,nv:0,fat:0,tot:0,dsum:0,dn:0}));
+  return {L,T,semExtrato,custoTot,camp,meses:Object.keys(ANUN_M).sort()}}
+
 /* ═════ Administração · Custo offline (histórico gravado) ═════ */
 const OA={busy:'',msg:'',erro:''};
 const mesBR=m=>{const [y,mo]=String(m).split('-');return (MESC_P?MESC_P[+mo-1]:mo)+'/'+y};
@@ -3689,6 +3774,61 @@ function bindOffline(){const g=id=>document.getElementById(id);
     if(!c){OA.erro='Informe a campanha (como está na planilha, ex.: JOGO ABERTO-OFF).';render();return}
     if(OFF_MES&&m===OFF_MES){OA.erro='Esse mês ainda está na planilha — o valor dele vem da coluna AA.';render();return}
     oaAcao('manual','offManual',{mes:m,camp:c,valor:v},v?`Salvo: ${nc(c)} em ${mesBR(m)}.`:`Removido: ${nc(c)} em ${mesBR(m)}.`)}}
+
+/* ═════ Administração · Jogo Aberto Offline (anúncios) ═════ */
+function aAnuncios(){
+  const D=anunDados(d1,d2),C=anunCfg();
+  const tbs=[...new Set(D.L.flatMap(o=>Object.keys(o.tb)))]
+    .sort((a,b)=>D.L.reduce((q,o)=>q+(o.tb[b]||0),0)-D.L.reduce((q,o)=>q+(o.tb[a]||0),0)).slice(0,7);
+  const comR=D.L.filter(o=>o.leads>0&&o.roas!=null&&o.roas>0).sort((a,b)=>b.roas-a.roas);
+  const best=comR.length>1?comR[0]:null;
+  const linha=o=>`<tr><td class="lft"><b>${esc(o.cod)}</b>${best&&o.cod===best.cod&&D.L.length>1?' <span class="tg g">melhor ROAS</span>':''}</td>
+    <td class="lft"><input data-an="${esc(o.cod)}" value="${esc((C.nomes||{})[o.cod]||'')}" placeholder="ex.: Reporte" aria-label="Nome do anúncio ${esc(o.cod)}"></td>
+    <td>${n(o.ins)}</td><td>${n(o.leads)}</td><td>${D.T.leads?pc(o.leads,D.T.leads):'—'}</td>
+    <td>${n(o.nv)}</td><td>${o.conv==null?'—':pctN(o.conv)}</td>
+    <td>${mo2(o.fat)}</td><td>${mo2(o.inv)}</td>
+    <td>${fmtOr(o.cpl,mo2)}</td><td>${fmtOr(o.cac,mo2)}</td>
+    <td class="h-${FX.roi(o.roi)}">${pctN(o.roi)}</td><td class="h-${FX.roas(o.roas)}">${xN(o.roas)}</td></tr>`;
+  const tot=`<tr class="tt"><td class="lft"><b>Total</b></td><td></td><td>${n(D.T.ins)}</td><td>${n(D.T.leads)}</td><td>100%</td>
+    <td>${n(D.T.nv)}</td><td>${D.T.conv==null?'—':pctN(D.T.conv)}</td><td>${mo2(D.T.fat)}</td><td>${mo2(D.T.inv)}</td>
+    <td>${fmtOr(D.T.cpl,mo2)}</td><td>${fmtOr(D.T.cac,mo2)}</td>
+    <td class="h-${FX.roi(D.T.roi)}">${pctN(D.T.roi)}</td><td class="h-${FX.roas(D.T.roas)}">${xN(D.T.roas)}</td></tr>`;
+  return `<div class="card wide"><div class="ch"><h3>Jogo Aberto Offline · anúncios</h3>
+      <span class="m">${esc(SH_ANUN||'sem aba')} · campanha ${esc(C.camp)}</span></div>
+    <p class="info" style="margin-top:0">Cole o extrato da emissora na aba <b>${esc(SH_ANUN||'—')}</b> da planilha REPORTE GWA (uma linha por inserção, com
+      <b>DIA</b>, <b>HORA</b> e <b>TÍTULO</b>, e o <b>MÊS</b> na coluna G). O painel tira o número do anúncio do fim do título — "GWA II 2026 005" vira <b>005</b> —
+      e entrega a cada anúncio todos os leads que chegaram <b>desde que ele entrou no ar até o próximo anúncio</b>. Os leads do mês que chegaram antes da primeira
+      inserção ficam com ela, então nenhum lead do Jogo Aberto fica sem anúncio. Mês sem extrato não é dividido. A planilha só é lida.</p>
+    ${ANUN_ERR?`<div class="em-err" role="alert">Extrato: ${esc(ANUN_ERR)}</div>`:''}
+    ${AN.msg?`<div class="okmsg" role="status">${esc(AN.msg)}</div>`:''}
+    <div class="em-st">
+      <div><span>Inserções no extrato</span><b>${n(ANUN.length)}</b></div>
+      <div><span>Meses com extrato</span><b>${D.meses.length?esc(D.meses.map(mesBR).join(' · ')):'—'}</b></div>
+      <div><span>Anúncios no período</span><b>${n(D.L.length)}</b></div>
+      <div><span>Leads atribuídos</span><b>${n(D.T.leads)}</b></div></div>
+    ${D.semExtrato>0?`<p class="warn" style="margin:10px 0 0">${mo2(D.semExtrato)} de custo caiu em dias sem nenhuma inserção no extrato — esse valor ficou de fora da divisão por anúncio.
+      Confira se o extrato desses dias foi colado.</p>`:''}</div>
+  <div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Desempenho por anúncio</h3>
+      <span class="m">${dc(d1)} a ${dc(d2)} · custo rateado pelas inserções de cada dia</span></div>
+    ${D.L.length?`<div class="tw"><table class="xl"><thead><tr><th>Anúncio</th><th>Nome na reunião</th><th>Inserções</th><th>Leads</th><th>%</th>
+        <th>Vendas</th><th>Conv.</th><th>Faturamento</th><th>Custo</th><th>CPL</th><th>CAC</th><th>ROI</th><th>ROAS</th></tr></thead>
+      <tbody>${D.L.map(linha).join('')}</tbody><tfoot>${tot}</tfoot></table></div>
+    <div class="acts" style="padding:12px 16px"><button class="btn pri" id="anSalva">Salvar nomes dos anúncios</button>
+      <span class="info" style="margin:0">O nome entra no lugar do número nos slides e nas tabelas. Em branco, fica o número.</span></div>`
+    :'<p class="info" style="margin:0 16px 14px">Nenhum anúncio no período. Confira o extrato na planilha e o período selecionado lá em cima.</p>'}</div>
+  ${D.L.length&&tbs.length?`<div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Tabulações por anúncio</h3>
+      <span class="m">quantos leads de cada anúncio em cada situação</span></div>
+    <div class="tw"><table class="xl"><thead><tr><th>Anúncio</th>${tbs.map(t=>`<th>${esc(t)}</th>`).join('')}<th>Total</th></tr></thead>
+      <tbody>${D.L.map(o=>`<tr><td class="lft"><b>${esc(anunNome(o.cod))}</b></td>
+        ${tbs.map(t=>`<td>${o.tb[t]?n(o.tb[t])+' <span class="kp-h">'+pc(o.tb[t],o.leads)+'</span>':'—'}</td>`).join('')}
+        <td><b>${n(o.leads)}</b></td></tr>`).join('')}</tbody></table></div></div>`:''}`}
+const AN={msg:''};
+function bindAnuncios(){const b=document.getElementById('anSalva');if(!b)return;
+  b.onclick=()=>{const C=anunCfg(),nm={};
+    document.querySelectorAll('[data-an]').forEach(i=>{const v=i.value.trim();if(v)nm[i.dataset.an]=v});
+    C.nomes=nm;salvaCfg();if(typeof rnCache!=='undefined')rnCache=null;
+    logEv('Administração','nomes dos anúncios salvos',true,Object.keys(nm).length);
+    AN.msg='Nomes salvos. Já valem nos slides e nas tabelas.';render()}}
 
 /* ═════ Modo slide (TV) ═════
    Passa pelas telas do painel em tela cheia, com os dados ao vivo. Telas compridas descem
@@ -4420,6 +4560,7 @@ async function gerarReuniao(modo,soSec){
     add('custos','custos',rnCustos);add('ticket','ticket',rnTicket);add('evol','evol',rnEvol);
     add('semanal','semanal',rnSemanal);add('proj','proj',rnProj);
     if(D.bms.length)add('bm','bm',rnBM);
+    if(anunTem(D)){add('anun','anun',rnAnun);add('anun','anun',rnAnunTab)}
     add('oport','oport',rnOport);
     add('fim','fim',rnFim);
     const gPv=soSec?((RN_MAP[soSec]||{}).pai||soSec):null;
@@ -5326,6 +5467,81 @@ function tbl(pres,s,x,y,w,h,rows,colW){
      margin:rh<0.26?[0.015,0.04,0.015,0.04]:[0.03,0.06,0.03,0.06],border:{type:'solid',pt:0.5,color:K.ln}})}
 const cabT=a=>a.map((t,i)=>({text:t,options:{bold:true,fontSize:8,color:i?K.sub:K.or,align:i?'center':'left'}}));
 
+/* ───── Jogo Aberto Offline: desempenho por anúncio ─────
+   Só entra quando a aba de extrato tem inserções no período. Cada anúncio leva os leads que
+   chegaram desde que ele foi ao ar até o próximo entrar, e o custo do dia é rateado pelas
+   inserções daquele dia. */
+function anunTem(D){return !!(ANUN.length&&anunDados(D.a,D.b).L.length)}
+function rnAnun(pres,D){
+  const A=anunDados(D.a,D.b);if(!A.L.length)return;const T=A.T;
+  const s=slideBase(pres,'Jogo Aberto Offline','Desempenho por anúncio',
+    `Cada anúncio fica com os leads que chegaram desde que ele entrou no ar — ${D.periodo}`,'GWA CONSULTORIA | ANÚNCIOS');
+  [['Anúncios no ar',R.int(A.L.length),K.or,`${R.int(T.ins)} ${T.ins===1?'inserção':'inserções'} no período`],
+   ['Leads',R.int(T.leads),K.bl,T.ins?`${R.d1(T.leads/T.ins)} por inserção`:''],
+   ['Investimento',R.m0(T.inv),K.am,T.cpl!=null?`CPL ${R.m2(T.cpl)}`:''],
+   ['Faturamento',R.m0(T.fat),K.gr,T.roas!=null?`ROAS ${R.x2(T.roas)}x`:'sem venda ligada']]
+    .forEach(([rot,v,cor,ex],i)=>kpiBox(pres,s,0.62+i*3.05,1.3,2.9,1.08,rot,v,cor,ex));
+  /* tabela: um anúncio por linha */
+  const rows=[cabT(['Anúncio','Ins.','Leads','% leads','Vendas','Conv.','Custo','CPL','Faturamento','ROAS'])];
+  A.L.forEach(o=>rows.push([{text:anunNome(o.cod),options:{bold:true,align:'left',color:K.txt}},
+    R.int(o.ins),R.int(o.leads),T.leads?R.p1(o.leads/T.leads):'—',R.int(o.nv),R.p1(o.conv),
+    R.m0(o.inv),o.cpl==null?'—':R.m2(o.cpl),R.m0(o.fat),
+    {text:o.roas==null?'—':R.x2(o.roas)+'x',options:{bold:true,color:o.roas==null?K.mut:o.roas>=(T.roas||0)?K.gr:K.am}}]));
+  rows.push([{text:'Total',options:{bold:true,align:'left',color:K.or}},R.int(T.ins),R.int(T.leads),'100%',R.int(T.nv),
+    R.p1(T.conv),R.m0(T.inv),T.cpl==null?'—':R.m2(T.cpl),R.m0(T.fat),
+    {text:T.roas==null?'—':R.x2(T.roas)+'x',options:{bold:true,color:K.or}}]);
+  const hT=Math.min(3.1,0.34*rows.length+0.1);
+  tbl(pres,s,0.62,2.62,7.5,hT,rows,[1.35,0.45,0.55,0.6,0.6,0.55,0.85,0.8,0.95,0.8]);
+  /* participação de leads ao lado */
+  card(pres,s,8.35,2.62,4.36,hT);
+  txt(s,'Participação nos leads',{x:8.55,y:2.76,w:4,h:0.24,fontSize:9.5,bold:true,color:K.sub});
+  const vis=A.L.slice(0,6);
+  vis.forEach((o,i)=>{const y=3.08+i*Math.min(0.46,(hT-0.6)/Math.max(1,vis.length));
+    txt(s,anunNome(o.cod),{x:8.55,y,w:1.5,h:0.2,fontSize:8.5,color:K.txt,bold:true});
+    txt(s,`${R.int(o.leads)} · ${T.leads?R.p1(o.leads/T.leads):'—'}`,{x:11.3,y,w:1.25,h:0.2,fontSize:8.5,color:K.sub,align:'right'});
+    barraP(pres,s,8.55,y+0.21,3.96,0.1,T.leads?o.leads/T.leads:0,[K.or,K.bl,K.gr,K.am,K.pu,K.rd][i%6])});
+  /* leitura */
+  const ord=A.L.filter(o=>o.leads>0);
+  const maisLeads=ord[0];
+  const comR=ord.filter(o=>o.roas!=null&&o.roas>0).sort((a,b)=>b.roas-a.roas);
+  const melhor=comR[0],pior=comR.length>1?comR[comR.length-1]:null;
+  const cpl=ord.filter(o=>o.cpl!=null).sort((a,b)=>a.cpl-b.cpl)[0];
+  const L=[];
+  if(maisLeads)L.push(`${anunNome(maisLeads.cod)} puxou o volume: ${R.int(maisLeads.leads)} leads em ${R.int(maisLeads.ins)} ${maisLeads.ins===1?'inserção':'inserções'} (${T.leads?R.p1(maisLeads.leads/T.leads):'—'} do total).`);
+  if(cpl)L.push(`Menor CPL: ${anunNome(cpl.cod)}, a ${R.m2(cpl.cpl)} por lead.`);
+  if(melhor)L.push(`Melhor retorno: ${anunNome(melhor.cod)}, com ROAS de ${R.x2(melhor.roas)}x${pior?` contra ${R.x2(pior.roas)}x de ${anunNome(pior.cod)}`:''}.`);
+  if(A.semExtrato>0)L.push(`${R.m0(A.semExtrato)} de custo caiu em dias sem inserção no extrato e ficou fora da divisão.`);
+  const tx=L.join(' ');
+  caixaTexto(pres,s,0.62,2.62+hT+0.2,12.09,Math.min(6.95-(2.62+hT+0.2),Math.max(0.85,0.6+0.2*Math.ceil(tx.length/150))),'Leitura do período',tx,K.or);
+}
+function rnAnunTab(pres,D){
+  const A=anunDados(D.a,D.b);if(!A.L.length)return;
+  const tbs=[...new Set(A.L.flatMap(o=>Object.keys(o.tb)))]
+    .map(t=>[t,A.L.reduce((q,o)=>q+(o.tb[t]||0),0)]).sort((a,b)=>b[1]-a[1]).slice(0,7).map(x=>x[0]);
+  if(!tbs.length)return;
+  const s=slideBase(pres,'Jogo Aberto Offline','Tabulações por anúncio',
+    `Para onde foi o lead de cada anúncio — ${D.periodo}`,'GWA CONSULTORIA | ANÚNCIOS');
+  const rows=[cabT(['Anúncio','Leads',...tbs])];
+  A.L.forEach(o=>rows.push([{text:anunNome(o.cod),options:{bold:true,align:'left',color:K.txt}},R.int(o.leads),
+    ...tbs.map(t=>{const q=o.tb[t]||0;return {text:q?`${R.int(q)}\n${R.p0(q/(o.leads||1))}`:'—',
+      options:{color:q?(kind(t)==='g'?K.gr:kind(t)==='r'?K.rd:K.tx2):K.mut}}})]));
+  const tot={};tbs.forEach(t=>tot[t]=A.L.reduce((q,o)=>q+(o.tb[t]||0),0));
+  rows.push([{text:'Total',options:{bold:true,align:'left',color:K.or}},R.int(A.T.leads),
+    ...tbs.map(t=>({text:`${R.int(tot[t])}\n${R.p0(tot[t]/(A.T.leads||1))}`,options:{bold:true,color:K.or}}))]);
+  const hT=Math.min(3.6,0.46*rows.length+0.1);
+  tbl(pres,s,0.62,1.42,12.09,hT,rows,[1.6,0.8,...tbs.map(()=>(12.09-2.4)/tbs.length)]);
+  /* quem converte melhor */
+  const conv=A.L.filter(o=>o.leads>=5).map(o=>({o,g:Object.entries(o.tb).filter(([t])=>kind(t)==='g').reduce((q,[,v])=>q+v,0)/o.leads}))
+    .sort((a,b)=>b.g-a.g);
+  const L=[];
+  if(conv.length)L.push(`${anunNome(conv[0].o.cod)} é o que mais leva o lead adiante: ${R.p1(conv[0].g)} dos leads dele ficam em Pré-venda, Negociando ou Venda.`);
+  if(conv.length>1)L.push(`O oposto é ${anunNome(conv[conv.length-1].o.cod)}, com ${R.p1(conv[conv.length-1].g)}.`);
+  const na=A.L.map(o=>({o,n:Object.entries(o.tb).filter(([t])=>ehNaoAt(t)).reduce((q,[,v])=>q+v,0)/(o.leads||1)})).sort((a,b)=>b.n-a.n)[0];
+  if(na&&na.n>0.25)L.push(`${anunNome(na.o.cod)} tem a maior taxa de "Não atende" (${R.p1(na.n)}) — vale conferir o horário da inserção.`);
+  const tx=L.join(' ');
+  caixaTexto(pres,s,0.62,1.42+hT+0.24,12.09,Math.min(6.95-(1.42+hT+0.24),Math.max(0.85,0.6+0.2*Math.ceil(tx.length/150))),'Leitura das tabulações',tx,K.bl);
+}
+
 /* ───── 1. Resumo Executivo: os números do período contra as metas ───── */
 function rnExec(pres,D){
   const T=D.T,P=D.P,s=slideBase(pres,'Resumo Executivo',D.mesAno,
@@ -5717,6 +5933,7 @@ const RN_CAT=[
   {k:'semanal', n:'Performance Semanal',    d:'Semana a semana, comparando com a última semana fechada'},
   {k:'proj',    n:'Projeção do Mês',        d:'Ritmo do mês, média por dia e fechamento projetado',novo:1},
   {k:'bm',      n:'Performance por BM',     d:'Contas do Meta agrupadas por Business Manager'},
+  {k:'anun',    n:'Jogo Aberto Offline · anúncios',d:'Leads, custo, ROI e tabulações de cada anúncio do extrato da emissora',novo:1},
   {k:'oport',   n:'Oportunidades de otimização',d:'Pontos de atenção com número, ação sugerida e ganho estimado',novo:1},
   {k:'fim',     n:'Encerramento',           d:'Slide de agradecimento'}
 ];
@@ -5871,6 +6088,7 @@ function bind(){
   if(tab==='admin'&&aTab==='tv'&&admOk())bindTv();
   if(tab==='admin'&&aTab==='email'&&admOk())bindEmail();
   if(tab==='admin'&&aTab==='offline'&&admOk())bindOffline();
+  if(tab==='admin'&&aTab==='anun'&&admOk())bindAnuncios();
   document.querySelectorAll('#cPer button').forEach(b=>b.onclick=()=>{
     per=b.dataset.p;[d1,d2]=PRE[per][1]();load()});
   document.querySelectorAll('#cEmp button').forEach(b=>b.onclick=()=>{fE=b.dataset.e;fCamp=null;render()});
@@ -5982,11 +6200,12 @@ function ingCusto(meta,ads,off,atv,metro,hist){
 /* cache local: abre o painel na hora com os últimos dados e atualiza por trás */
 function salvaCache(){
   try{localStorage.setItem('gwa.cache',JSON.stringify({t:Date.now(),d1,d2,fO,fC,cube:RAW.cube,ser:RAW.ser,rec:RAW.rec,
-    fin:RAW.fin,meta:RAW.meta,ads:RAW.ads,off:RAW.off,atv:RAW.atv,metro:RAW.metro,hist:RAW.hist}))}
+    fin:RAW.fin,meta:RAW.meta,ads:RAW.ads,off:RAW.off,atv:RAW.atv,metro:RAW.metro,hist:RAW.hist,anun:RAW.anun,lead:RAW.lead}))}
   catch(e){try{localStorage.removeItem('gwa.cache')}catch(_){}}}
 function hidrata(){
   try{const c=JSON.parse(localStorage.getItem('gwa.cache')||'null');if(!c)return false;
-    Object.assign(RAW,{fin:c.fin,meta:c.meta,ads:c.ads,off:c.off,atv:c.atv,metro:c.metro,hist:c.hist});
+    Object.assign(RAW,{fin:c.fin,meta:c.meta,ads:c.ads,off:c.off,atv:c.atv,metro:c.metro,hist:c.hist,anun:c.anun,lead:c.lead});
+    anunIng(c.anun||[]);anunLeads(c.lead||[]);
     if(c.fin)ingFin(c.fin);
     if(c.meta||c.ads||c.off)ingCusto(c.meta,c.ads,c.off,c.atv,c.metro,c.hist);
     if(c.d1===d1&&c.d2===d2&&(c.fO||'TODAS')===fO&&(c.fC||'TODAS')===fC&&c.cube){RAW.cube=c.cube;RAW.ser=c.ser||[];RAW.rec=c.rec||[];ingLeads(c.cube,c.ser||[],c.rec||[]);live=true}
@@ -6003,10 +6222,12 @@ async function load(){
     loadFin();loadCusto();
     /* a série diária é a consulta mais pesada: tempo maior e, se falhar, o resto segue ao vivo */
     const cond=reCond();
-    const [rc,rs,rr]=await Promise.allSettled([
+    const qa=u=>`select ${ID}, ${DAT}, ${HORA}, ${TAB} where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${anunCond(u)})`;
+    const [rc,rs,rr,ra]=await Promise.allSettled([
       gviz(`select ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID})${wh()} group by ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,40000),
       gviz(`select ${DAT}, ${CAMP}, ${TAB}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}'${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}`,60000),
-      cond?gviz(`select ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${cond})${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,60000):Promise.resolve([])
+      cond?gviz(`select ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${cond})${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,60000):Promise.resolve([]),
+      gviz(qa(),60000)
     ]);
     if(rc.status!=='fulfilled')throw rc.reason;
     serieErr=rs.status!=='fulfilled';
@@ -6015,6 +6236,10 @@ async function load(){
     if(cond&&rr.status!=='fulfilled'){const c2=reCond(true);
       RAW.rec=await gviz(`select ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${c2})${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,60000)
         .catch(e=>{logEv('Painel','leads redirecionados de campanha',false,0,0,(e&&e.message)||'erro na consulta extra');return []})}
+    /* leads da campanha de offline com hora: é o que permite dizer de qual anúncio cada lead veio */
+    RAW.lead=ra.status==='fulfilled'?ra.value:await gviz(qa(true),60000)
+      .catch(e=>{logEv('Painel','leads por anúncio',false,0,0,(e&&e.message)||'erro na consulta de horários');return RAW.lead||[]});
+    anunLeads(RAW.lead);
     ingLeads(RAW.cube,RAW.ser,RAW.rec);
     live=true;ultOk=Date.now();salvaCache();
     logEv('Painel','atualização completa dos leads',true,RAW.cube.length+RAW.ser.length,Math.round(performance.now()-t0));
@@ -6051,13 +6276,14 @@ function metaSuspeita(meta,ant){
 async function loadCusto(){
   if(cusBusy)return;cusBusy=true;offhCarrega(false);
   try{const m=CFG.custos.meta,a=CFG.custos.ads,t=CFG.custos.ativas||{};
-    let [meta,ads,off,atv,metro,hist]=await Promise.all([
+    let [meta,ads,off,atv,metro,hist,anun]=await Promise.all([
       gvizK(SH_META,`select ${m.mes}, ${m.gasto}, ${m.campanha}, ${m.empresa}, ${m.empConta}, ${m.atualiz}, ${m.conta||'D'}, ${m.nome||'B'}, ${m.bm||'N'}`).catch(()=>null),
       gvizK(SH_ADS,`select ${a.dia}, ${a.status}, ${a.canal}, ${a.custo}, ${a.orcamento}, ${a.campanha}, ${a.empresa}`).catch(()=>null),
       gvizK(SH_OFF,"select *",0).catch(()=>null),
       gvizK(SH_ATV,`select ${t.conta||'A'}, ${t.status||'E'}, ${t.empresa||'L'}, ${t.bm||'O'}`).catch(()=>null),
       SH_METRO?gvizK(SH_METRO,"select *",0).catch(()=>null):Promise.resolve(null),
-      SH_HIST?gvizK(SH_HIST,"select *",0).catch(()=>null):Promise.resolve(null)
+      SH_HIST?gvizK(SH_HIST,"select *",0).catch(()=>null):Promise.resolve(null),
+      SH_ANUN?gvizK(SH_ANUN,"select *",0).catch(()=>null):Promise.resolve(null)
     ]);
     if(meta){const sus=metaSuspeita(meta,RAW.meta);
       if(sus&&metaTent<3){metaTent++;cusAviso=sus;
@@ -6069,6 +6295,7 @@ async function loadCusto(){
     /* se uma aba falhar, mantém a última versão boa dela */
     const M=meta||RAW.meta||[],A=ads||RAW.ads||[],O=off||RAW.off||[],V=atv||RAW.atv||[];
     const MT=metro||RAW.metro||[],HS=hist||RAW.hist||[];
+    const AN=anun||RAW.anun||[];RAW.anun=AN;anunIng(AN);
     if(ingCusto(M,A,O,V,MT,HS)){Object.assign(RAW,{meta:M,ads:A,off:O,atv:V,metro:MT,hist:HS});salvaCache();renderAuto()}
     else {cusErr='sem linhas';renderAuto()}
   }catch(e){cusErr=e&&e.message?e.message:'erro';renderAuto()}
