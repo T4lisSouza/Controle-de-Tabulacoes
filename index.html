@@ -870,14 +870,14 @@ let CUSTO=[],ATIVAS=[],cusErr='',cusLive=false,fOn='TODOS',pTab='exec',cSort={k:
 let live=false,busy=false,tab='resumo';
 
 /* ───── gviz ───── */
-function jp(base,params,q,ms,fonte){const t0=performance.now();return new Promise((res,rej)=>{
+function jp(base,params,q,ms,fonte,comF){const t0=performance.now();return new Promise((res,rej)=>{
   const cb='__j'+Math.random().toString(36).slice(2,9);let s,t,feito=false;
   const fim=()=>{feito=true;try{delete window[cb]}catch(e){window[cb]=void 0};if(s&&s.parentNode)s.remove();clearTimeout(t)};
   const falha=m=>{if(feito)return;fim();logEv(fonte,q,false,0,Math.round(performance.now()-t0),m);rej(Error(m))};
   t=setTimeout(()=>falha('Tempo esgotado'),ms);
   window[cb]=r=>{if(feito)return;
     if(!(r&&r.table)){const e=r&&r.errors&&r.errors[0];return falha(e?(e.detailed_message||e.message):'Sem dados')}
-    fim();const rows=r.table.rows.map(x=>(x.c||[]).map(c=>c?c.v:null));
+    fim();const rows=r.table.rows.map(x=>(x.c||[]).map(c=>!c?null:(comF&&c.f!=null?c.f:c.v)));
     logEv(fonte,q,true,rows.length,Math.round(performance.now()-t0));res(rows)};
   s=document.createElement('script');
   s.src="https://docs.google.com/spreadsheets/d/"+base+"/gviz/tq?tqx=out:json;responseHandler:"+cb+";reqId:"+Date.now()+params+"&tq="+encodeURIComponent(q);
@@ -885,6 +885,9 @@ function jp(base,params,q,ms,fonte){const t0=performance.now();return new Promis
 function gviz(q,ms=25000){return jp(SID,"&sheet="+encodeURIComponent(SNAME),q,ms,'Leads')}
 function gvizF(q,ms=30000){return jp(FSID,"&gid="+FGID,q,ms,'Faturamento')}
 function gvizK(sheet,q,headers,ms=30000){return jp(KSID,"&sheet="+encodeURIComponent(sheet)+(headers!=null?"&headers="+headers:""),q,ms,'Custos · '+sheet)}
+/* o extrato lê o TEXTO que aparece na planilha (f): a hora "12:31:30" e o mês "out./2026" chegam como se vê,
+   sem depender de como o gviz tipa a coluna (com uma coluna mista ele devolvia a hora como número ou nulo) */
+function gvizA(sheet){return jp(KSID,"&sheet="+encodeURIComponent(sheet)+"&headers=0","select *",30000,'Custos · '+sheet,true)}
 /* origem e canal entram na consulta da série diária (para os gráficos por dia/semana/mês acompanharem o filtro) */
 const lit=v=>String(v).indexOf("'")>=0?'"'+String(v).replace(/"/g,'')+'"':"'"+v+"'";
 function filtroOC(o,c){o=o===undefined?fO:o;c=c===undefined?fC:c;let s='';
@@ -3601,33 +3604,51 @@ const anunNome=c=>String((anunCfg().nomes||{})[c]||'').trim()||c;
 /* "GWA II 2026 005" → "005"; sem número no fim, vale o título inteiro */
 function anunCod(t){const s=String(t==null?'':t).trim();if(!s)return'';
   const m=s.match(/(\d{2,4})\s*$/);return m?m[1]:nc(s)}
-/* "12:31:30", um horário do Sheets ou a fração do dia viram "12:31" */
+/* o horário pode chegar de vários jeitos: "12:31:30", um Date do Sheets, o texto
+   "Date(1899,11,30,12,31,30)" que o gviz manda, o vetor [h,m,s] de hora pura ou a fração do dia */
 function hhmm(v){
   if(v==null)return'';
-  if(v instanceof Date)return String(v.getHours()).padStart(2,'0')+':'+String(v.getMinutes()).padStart(2,'0');
-  if(Array.isArray(v))return String(+v[0]||0).padStart(2,'0')+':'+String(+v[1]||0).padStart(2,'0');
-  const s=String(v).trim(),m=s.match(/(\d{1,2})\s*:\s*(\d{2})/);
-  if(m)return String(+m[1]).padStart(2,'0')+':'+m[2];
+  const p2=(h,m)=>String(Math.max(0,Math.min(23,Math.floor(+h||0)))).padStart(2,'0')+':'+String(Math.max(0,Math.min(59,Math.floor(+m||0)))).padStart(2,'0');
+  if(v instanceof Date)return isNaN(v)?'':p2(v.getHours(),v.getMinutes());
+  if(Array.isArray(v))return v.length?p2(v[0],v[1]):'';
+  if(typeof v==='object'&&v.hours!=null)return p2(v.hours,v.minutes);
+  const s=String(v).trim();if(!s)return'';
+  let m=s.match(/^Date\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if(m)return p2(m[1],m[2]);
+  if(/^Date\(/i.test(s))return '00:00';
+  m=s.match(/(\d{1,2})\s*:\s*(\d{2})/);
+  if(m){let H=+m[1];if(/pm/i.test(s)&&H<12)H+=12;if(/am/i.test(s)&&H===12)H=0;return p2(H,m[2])}
   const n=Number(s.replace(',','.'));
-  if(isFinite(n)&&n>0&&n<1){const t=Math.round(n*1440);return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')}
+  if(isFinite(n)){
+    if(n>0&&n<1){const t=Math.round(n*1440);return p2(Math.floor(t/60),t%60)}      /* fração do dia */
+    if(n>=60&&n<86400&&Math.abs(n-Math.round(n))<1e-6)return p2(Math.floor(n/3600),Math.floor(n/60)%60)}  /* segundos */
   return''}
-/* "out./2026", "outubro/2026", "10/2026" ou "2026-10" → "2026-10" */
-function mesIsoDe(s){const t=String(s==null?'':s).trim();if(!t)return'';
-  let m=t.match(/^(\d{4})-(\d{2})$/);if(m)return t;
+/* o mês pode chegar como texto ("out./2026", "10/2026", "2026-10"), como data do Sheets
+   (a planilha converte "out./2026" em 01/10/2026) ou como o serial da data */
+function mesIsoDe(v){
+  if(v==null)return'';
+  if(v instanceof Date)return isNaN(v)?'':iso(v).slice(0,7);
+  const t=String(v).trim();if(!t)return'';
+  const g=gdate(t);if(g)return g.slice(0,7);
+  let m=t.match(/^(\d{4})-(\d{1,2})$/);if(m&&+m[2]>=1&&+m[2]<=12)return m[1]+'-'+String(+m[2]).padStart(2,'0');
   m=t.match(/^(\d{1,2})\s*\/\s*(\d{4})$/);if(m&&+m[1]>=1&&+m[1]<=12)return m[2]+'-'+String(+m[1]).padStart(2,'0');
-  m=t.toLowerCase().match(/([a-zç]{3})[a-zç]*\.?\s*\/\s*(\d{4})/);
+  m=t.toLowerCase().match(/([a-zç]{3})[a-zç]*\.?\s*(?:\/|de\s+|\s)\s*(\d{4})/);
   if(m&&MESPT[m[1]])return m[2]+'-'+String(MESPT[m[1]]).padStart(2,'0');
+  const n=Number(t.replace(',','.'));
+  if(isFinite(n)&&n>20000&&n<100000){const d=serial(n);if(d)return d.slice(0,7)}
   return''}
 function anunIng(rows){
   ANUN=[];ANUN_M={};ANUN_ERR='';
   if(!rows||!rows.length){ANUN_ERR=SH_ANUN?'a aba não respondeu ou está vazia':'nenhuma aba de extrato configurada';return}
   /* o mês pode vir na coluna G de cada linha ou numa linha de cabeçalho; o cabeçalho às vezes nem volta
      na consulta, então a leitura não depende dele: vale toda linha que tenha dia na coluna A e hora na B */
-  let mesTopo='';
-  rows.forEach(r=>{const a=String((r||[])[0]==null?'':r[0]).trim();if(!a)return;
-    if(/M.S\s+DA\s+PROGRAMA/i.test(a))mesTopo=mesIsoDe(String(r[1]||'').trim())||mesTopo;
-    else if(/^M.s\s*:/i.test(a))mesTopo=mesIsoDe(a.replace(/^M.s\s*:\s*/i,'').split('|')[0].trim())||mesTopo});
-  let linhas=0,semMes=0,semHora=0;
+  let mesTopo='',topoTxt=null;
+  /* normaliza o texto (Ê pode vir decomposto, E + acento) para a busca do rótulo não falhar */
+  const nfc=x=>String(x==null?'':x).normalize('NFC').replace(/\s+/g,' ').trim();
+  rows.forEach(r=>{r=r||[];const a=nfc(r[0]);if(!a)return;
+    if(/M[ÊE]?S\s+DA\s+PROGRAMA/i.test(a)){topoTxt=nfc(r[1])||'(vazio)';mesTopo=mesIsoDe(topoTxt)||mesTopo}
+    else if(/^M[ÊE]?S\s*:/i.test(a))mesTopo=mesIsoDe(a.replace(/^M[ÊE]?S\s*:\s*/i,'').split('|')[0].trim())||mesTopo});
+  let linhas=0,semMes=0,semHora=0,exH='';
   rows.forEach(r=>{r=r||[];
     const a=String(r[0]==null?'':r[0]).trim();
     if(!/^\d{1,2}([.,]0+)?$/.test(a))return;        /* linha de inserção: coluna A é só o dia */
@@ -3635,7 +3656,7 @@ function anunIng(rows){
     const tit=String(r[2]==null?'':r[2]).trim();if(!tit)return;
     const h=hhmm(r[1]);
     linhas++;
-    if(!h){semHora++;return}
+    if(!h){semHora++;if(!exH)exH=r[1]==null||String(r[1]).trim()===''?'(vazio)':String(r[1]);return}
     const mes=mesIsoDe(String(r[6]==null?'':r[6]).trim())||mesTopo;
     if(!mes){semMes++;return}
     const d=mes+'-'+String(dia).padStart(2,'0');
@@ -3645,7 +3666,8 @@ function anunIng(rows){
   ANUN.sort(ord);Object.keys(ANUN_M).forEach(k=>ANUN_M[k].sort(ord));
   if(!linhas)ANUN_ERR='nenhuma linha de inserção: a coluna A precisa ter o dia (1 a 31), a B o horário e a C o título';
   else if(!ANUN.length)ANUN_ERR=semMes?'preencha a coluna G (MÊS) das linhas, ou a linha "MÊS DA PROGRAMAÇÃO" no topo da aba'
-    :'os horários da coluna B não foram reconhecidos';
+      +(topoTxt==null?' (essa linha não foi encontrada)':' (a planilha mandou no topo: "'+topoTxt+'")')
+    :'os horários da coluna B não foram reconhecidos'+(exH?' (a planilha mandou: "'+exH+'")':'');
   else if(semMes)ANUN_ERR=semMes+(semMes===1?' linha ficou':' linhas ficaram')+' de fora: sem mês na coluna G e sem mês no topo da aba';
   else if(semHora)ANUN_ERR=semHora+(semHora===1?' linha ficou':' linhas ficaram')+' de fora: horário da coluna B em branco';}
 /* o anúncio de um instante: o último que foi ao ar até ali, dentro do mesmo mês */
@@ -3662,14 +3684,18 @@ function anunCond(semUpper){const c=anunCfg().camp,f=x=>semUpper?x:`upper(${x})`
 let anunBusy=false;
 async function loadAnunLeads(from){
   if(anunBusy)return;anunBusy=true;
-  const q=u=>`select ${ID}, ${DAT}, ${HORA}, ${TAB} where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${anunCond(u)})`;
+  const q=u=>`select ${ID}, ${DAT}, ${HORA}, ${TAB}, ${CAMP}, ${ORI}, ${CAN} where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${anunCond(u)})${filtroOC()}`;
   try{let r;
     try{r=await gviz(q(),60000)}catch(e){r=await gviz(q(true),60000)}
     RAW.lead=r;anunLeads(r);salvaCache();renderAuto()}
   catch(e){logEv('Painel','leads por anúncio',false,0,0,(e&&e.message)||'erro na consulta de horários')}
   finally{anunBusy=false}}
-function anunLeads(rows){LEADH=(rows||[]).map(r=>({k:r[0]==null?'':String(r[0]).trim(),d:gdate(r[1]),h:hhmm(r[2]),
-  tb:r[3]==null?'':String(r[3]).trim()})).filter(x=>x.d)}
+/* mesmas regras do painel: se uma regra de "leads que vão para outra campanha" tirou o lead
+   daqui, ele também sai da divisão por anúncio — assim o total bate com o resto do painel */
+function anunLeads(rows){const alvo=anunCfg().camp;
+  LEADH=(rows||[]).map(r=>({k:r[0]==null?'':String(r[0]).trim(),d:gdate(r[1]),h:hhmm(r[2]),
+    tb:r[3]==null?'':String(r[3]).trim(),c:reCamp(nc(r[4]),r[5],r[6])}))
+    .filter(x=>x.d&&(x.c===alvo||!x.c))}
 /* números de cada anúncio no intervalo: leads, tabulações, vendas, faturamento e custo rateado */
 function anunDados(a,b){
   const camp0=anunCfg().camp;
@@ -3689,10 +3715,14 @@ function anunDados(a,b){
     const L=dia[x.d];
     if(!L||!L.length){semExtrato+=x.val;g(camp0).inv+=x.val;return}   /* dia sem extrato fica na campanha */
     const q=x.val/L.length;L.forEach(c=>{g(c).inv+=q})});
+  /* conferência: quantos leads dessa campanha o resto do painel conta no mesmo período */
+  const noPainel=SER.reduce((q,r)=>(r[0]>=a&&r[0]<=b&&r[1]===camp0?q+r[3]:q),0);
+  const mesesSem={};LEADH.forEach(x=>{if(x.d<a||x.d>b)return;const k=x.d.slice(0,7);
+    if(!ANUN_M[k])mesesSem[k]=(mesesSem[k]||0)+1});
   const L=Object.values(m).map(dsDeriva).sort((p,q)=>(p.sem?1:0)-(q.sem?1:0)||q.leads-p.leads||q.fat-p.fat);
   const T=dsDeriva(L.reduce((o,x)=>{o.leads+=x.leads;o.ins+=x.ins;o.inv+=x.inv;o.nv+=x.nv;o.fat+=x.fat;o.tot+=x.tot;
     o.dsum+=x.dsum;o.dn+=x.dn;return o},{leads:0,tb:{},ins:0,inv:0,nv:0,fat:0,tot:0,dsum:0,dn:0}));
-  return {L,T,semExtrato,custoTot,camp,meses:Object.keys(ANUN_M).sort()}}
+  return {L,T,semExtrato,custoTot,camp,noPainel,mesesSem,meses:Object.keys(ANUN_M).sort()}}
 
 /* ═════ Administração · Custo offline (histórico gravado) ═════ */
 const OA={busy:'',msg:'',erro:''};
@@ -3827,10 +3857,15 @@ function aAnuncios(){
       <div><span>Inserções no extrato</span><b>${n(ANUN.length)}</b></div>
       <div><span>Meses com extrato</span><b>${D.meses.length?esc(D.meses.map(mesBR).join(' · ')):'—'}</b></div>
       <div><span>Anúncios no período</span><b>${n(D.L.filter(o=>!o.sem).length)}</b></div>
-      <div><span>Leads atribuídos</span><b>${n(D.T.leads)}</b></div></div>
-    ${D.semExtrato>0?`<p class="${ANUN.length?'warn':'info'}" style="margin:10px 0 0">${ANUN.length
+      <div><span>Leads atribuídos</span><b>${n(D.T.leads)}</b></div>
+      <div><span>Confere com o painel</span><b>${D.noPainel===D.T.leads?`sim · ${n(D.noPainel)} leads`:`${n(D.T.leads)} de ${n(D.noPainel)}`}</b></div></div>
+    ${D.noPainel!==D.T.leads?`<p class="warn" style="margin:10px 0 0"><span>O painel conta <b>${n(D.noPainel)}</b> leads de ${esc(D.camp)} neste período e a divisão por anúncio pegou <b>${n(D.T.leads)}</b>.
+      A diferença costuma ser a consulta de horários ainda carregando (ela roda por último) — atualize em alguns segundos. Se continuar, veja o erro em Logs.</span></p>`:''}
+    ${Object.keys(D.mesesSem).length?`<p class="warn" style="margin:10px 0 0"><span>Sem extrato ${Object.entries(D.mesesSem).sort().map(([k,v])=>`em <b>${esc(mesBR(k))}</b> (${n(v)} leads)`).join(' e ')}.
+      Cole o extrato desse período na aba para esses leads saírem da linha ${esc(D.camp)} e entrarem nos anúncios.</span></p>`:''}
+    ${D.semExtrato>0?`<p class="${ANUN.length?'warn':'info'}" style="margin:10px 0 0"><span>${ANUN.length
       ?`${mo2(D.semExtrato)} de custo caiu em dias sem nenhuma inserção no extrato. Esse valor e os leads desses dias ficaram na linha <b>${esc(D.camp)}</b> da tabela abaixo — confira se o extrato desses dias foi colado.`
-      :`Enquanto o extrato não for lido, tudo aparece numa linha só, como <b>${esc(D.camp)}</b> mesmo: ${mo2(D.semExtrato)} de custo e os leads do período. Nada se perde.`}</p>`:''}</div>
+      :`Enquanto o extrato não for lido, tudo aparece numa linha só, como <b>${esc(D.camp)}</b> mesmo: ${mo2(D.semExtrato)} de custo e os leads do período. Nada se perde.`}</span></p>`:''}</div>
   <div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Desempenho por anúncio</h3>
       <span class="m">${dc(d1)} a ${dc(d2)} · custo rateado pelas inserções de cada dia</span></div>
     ${D.L.length?`<div class="tw"><table class="xl"><thead><tr><th>Anúncio</th><th>Nome na reunião</th><th>Inserções</th><th>Leads</th><th>%</th>
@@ -6301,7 +6336,7 @@ async function loadCusto(){
       gvizK(SH_ATV,`select ${t.conta||'A'}, ${t.status||'E'}, ${t.empresa||'L'}, ${t.bm||'O'}`).catch(()=>null),
       SH_METRO?gvizK(SH_METRO,"select *",0).catch(()=>null):Promise.resolve(null),
       SH_HIST?gvizK(SH_HIST,"select *",0).catch(()=>null):Promise.resolve(null),
-      SH_ANUN?gvizK(SH_ANUN,"select *",0).catch(()=>null):Promise.resolve(null)
+      SH_ANUN?gvizA(SH_ANUN).catch(()=>null):Promise.resolve(null)
     ]);
     if(meta){const sus=metaSuspeita(meta,RAW.meta);
       if(sus&&metaTent<3){metaTent++;cusAviso=sus;
