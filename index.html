@@ -575,7 +575,20 @@ td.z{opacity:.35}
 .rn-m{margin-bottom:12px} @media(min-width:760px){.rn-m{grid-template-columns:repeat(4,1fr)}}
 .rn-err{margin-top:10px;color:#E5484D;font-size:13px;font-weight:600}
 input.bmc,input.bml{width:100%;min-width:120px}
-.rn-lk a.btn{text-decoration:none}.rn-lk{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:10px 0 4px}.rn-lk input{width:100%;font:12px ui-monospace,monospace}
+.cl-bx{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}.cl-bx input{width:100%;font-size:15px}
+.cl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:12px}
+.cl-card{text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:6px;font:inherit;color:inherit;border:1px solid var(--line);transition:transform .15s var(--e),border-color .15s}
+.cl-card:hover,.cl-card:focus-visible{border-color:var(--accent);transform:translateY(-1px)}
+.cl-nm{font-weight:700;font-size:15px;line-height:1.25}.cl-sub{font-size:12px;color:var(--ink2)}.cl-tb .tg{font-size:11px;padding:3px 8px}
+.cl-kv{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:4px 0 0}.cl-kv dt{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em}
+.cl-kv dd{margin:0;font-size:12.5px;font-weight:600;overflow-wrap:anywhere}
+.cl-hd{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;margin:10px 0 6px}.cl-ct{color:var(--ink2);font-size:13px;margin:4px 0 0}.cl-ct a{color:inherit}
+.cl-ks{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:12px 0}
+.cl-k{background:var(--card2);border:1px solid var(--line2);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.cl-k span{font-size:11px;color:var(--ink2)}.cl-k b{font-size:17px;overflow-wrap:anywhere}.cl-k small{font-size:11px;color:var(--ink3);overflow-wrap:anywhere}
+.cl-h3{font-size:14px;margin:18px 0 8px}.cl-pf .tw{overflow-x:auto}.cl-pf .xl td,.cl-pf .xl th{font-size:12px;white-space:nowrap}
+.rn-lk a.btn,.rn-lka a.btn{text-decoration:none}.rn-lks{margin:10px 0 4px;min-width:0}.rn-lkw{overflow-x:auto;max-width:100%}.rn-lk input{min-width:0}.rn-lk .cf{min-width:0}.rn-lks summary{cursor:pointer;font-weight:600;font-size:13px;padding:4px 0}
+.rn-lkt td,.rn-lkt th{font-size:12px}.rn-lka{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}.btn.sm{padding:4px 10px;font-size:12px;min-height:0}.btn.dng{background:#b42318;color:#fff;border-color:#b42318}.rn-lk{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:10px 0 4px}.rn-lk input{width:100%;font:12px ui-monospace,monospace}
 .rn-bs{display:flex;gap:8px;flex-wrap:wrap}
 .rn-b,.rn-b2{display:inline-flex;align-items:center;gap:8px}
 .rn-b svg,.rn-b2 svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -739,6 +752,7 @@ input.nm-in::placeholder{color:var(--ink3)}
   <section class="view" id="v-vendas"></section>
   <section class="view" id="v-perf"></section>
   <section class="view" id="v-relat"></section>
+  <section class="view" id="v-cli"></section>
   <section class="view" id="v-admin"></section>
 </main>
 
@@ -746,9 +760,11 @@ input.nm-in::placeholder{color:var(--ink3)}
 /* ═════ CONFIGURAÇÃO — padrão do arquivo; o que for ajustado na área administrativa fica salvo neste navegador ═════ */
 const CFG_PADRAO={
   leads:{id:"1OcI9x8g8tTOWA4eovtd3raM6SVENR94ED9T-XHFxmoY",aba:"Base de dados Comercial",
-    col:{id:"B",data:"F",origem:"J",canal:"N",campanha:"CJ",tabulacao:"CK",form:"M",hora:"CG"}},
+    col:{id:"B",data:"F",origem:"J",canal:"N",campanha:"CJ",tabulacao:"CK",form:"M",hora:"CG",
+      titulo:"D",fase:"E",vendedor:"G",fone:"R",nomeLead:"T",nome:"V",cpf:"X",email:"AS"}},
   fin:{id:"1uusOH-nrI4euiYDdAaJ8QWYC4RfU45TH4K5d2IYCZX8",gid:"0",
-    col:{lanc:"A",servico:"J",valor:"L",parcela:"N",venc:"P",dataLead:"S",midia:"Z",empresa:"AA",confirm:"D",consultor:"R",card:"C",status:"V"}},
+    col:{lanc:"A",servico:"J",valor:"L",parcela:"N",venc:"P",dataLead:"S",midia:"Z",empresa:"AA",confirm:"D",consultor:"R",card:"C",status:"V",
+      nome:"F",fone:"G",cpf:"H",email:"I",bruto:"K",forma:"M",vezes:"O"}},
   custos:{id:"1_Q029qNPIE66vVxsgGCA7kHfk5B0Yr0_7Fa2yiXzqEc",abaMeta:"RELATORIO_CAMPANHAS_2026",abaAds:"Custo campanhas Ads",
     abaOff:"Custo OFFLINE",abaAtivas:"CAMPANHAS_ATIVAS",
     abaMetro:"CUSTO METROPOLITANA SAIDAS",abaHist:"OFFLINE CUSTAS - HISTORICO",
@@ -771,7 +787,9 @@ const CFG_PADRAO={
   rn:{sel:{},ordem:[],tema:'escuro'},  /* slides da reunião: quais entram, em que ordem e o estilo */
   empCamp:{"JOGO ABERTO-24H":"OFF"},  /* campanha -> empresa responsável (vale acima do sufixo do nome e da coluna da planilha) */
   leadCamp:{"JOGO ABERTO-24H":"JOGO ABERTO-24H"},
-  anun:{camp:"JOGO ABERTO-OFF",nomes:{}},  /* extrato de anúncios: campanha que usa a separação e o nome de cada código */  /* origem/canal na base -> campanha que recebe esses leads no painel */
+  anun:{camp:"JOGO ABERTO-OFF",nomes:{}},
+  rnLinks:[],      /* links de reunião gerados aqui: {id,e,a,b,t,url} */
+  rnLinksExcl:[],  /* ids de links de reunião excluídos — quem abrir um deles vê "link excluído" */  /* extrato de anúncios: campanha que usa a separação e o nome de cada código */  /* origem/canal na base -> campanha que recebe esses leads no painel */
   offMap:{},     /* campanha da grade de offline -> campanha mapeada que recebe o custo (CHUPIM -> METROPOLITANA-OFF) */
   offAba:{"CUSTO METROPOLITANA SAIDAS":"METROPOLITANA-OFF"},  /* aba de offline -> campanha mapeada padrão das campanhas dela */
   empresas:["GWA","M12","OFF","IND"],  /* empresas que ganham botão no filtro de cima e nos seletores */
@@ -4038,22 +4056,42 @@ const b64u=u8=>{let b='';for(let i=0;i<u8.length;i+=0x8000)b+=String.fromCharCod
   return btoa(b).replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_')};
 const u8b64=t=>{const b=atob(t.replace(/-/g,'+').replace(/_/g,'/'));const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u};
 async function rnLinkGera(){
-  const c=clone(CFG);delete c.tv;
-  const o={v:1,e:fE,a:d1,b:d2,cfg:c,t:Date.now()};
+  const c=clone(CFG);delete c.tv;delete c.rnLinks;delete c.rnLinksExcl;
+  const id=Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4);
+  const o={v:1,id,e:fE,a:d1,b:d2,cfg:c,t:Date.now()};
   const bytes=new TextEncoder().encode(JSON.stringify(o));let cod;
   if(typeof CompressionStream!=='undefined'){
     const z=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
     cod='z'+b64u(z)}
   else cod='j'+b64u(bytes);
-  return location.href.split('#')[0]+'#reuniao='+cod}
-async function rnLinkLe(){
-  const m=location.hash.match(/^#reuniao=([zj])([A-Za-z0-9_-]+)/);if(!m)return null;
+  const url=location.href.split('#')[0]+'#reuniao='+cod;
+  CFG.rnLinks=[{id,e:fE,a:d1,b:d2,t:o.t,url},...(CFG.rnLinks||[]).filter(x=>x&&x.id!==id)].slice(0,20);salvaCfg();
+  return url}
+/* identidade do link: o id (links novos) ou o instante em que foi gerado (links de antes do botão Excluir) */
+const rnLinkId=o=>o&&(o.id||(o.t?'t'+o.t:''));
+function rnLinkExclui(id,txt){if(!id)return;
+  CFG.rnLinksExcl=[...new Set([...(CFG.rnLinksExcl||[]),id])].slice(-200);
+  CFG.rnLinks=(CFG.rnLinks||[]).filter(x=>x.id!==id);
+  if(rnLinkUrl&&rnLinkUrl.indexOf('#reuniao=')>0&&rnLinkTxt&&txt==='atual'){rnLinkUrl='';rnLinkTxt=''}
+  salvaCfg();logEv('Reunião','link excluído: '+id,true);
+  aviso('Link excluído. Para valer em todos os aparelhos, gere o config.json e suba no GitHub.');render()}
+/* quem abre: o link está na lista de excluídos deste navegador ou do config.json do site? */
+async function rnLinkExcluido(o,exclLocal){const id=rnLinkId(o);if(!id)return false;
+  if((exclLocal||[]).includes(id))return true;
+  if(location.protocol==='file:')return false;
+  try{const r=await fetch(syArq()+'?v='+Date.now(),{cache:'no-store'});if(!r.ok)return false;
+    const d=await r.json();return !!(d&&d.cfg&&Array.isArray(d.cfg.rnLinksExcl)&&d.cfg.rnLinksExcl.includes(id))}
+  catch(e){return false}}
+async function rnLinkLe(h){
+  const m=String(h==null?location.hash:h).match(/^#reuniao=([zj])([A-Za-z0-9_-]+)/);if(!m)return null;
   try{let u=u8b64(m[2]);
     if(m[1]==='z')u=new Uint8Array(await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
     const o=JSON.parse(new TextDecoder().decode(u));
     if(!o||!o.e||!/^\d{4}-\d{2}-\d{2}$/.test(o.a)||!/^\d{4}-\d{2}-\d{2}$/.test(o.b)||!o.cfg)return null;return o}
   catch(e){logEv('Reunião','link inválido',false,0,0,e.message);return null}}
+let rnExclLocal=[];
 function rnLinkAplica(o){
+  rnExclLocal=(CFG.rnLinksExcl||[]).slice();
   RN_LINK=o;
   CFG=mesclar(clone(CFG_PADRAO),o.cfg);aplicaCfg();
   fE=o.e;d1=o.a;d2=o.b;per='custom';tab='resumo'}
@@ -4061,13 +4099,46 @@ function rnLinkAplica(o){
 function rnLinkInicia(){
   const t0=Date.now(),tit=`Reunião Online · ${fE} · ${dc(d1)} a ${dc(d2)}`;
   pvAbre(tit);pvMsg('Carregando os dados do painel…');
+  let liberado=null;rnLinkExcluido(RN_LINK,rnExclLocal).then(x=>{liberado=!x;
+    if(x){pvMsg('Este link de reunião foi excluído pelo administrador.',true);logEv('Reunião','link excluído aberto',false)}});
   const tenta=()=>{
+    if(liberado===false)return;
+    if(liberado===null&&Date.now()-t0<15000){setTimeout(tenta,500);return}
     const pronto=ultOk>=t0&&!busy&&!cusBusy&&!finBusy&&!anunBusy;
     if(pronto||Date.now()-t0>120000){
       if(!pronto)logEv('Reunião','link: gerado sem esperar a carga completa',false);
       gerarReuniao('apresentar');return}
     setTimeout(tenta,500)};
   setTimeout(tenta,800)}
+
+function rnLinksHtml(){const L=(CFG.rnLinks||[]).filter(x=>x&&x.id&&x.url);
+  const quando=t=>{const d=new Date(t);return isNaN(d)?'—':d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})};
+  return `<details class="rn-lks"${L.length||RNLK.abre?' open':''}><summary>Links gerados (${L.length})</summary>
+    ${L.length?`<div class="rn-lkw"><table class="xl rn-lkt"><thead><tr><th class="lft">Empresa · período</th><th>Gerado em</th><th></th></tr></thead><tbody>
+      ${L.map(x=>`<tr><td class="lft"><b>${esc(x.e)}</b> · ${dc(x.a)} a ${dc(x.b)}</td><td>${quando(x.t)}</td>
+        <td class="rn-lka"><button class="btn sm" data-lkcp="${esc(x.id)}">Copiar</button><a class="btn sm" href="${esc(x.url)}" target="_blank" rel="noopener">Abrir</a>
+        ${RNLK.conf===x.id?`<button class="btn sm dng" data-lkok="${esc(x.id)}">Confirmar exclusão</button><button class="btn sm" data-lkno="1">Cancelar</button>`
+          :`<button class="btn sm" data-lkdel="${esc(x.id)}">Excluir</button>`}</td></tr>`).join('')}</tbody></table></div>`
+      :'<p class="info">Nenhum link gerado neste navegador ainda.</p>'}
+    <div class="rn-lk"><label class="cf" style="flex:1"><span>Excluir um link que não está na lista (cole o link aqui)</span>
+      <input id="lkCola" placeholder="https://…#reuniao=…" aria-label="Link para excluir"></label><button class="btn" id="lkColaEx" type="button">Excluir este link</button></div>
+    ${(CFG.rnLinksExcl||[]).length?`<p class="info">${(CFG.rnLinksExcl||[]).length} link(s) excluído(s). A exclusão vale na hora neste navegador; nos outros aparelhos vale depois que o
+      <b>config.json</b> for gerado e subido no GitHub junto com o index. <button class="btn sm" id="lkSy" type="button">Gerar config.json</button></p>`:''}
+  </details>`}
+const RNLK={conf:'',abre:false};
+function bindRnLinks(){const g=id=>document.getElementById(id);
+  document.querySelectorAll('[data-lkcp]').forEach(b=>b.onclick=async()=>{const x=(CFG.rnLinks||[]).find(l=>l.id===b.dataset.lkcp);if(!x)return;
+    try{await navigator.clipboard.writeText(x.url);aviso('Link copiado')}catch(e){aviso('Não deu para copiar — use Abrir e copie da barra')}});
+  document.querySelectorAll('[data-lkdel]').forEach(b=>b.onclick=()=>{RNLK.conf=b.dataset.lkdel;RNLK.abre=true;render()});
+  document.querySelectorAll('[data-lkno]').forEach(b=>b.onclick=()=>{RNLK.conf='';render()});
+  document.querySelectorAll('[data-lkok]').forEach(b=>b.onclick=()=>{const id=b.dataset.lkok;RNLK.conf='';RNLK.abre=true;
+    const x=(CFG.rnLinks||[]).find(l=>l.id===id);rnLinkExclui(id,x&&x.url===rnLinkUrl?'atual':'')});
+  if(g('lkColaEx'))g('lkColaEx').onclick=async()=>{const v=(g('lkCola').value||'').trim();const m=v.match(/#reuniao=([zj][A-Za-z0-9_-]+)/);
+    if(!m){aviso('Cole um link de reunião (ele tem #reuniao= no final)');return}
+    const o=await rnLinkLe('#reuniao='+m[1]);
+    if(!o){aviso('Esse link não é válido');return}
+    RNLK.abre=true;rnLinkExclui(rnLinkId(o),'')};
+  if(g('lkSy'))g('lkSy').onclick=()=>syBaixa()}
 
 /* ── Administração → Modo slide ── */
 let tvAdd=false;
@@ -5487,6 +5558,7 @@ function vReuniao(){
         <button class="btn rn-b2" id="btReuniao"${dis}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Baixar .pptx</button>
         <button class="btn rn-b2" id="btRnLink"${dis}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>Gerar link</button></div></div>
     ${rnLinkErr?`<p class="rn-err" role="alert">${esc(rnLinkErr)}</p>`:''}
+    ${rnLinksHtml()}
     ${rnLinkUrl?`<div class="rn-lk"><label class="cf" style="flex:1"><span>Link da reunião · ${esc(rnLinkTxt)}</span>
         <input id="rnLinkIn" readonly value="${esc(rnLinkUrl)}" aria-label="Link da reunião"></label>
         <button class="btn" id="rnLinkCp" type="button">Copiar</button><a class="btn" href="${esc(rnLinkUrl)}" target="_blank" rel="noopener">Abrir</a></div>
@@ -6143,7 +6215,164 @@ function bindSlides(){const g=id=>document.getElementById(id);
   if(g('slSalva'))g('slSalva').onclick=()=>{const C=rnCfg();rnGrava(C,'Preferências dos slides salvas')}}
 
 /* ───── render ───── */
-const VIEWS={resumo:vInicio,leads:vLeads,camp:vCamp,emp:vEmp,tab:vTab,fat:vFat,vendas:vVendas,perf:vPerf,relat:vRel,admin:vAdmin};
+/* ═════ Clientes: busca e perfil (pedido do Carlos, 21/10/2026) ═════
+   Busca na base comercial (nome completo, nome do lead, título, celular, CPF, card) e no faturamento
+   (nome, telefone, CPF, card). Junta os registros da mesma pessoa (mesmo card, celular ou CPF) num cartão;
+   clicar abre o perfil: pagamentos (parcelas do faturamento), leads com a tabulação real e o responsável.
+   Mostra dado pessoal — por isso só com login de administração, e o CPF aparece mascarado. */
+const CL={q:'',busy:false,erro:'',msg:'',res:null,sel:null,seq:0};
+const clDig=s=>String(s==null?'':s).replace(/\D/g,'');
+const clTxt=v=>v==null?'':String(v).trim();
+const clNum=v=>{if(typeof v==='number')return v;const t=String(v==null?'':v).replace(/[^\d,.-]/g,'');if(!t)return 0;
+  const x=t.indexOf(',')>=0?t.replace(/\./g,'').replace(',','.'):t;const k=parseFloat(x);return isFinite(k)?k:0};
+const clFone=v=>{let d=clDig(typeof v==='number'?Math.round(v):v);if(d.length>11&&d.startsWith('55'))d=d.slice(2);return d};
+const clCpf=v=>{let d=clDig(typeof v==='number'?Math.round(v):v);if(d.length>=9&&d.length<11)d=d.padStart(11,'0');return d};
+const clFoneFmt=d=>d.length===11?`(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`:d.length===10?`(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`:d;
+const clCpfMask=d=>d.length===11?`***.${d.slice(3,6)}.${d.slice(6,9)}-**`:d.length===14?`**.***.${d.slice(5,8)}/${d.slice(8,12)}-**`:(d?'***':'—');
+const clData=v=>{const g=gdate(v);return g||''};
+const clLit=s=>"'"+String(s).replace(/['"\\]/g,'')+"'";
+function clColsL(){const c=CFG.leads.col;return{ck:c.id||'B',d:c.data||'F',h:c.hora||'CG',tit:c.titulo||'D',nl:c.nomeLead||'T',nm:c.nome||'V',
+  fo:c.fone||'R',cpf:c.cpf||'X',em:c.email||'AS',vd:c.vendedor||'G',fa:c.fase||'E',cp:c.campanha||'CJ',tb:c.tabulacao||'CK',ori:c.origem||'J',can:c.canal||'N',fm:c.form||'M'}}
+function clColsF(){const c=CFG.fin.col;return{ck:c.card||'C',dc:c.confirm||'D',nm:c.nome||'F',fo:c.fone||'G',cpf:c.cpf||'H',em:c.email||'I',sv:c.servico||'J',
+  br:c.bruto||'K',lq:c.valor||'L',fp:c.forma||'M',pn:c.parcela||'N',vz:c.vezes||'O',vc:c.venc||'P',cs:c.consultor||'R',st:c.status||'V',emp:c.empresa||'AA',mid:c.midia||'Z'}}
+const clLead=r=>({ck:clTxt(r[0]),d:clData(r[1]),h:hhmm(r[2]),tit:clTxt(r[3]),nl:clTxt(r[4]),nm:clTxt(r[5]),fo:clFone(r[6]),cpf:clCpf(r[7]),em:clTxt(r[8]).toLowerCase(),
+  vd:clTxt(r[9]),fa:clTxt(r[10]),cp:r[11]==null?'':reCamp(nc(r[11]),r[13]==null?'':nc(r[13]),r[14]==null?'':nc(r[14])),tb:clTxt(r[12]),ori:clTxt(r[13]),can:clTxt(r[14]),fm:clTxt(r[15])});
+const clPag=r=>({ck:clTxt(r[0]),dc:clData(r[1]),nm:clTxt(r[2]),fo:clFone(r[3]),cpf:clCpf(r[4]),em:clTxt(r[5]).toLowerCase(),sv:clTxt(r[6]),br:clNum(r[7]),lq:clNum(r[8]),
+  fp:clTxt(r[9]),pn:clTxt(r[10]),vz:clTxt(r[11]),vc:clData(r[12]),cs:clTxt(r[13]),st:clTxt(r[14]).toLowerCase(),emp:clTxt(r[15]),mid:clTxt(r[16])});
+const clOk=p=>/confirm/.test(p.st);
+/* tenta a consulta; se a planilha recusar (coluna de outro tipo), devolve null para a próxima tentativa */
+const clQ=async(g,w)=>{try{return await g(w)}catch(e){return null}};
+async function clBusca(q){
+  const L=clColsL(),F=clColsF();
+  const selL=[L.ck,L.d,L.h,L.tit,L.nl,L.nm,L.fo,L.cpf,L.em,L.vd,L.fa,L.cp,L.tb,L.ori,L.can,L.fm].join(', ');
+  const selF=[F.ck,F.dc,F.nm,F.fo,F.cpf,F.em,F.sv,F.br,F.lq,F.fp,F.pn,F.vz,F.vc,F.cs,F.st,F.emp,F.mid].join(', ');
+  const gL=w=>gviz(`select ${selL} where ${w} order by ${L.d} desc limit 150`,60000);
+  const gF=w=>gvizF(`select ${selF} where ${w} limit 400`,60000);
+  const t=q.trim(),d=clDig(t),key=/^[A-Za-z]{2,8}-\d{2,}$/.test(t)?t.toUpperCase():'';
+  const soNum=d.length>=8&&d.length>=t.replace(/[\s().+\-/]/g,'').length;
+  let rl=[],rf=[],obs='';
+  if(key){[rl,rf]=await Promise.all([clQ(gL,`${L.ck} = ${clLit(key)}`),clQ(gF,`${F.ck} = ${clLit(key)}`)])}
+  else if(soNum){
+    /* celular ou CPF: a coluna pode ser texto (contains) ou número (igualdade com o número inteiro) */
+    const f=clFone(d),vs=[...new Set([d,f,'55'+f,clCpf(d)])].filter(x=>x&&x.length>=8);
+    const col=async(g,c)=>{let r=await clQ(g,`${c} contains ${clLit(f.length>=8?f:d)}`);
+      if(r===null){r=await clQ(g,vs.map(v=>`${c} = ${+v}`).join(' or '));if(r===null)obs='parte da busca por número não respondeu'}
+      return r||[]};
+    const [a,b,c2,d2]=await Promise.all([col(gL,L.fo),col(gL,L.cpf),col(gF,F.fo),col(gF,F.cpf)]);rl=a.concat(b);rf=c2.concat(d2)}
+  else{
+    const s=t.toLowerCase().replace(/['"\\]/g,'').replace(/\s+/g,' ');
+    if(s.length<3)throw new Error('digite pelo menos 3 letras do nome');
+    let a=await clQ(gL,[L.nm,L.nl,L.tit].map(c=>`lower(${c}) contains ${clLit(s)}`).join(' or '));
+    if(a===null)a=await clQ(gL,`lower(${L.nm}) contains ${clLit(s)}`);
+    const b=await clQ(gF,`lower(${F.nm}) contains ${clLit(s)}`);
+    if(a===null&&b===null)throw new Error('a planilha não respondeu à busca');
+    rl=a||[];rf=b||[]}
+  let leads=(rl||[]).map(clLead).filter(x=>x.ck||x.fo||x.cpf),pags=(rf||[]).map(clPag).filter(x=>x.ck||x.fo||x.cpf);
+  /* completa: pagamentos dos cards achados na base, e leads dos cards achados no faturamento */
+  const ckL=new Set(leads.map(x=>x.ck).filter(Boolean)),ckF=new Set(pags.map(x=>x.ck).filter(Boolean));
+  const faltaF=[...ckL].filter(k=>!ckF.has(k)&&/^[\w.-]+$/.test(k)).slice(0,60),faltaL=[...ckF].filter(k=>!ckL.has(k)&&/^[\w.-]+$/.test(k)).slice(0,60);
+  const lotes=(a,n)=>{const o=[];for(let i=0;i<a.length;i+=n)o.push(a.slice(i,i+n));return o};
+  const [xf,xl]=await Promise.all([
+    Promise.all(lotes(faltaF,30).map(l=>clQ(gF,l.map(k=>`${F.ck} = ${clLit(k)}`).join(' or ')))),
+    Promise.all(lotes(faltaL,30).map(l=>clQ(gL,l.map(k=>`${L.ck} = ${clLit(k)}`).join(' or '))))]);
+  pags=pags.concat(xf.flat().filter(Boolean).map(clPag));leads=leads.concat(xl.flat().filter(Boolean).map(clLead));
+  /* sem repetição (a mesma linha pode vir pelo celular e pelo CPF) */
+  const uL=new Map(),uF=new Map();
+  leads.forEach(x=>uL.set([x.ck,x.d,x.h,x.tb,x.cp].join('|'),x));pags.forEach(x=>uF.set([x.ck,x.dc,x.pn,x.vz,x.br,x.sv,x.vc].join('|'),x));
+  return{P:clAgrupa([...uL.values()],[...uF.values()]),obs}}
+/* junta numa pessoa tudo que tem o mesmo card, celular ou CPF */
+function clAgrupa(leads,pags){
+  const P=[],idx={};
+  const ids=x=>[x.ck?'ck:'+x.ck:'',x.fo&&x.fo.length>=10?'fo:'+x.fo:'',x.cpf&&x.cpf.length>=11?'cpf:'+x.cpf:''].filter(Boolean);
+  const pega=x=>{const I=ids(x);let p=null;for(const i of I)if(idx[i]!=null){p=P[idx[i]];break}
+    if(!p){p={n:P.length,leads:[],pags:[]};P.push(p)}I.forEach(i=>{idx[i]=p.n});return p};
+  leads.forEach(x=>pega(x).leads.push(x));pags.forEach(x=>pega(x).pags.push(x));
+  return P.map(clResumo).sort((a,b)=>(b.ult||'').localeCompare(a.ult||''))}
+function clResumo(p){
+  const L=p.leads.slice().sort((a,b)=>(b.d+' '+b.h).localeCompare(a.d+' '+a.h)),F=p.pags.slice().sort((a,b)=>(b.dc||b.vc||'').localeCompare(a.dc||a.vc||''));
+  const mais=a=>{const m={};a.filter(Boolean).forEach(v=>{m[v]=(m[v]||0)+1});return Object.keys(m).sort((x,y)=>m[y]-m[x])[0]||''};
+  const curtoLongo=[mais(L.map(x=>x.tit)),mais(L.map(x=>x.nl))].filter(Boolean).sort((a,b)=>b.length-a.length)[0];
+  const nome=mais(L.map(x=>x.nm))||mais(F.map(x=>x.nm))||curtoLongo||'(sem nome)';
+  const u=L[0]||null,uf=F[0]||null;
+  const ok=F.filter(clOk);
+  return{n:p.n,nome:nome.replace(/\s+/g,' ').trim(),leads:L,pags:F,
+    fones:[...new Set([...L.map(x=>x.fo),...F.map(x=>x.fo)].filter(x=>x&&x.length>=10))],
+    cpf:[...L.map(x=>x.cpf),...F.map(x=>x.cpf)].find(x=>x&&x.length>=11)||'',
+    email:[...F.map(x=>x.em),...L.map(x=>x.em)].find(x=>/@/.test(x))||'',
+    tab:u?(u.tb||'Sem tabulação'):'—',fase:u?u.fa:'',
+    resp:(u&&u.vd)||(uf&&uf.cs)||'—',cons:(uf&&uf.cs)||'',
+    emp:(uf&&(uf.emp||''))||(u&&u.cp?(empOf(u.cp)!=='—'?empOf(u.cp):''):''),
+    pago:ok.reduce((q,x)=>q+x.br,0),pagoLiq:ok.reduce((q,x)=>q+x.lq,0),nOk:ok.length,
+    aberto:F.filter(x=>!clOk(x)).reduce((q,x)=>q+x.br,0),nAb:F.filter(x=>!clOk(x)).length,
+    servs:[...new Set(F.map(x=>x.sv).filter(Boolean))],
+    ult:[u?u.d+' '+u.h:'',uf?(uf.dc||uf.vc):''].sort().pop()||''}}
+async function clProcura(){
+  const q=CL.q.trim();if(!q){CL.erro='Digite um nome, celular, CPF ou card';render();return}
+  const seq=++CL.seq;CL.busy=true;CL.erro='';CL.msg='';CL.sel=null;render();
+  try{let r=await clBusca(q);if(seq!==CL.seq)return;
+    /* busca por card: completa com os outros cards da mesma pessoa (mesmo CPF ou celular) */
+    const K=q.toUpperCase();
+    if(/^[A-Z]{2,8}-\d{2,}$/.test(K)&&r.P.length===1){const x=r.P[0],id=x.cpf||x.fones[0];
+      if(id){const r2=await clBusca(id);if(seq!==CL.seq)return;
+        const dele=r2.P.find(y=>y.leads.some(l=>l.ck===K)||y.pags.some(f=>f.ck===K));if(dele)r={P:[dele],obs:r2.obs}}}
+    CL.res=r.P;CL.msg=r.obs;logEv('Clientes','busca',true,r.P.length)}
+  catch(e){if(seq!==CL.seq)return;CL.res=[];CL.erro='Não deu para buscar: '+e.message;logEv('Clientes','busca',false,0,0,e.message)}
+  finally{if(seq===CL.seq){CL.busy=false;render();const el=document.getElementById('clQ');if(el&&!CL.res?.length)el.focus()}}}
+const clTag=t=>`<span class="tg ${kind(t)==='s'&&/sem tab|^—$/i.test(t)?'s':kind(t)}">${esc(t||'—')}</span>`;
+function vCli(){
+  if(!admOk())return `<div class="card wide cl-lock"><h3>Clientes</h3>
+    <p class="info">A busca de clientes mostra dados pessoais (celular, e-mail, CPF e pagamentos). Entre na Administração para usar.</p>
+    <button class="btn pri" id="clLogin" type="button">Entrar na Administração</button></div>`;
+  const P=CL.res||[];const p=CL.sel!=null?P.find(x=>x.n===CL.sel):null;
+  const busca=`<form class="card wide cl-bx" id="clForm" role="search"><label class="cf" style="flex:1"><span>Buscar cliente</span>
+      <input id="clQ" type="search" value="${esc(CL.q)}" placeholder="Nome, celular, CPF ou card (ex.: COME-145899)" autocomplete="off" aria-label="Buscar cliente"></label>
+      <button class="btn pri" type="submit"${CL.busy?' disabled':''}>${CL.busy?'Buscando…':'Buscar'}</button></form>`;
+  if(p)return busca+clPerfil(p);
+  const st=CL.busy?'<p class="info" role="status">Buscando na base comercial e no faturamento…</p>'
+    :CL.erro?`<p class="rn-err" role="alert">${esc(CL.erro)}</p>`
+    :CL.res==null?'<p class="info">Digite parte do nome (3 letras ou mais), o celular com DDD, o CPF ou o card. Os nomes com acento precisam ser digitados com acento.</p>'
+    :!P.length?'<p class="info">Nenhum cliente encontrado.</p>'
+    :`<p class="info">${P.length} cliente${P.length>1?'s':''} encontrado${P.length>1?'s':''}${CL.msg?' · '+esc(CL.msg):''}. Clique para abrir o perfil.</p>`;
+  return busca+st+(P.length&&!CL.busy?`<div class="cl-grid">${P.map(x=>`<button type="button" class="card cl-card" data-cl="${x.n}">
+      <div class="cl-nm">${esc(x.nome)}</div>
+      <div class="cl-sub">${esc(x.fones[0]?clFoneFmt(x.fones[0]):'sem celular')}${x.emp?' · '+esc(x.emp):''}</div>
+      <div class="cl-tb">${clTag(x.tab)}</div>
+      <dl class="cl-kv"><div><dt>Responsável</dt><dd>${esc(x.resp)}</dd></div>
+        <div><dt>Pago</dt><dd>${x.nOk?mo2(x.pago):'—'}</dd></div>
+        <div><dt>Leads · parcelas</dt><dd>${n(x.leads.length)} · ${n(x.pags.length)}</dd></div></dl></button>`).join('')}</div>`:'')}
+function clPerfil(p){
+  const kpi=(l,v,s,cor)=>`<div class="cl-k"><span>${l}</span><b${cor?` style="color:${cor}"`:''}>${v}</b>${s?`<small>${s}</small>`:''}</div>`;
+  const pags=p.pags.length?`<div class="tw"><table class="xl"><thead><tr><th class="lft">Confirmação</th><th class="lft">Serviço</th><th>Parcela</th><th>Valor bruto</th><th>Valor líquido</th>
+      <th class="lft">Forma</th><th>Vencimento</th><th>Status</th><th class="lft">Consultor</th><th class="lft">Card</th></tr></thead><tbody>
+      ${p.pags.map(x=>`<tr><td class="lft">${x.dc?dc(x.dc):'—'}</td><td class="lft">${esc(x.sv||'—')}</td><td>${esc(x.pn||'—')}${x.vz?' de '+esc(x.vz):''}</td>
+        <td>${mo2(x.br)}</td><td>${mo2(x.lq)}</td><td class="lft">${esc(x.fp||'—')}</td><td>${x.vc?dc(x.vc):'—'}</td>
+        <td><span class="tg ${clOk(x)?'g':'o'}">${esc(x.st||'—')}</span></td><td class="lft">${esc(x.cs||'—')}</td><td class="lft">${esc(x.ck||'—')}</td></tr>`).join('')}</tbody></table></div>`
+    :'<p class="info">Nenhum pagamento no faturamento para este cliente.</p>';
+  const leads=p.leads.length?`<div class="tw"><table class="xl"><thead><tr><th class="lft">Card</th><th>Entrada</th><th class="lft">Campanha</th><th class="lft">Origem · canal</th>
+      <th class="lft">Formulário</th><th class="lft">Fase</th><th class="lft">Tabulação</th><th class="lft">Responsável</th></tr></thead><tbody>
+      ${p.leads.map(x=>`<tr><td class="lft"><b>${esc(x.ck||'—')}</b></td><td>${x.d?dc(x.d):'—'}${x.h?' '+x.h:''}</td><td class="lft">${esc(x.cp?nomeCamp(x.cp):'—')}</td>
+        <td class="lft">${esc([x.ori,x.can].filter(Boolean).join(' · ')||'—')}</td><td class="lft">${esc(x.fm?nomeForm(x.fm):'—')}</td><td class="lft">${esc(x.fa||'—')}</td>
+        <td class="lft">${clTag(x.tb||'Sem tabulação')}</td><td class="lft">${esc(x.vd||'—')}</td></tr>`).join('')}</tbody></table></div>`
+    :'<p class="info">Nenhum lead na base comercial para este cliente.</p>';
+  return `<div class="card wide cl-pf"><button class="btn sm" id="clVolta" type="button">← Voltar aos resultados</button>
+    <div class="cl-hd"><div><div class="eyebrow">Perfil do cliente${p.emp?' · '+esc(p.emp):''}</div><h2 class="dsn">${esc(p.nome)}</h2>
+      <p class="cl-ct">${p.fones.map(f=>`<a href="tel:+55${f}">${clFoneFmt(f)}</a>`).join(' · ')||'sem celular'}${p.email?` · <a href="mailto:${esc(p.email)}">${esc(p.email)}</a>`:''} · CPF ${clCpfMask(p.cpf)}</p></div>
+      <div class="cl-tb">${clTag(p.tab)}</div></div>
+    <div class="cl-ks">${kpi('Total pago',p.nOk?mo2(p.pago):'—',p.nOk?`${n(p.nOk)} parcela${p.nOk>1?'s':''} confirmada${p.nOk>1?'s':''} · líquido ${mo2(p.pagoLiq)}`:'nenhuma parcela confirmada','var(--green)')}
+      ${kpi('Em aberto',p.nAb?mo2(p.aberto):'—',p.nAb?`${n(p.nAb)} parcela${p.nAb>1?'s':''} não confirmada${p.nAb>1?'s':''}`:'nada pendente',p.nAb?'var(--accent-d)':'')}
+      ${kpi('Tabulação atual',esc(p.tab),p.fase?'fase: '+esc(p.fase):'')}
+      ${kpi('Responsável',esc(p.resp),p.cons&&p.cons!==p.resp?'consultor da venda: '+esc(p.cons):'')}
+      ${kpi('Leads',n(p.leads.length),p.servs.length?'serviços: '+esc(p.servs.join(', ')):'')}</div>
+    <h3 class="cl-h3">Pagamentos</h3>${pags}
+    <h3 class="cl-h3">Leads e atendimentos</h3>${leads}</div>`}
+function bindCli(){const g=id=>document.getElementById(id);
+  if(g('clLogin'))g('clLogin').onclick=()=>{tab='admin';render();window.scrollTo({top:0})};
+  if(g('clForm'))g('clForm').onsubmit=e=>{e.preventDefault();CL.q=g('clQ').value;clProcura()};
+  if(g('clQ'))g('clQ').oninput=e=>{CL.q=e.target.value};
+  document.querySelectorAll('[data-cl]').forEach(b=>b.onclick=()=>{CL.sel=+b.dataset.cl;render();window.scrollTo({top:0,behavior:RM?'auto':'smooth'})});
+  if(g('clVolta'))g('clVolta').onclick=()=>{CL.sel=null;render()}}
+
+const VIEWS={cli:vCli,resumo:vInicio,leads:vLeads,camp:vCamp,emp:vEmp,tab:vTab,fat:vFat,vendas:vVendas,perf:vPerf,relat:vRel,admin:vAdmin};
 const TABS=[['resumo','Início','M3 11l9-8 9 8M5 10v10h14V10'],
   ['leads','Leads','M3 3v18h18M7 15l3-4 3 3 4-7'],
   ['camp','Campanhas','M3 11v3l14 5V6L3 11zM8 13v6M18 9a3 3 0 0 1 0 6'],
@@ -6152,7 +6381,8 @@ const TABS=[['resumo','Início','M3 11l9-8 9 8M5 10v10h14V10'],
   ['fat','Faturamento','M12 3v18M16 7.5A3.5 3.5 0 0 0 12.5 5h-1a3 3 0 0 0 0 6h1a3 3 0 0 1 0 6h-1A3.5 3.5 0 0 1 8 16.5'],
   ['vendas','Vendas','M3 6h2l2.2 10.2a2 2 0 0 0 2 1.6h7.5a2 2 0 0 0 2-1.6L20 9H6M9 21a1 1 0 1 0 0-.01M18 21a1 1 0 1 0 0-.01'],
   ['perf','Performance','M21 12a9 9 0 1 1-9-9M21 12h-9V3M15.5 8.5L12 12'],
-  ['relat','Relatórios','M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5zM14 3v5h5M9 13h6M9 17h4']];
+  ['relat','Relatórios','M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5zM14 3v5h5M9 13h6M9 17h4'],
+  ['cli','Clientes','M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21a8 8 0 0 1 12.5-6.6M17.5 20a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM21 22l-1.4-1.4']];
 
 function render(){
   if(!quieto)document.body.classList.remove('quieto');quieto=false;
@@ -6207,12 +6437,14 @@ function head(k){
     fat:['Faturamento das Campanhas','Quanto cada campanha, empresa e serviço faturou — e quanto tempo o lead leva para fechar.'],
     vendas:['Vendas gerais','Todas as vendas registradas no fechamento financeiro.'],
     perf:['Performance das campanhas','Custo, lead, venda, faturamento e rentabilidade — do investimento ao retorno.'],
-    relat:['Relatórios','Escolha o período e a empresa: o relatório sai pronto para a reunião.']}[k];
+    relat:['Relatórios','Escolha o período e a empresa: o relatório sai pronto para a reunião.'],
+    cli:['Clientes','Busque pelo nome, celular, CPF ou card e abra o perfil: pagamentos, tabulação e responsável.']}[k];
   const b='',g='';
   if(k==='relat'||k==='resumo'||k==='admin'||k==='reuniao')return '';
   return `<div class="h"><h2>${H[0]}</h2><p>${H[1]}</p></div>`}
 
 function bind(){
+  if(tab==='cli')bindCli();
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{tab=b.dataset.go;render();window.scrollTo({top:0,behavior:RM?'auto':'smooth'})});
   document.querySelectorAll('[data-goemp]').forEach(b=>b.onclick=()=>{fE=b.dataset.goemp;fCamp=null;tab='relat';render();window.scrollTo({top:0,behavior:RM?'auto':'smooth'})});
   document.querySelectorAll('[data-gocamp]').forEach(b=>b.onclick=()=>{const c=b.dataset.gocamp;fE=empOf(c)!=='—'?empOf(c):fE;fCamp=c;tab='relat';render();window.scrollTo({top:0,behavior:RM?'auto':'smooth'})});
@@ -6227,6 +6459,7 @@ function bind(){
         aviso(ok?'Link copiado':'Link gerado — copie abaixo')}
       catch(e){rnLinkUrl='';rnLinkErr='Não deu para gerar o link: '+e.message}
       render()};
+    bindRnLinks();
     if(g('rnLinkCp'))g('rnLinkCp').onclick=async()=>{const i=g('rnLinkIn');
       try{await navigator.clipboard.writeText(rnLinkUrl);aviso('Link copiado')}catch(e){i.select();document.execCommand('copy');aviso('Link copiado')}};
     bindSlides();
@@ -6282,6 +6515,7 @@ function tique(){if(busy)return;
   else if(cacheTs)stat('','dados de '+haQuanto(cacheTs))}
 /* re-render vindo da atualização automática: sem animação de entrada e sem mexer na área administrativa */
 function renderAuto(){if(tab==='admin'){renderAdminStatus&&renderAdminStatus();return}
+  if(tab==='cli')return;   /* a busca de clientes não depende da atualização ao vivo — não apaga o que está sendo digitado */
   quieto=true;document.body.classList.add('quieto');render()}
 
 /* ── leads que a planilha mandou para uma campanha mas pertencem a outra ──
