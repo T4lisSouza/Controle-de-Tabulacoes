@@ -4568,13 +4568,21 @@ async function syPuxa(manual){
     if(manual)aviso('Não deu para ler o config.json: '+e.message)}
   finally{SY.busy='';render()}}
 /* gera o config.json deste computador para subir no GitHub */
-function syBaixa(){
+/* o config.json leva a configuração DESTE navegador (nomes, mapeamentos, links excluídos…). No Chrome/Edge abre a
+   janela "Salvar como" para gravar direto na pasta do painel (ao lado do index.html); nos outros, vai para Downloads. */
+async function syBaixa(){
   const t=new Date().toISOString();
-  const d={t,quem:'painel GWA',cfg:CFG};
-  baixaTxt('config.json',JSON.stringify(d,null,1),'application/json');
+  const txt=JSON.stringify({t,quem:'painel GWA',cfg:CFG},null,1);
+  let onde='';
+  if(window.showSaveFilePicker){
+    try{const h=await showSaveFilePicker({suggestedName:'config.json',types:[{description:'Configuração do painel',accept:{'application/json':['.json']}}]});
+      const w=await h.createWritable();await w.write(txt);await w.close();onde='pasta'}
+    catch(e){if(e&&e.name==='AbortError')return;onde=''}}
+  if(!onde){baixaTxt('config.json',txt,'application/json');onde='downloads'}
   syMarca(t);SY.st='ok';SY.achou=true;
-  logEv('Configuração','config.json gerado',true,0,0,'versão '+t);
-  aviso('config.json gerado — suba ele no GitHub junto com o index.html');render()}
+  logEv('Configuração','config.json gerado',true,0,0,'versão '+t+' · '+onde);
+  aviso(onde==='pasta'?'config.json salvo — agora suba ele no GitHub junto com o index.html'
+    :'config.json baixado (pasta Downloads) — coloque ao lado do index.html e suba no GitHub');render()}
 function vSync(){
   const S={ini:['s','verificando…'],ok:['g','em dia'],sem:['o','o site ainda não tem config.json'],
     local:['s','abrindo do arquivo local'],erro:['r','não deu para ler']}[SY.st]||['s','—'];
@@ -6231,6 +6239,10 @@ const clFoneFmt=d=>d.length===11?`(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)
 const clCpfMask=d=>d.length===11?`***.${d.slice(3,6)}.${d.slice(6,9)}-**`:d.length===14?`**.***.${d.slice(5,8)}/${d.slice(8,12)}-**`:(d?'***':'—');
 const clData=v=>{const g=gdate(v);return g||''};
 const clLit=s=>"'"+String(s).replace(/['"\\]/g,'')+"'";
+/* texto digitado -> padrão que aceita a letra com ou sem acento (regex do gviz, sem barra invertida) */
+const CL_AC={a:'[aáàâãä]',e:'[eéèêë]',i:'[iíìîï]',o:'[oóòôõö]',u:'[uúùûü]',c:'[cç]',n:'[nñ]'};
+const clSemAc=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().split('')
+  .map(ch=>CL_AC[ch]||(/[a-z0-9]/.test(ch)?ch:ch===' '?' ':'.')).join('');
 function clColsL(){const c=CFG.leads.col;return{ck:c.id||'B',d:c.data||'F',h:c.hora||'CG',tit:c.titulo||'D',nl:c.nomeLead||'T',nm:c.nome||'V',
   fo:c.fone||'R',cpf:c.cpf||'X',em:c.email||'AS',vd:c.vendedor||'G',fa:c.fase||'E',cp:c.campanha||'CJ',tb:c.tabulacao||'CK',ori:c.origem||'J',can:c.canal||'N',fm:c.form||'M'}}
 function clColsF(){const c=CFG.fin.col;return{ck:c.card||'C',dc:c.confirm||'D',nm:c.nome||'F',fo:c.fone||'G',cpf:c.cpf||'H',em:c.email||'I',sv:c.servico||'J',
@@ -6262,9 +6274,14 @@ async function clBusca(q){
   else{
     const s=t.toLowerCase().replace(/['"\\]/g,'').replace(/\s+/g,' ');
     if(s.length<3)throw new Error('digite pelo menos 3 letras do nome');
-    let a=await clQ(gL,[L.nm,L.nl,L.tit].map(c=>`lower(${c}) contains ${clLit(s)}`).join(' or '));
+    /* sem acento: "jose" acha JOSÉ, "joao" acha JOÃO, "goncalves" acha GONÇALVES (com acento também acha) */
+    const pat='.*'+clSemAc(s)+'.*';
+    const cond=cs=>cs.map(c=>`lower(${c}) matches ${clLit(pat)}`).join(' or ');
+    let a=await clQ(gL,cond([L.nm,L.nl,L.tit]));
+    if(a===null)a=await clQ(gL,[L.nm,L.nl,L.tit].map(c=>`lower(${c}) contains ${clLit(s)}`).join(' or '));
     if(a===null)a=await clQ(gL,`lower(${L.nm}) contains ${clLit(s)}`);
-    const b=await clQ(gF,`lower(${F.nm}) contains ${clLit(s)}`);
+    let b=await clQ(gF,cond([F.nm]));
+    if(b===null)b=await clQ(gF,`lower(${F.nm}) contains ${clLit(s)}`);
     if(a===null&&b===null)throw new Error('a planilha não respondeu à busca');
     rl=a||[];rf=b||[]}
   let leads=(rl||[]).map(clLead).filter(x=>x.ck||x.fo||x.cpf),pags=(rf||[]).map(clPag).filter(x=>x.ck||x.fo||x.cpf);
@@ -6330,7 +6347,7 @@ function vCli(){
   if(p)return busca+clPerfil(p);
   const st=CL.busy?'<p class="info" role="status">Buscando na base comercial e no faturamento…</p>'
     :CL.erro?`<p class="rn-err" role="alert">${esc(CL.erro)}</p>`
-    :CL.res==null?'<p class="info">Digite parte do nome (3 letras ou mais), o celular com DDD, o CPF ou o card. Os nomes com acento precisam ser digitados com acento.</p>'
+    :CL.res==null?'<p class="info">Digite parte do nome (3 letras ou mais), o celular com DDD, o CPF ou o card. Pode digitar sem acento.</p>'
     :!P.length?'<p class="info">Nenhum cliente encontrado.</p>'
     :`<p class="info">${P.length} cliente${P.length>1?'s':''} encontrado${P.length>1?'s':''}${CL.msg?' · '+esc(CL.msg):''}. Clique para abrir o perfil.</p>`;
   return busca+st+(P.length&&!CL.busy?`<div class="cl-grid">${P.map(x=>`<button type="button" class="card cl-card" data-cl="${x.n}">
