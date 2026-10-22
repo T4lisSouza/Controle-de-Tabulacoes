@@ -1,0 +1,286 @@
+{
+ "t": "2026-10-22T13:48:56.760Z",
+ "quem": "painel GWA",
+ "cfg": {
+  "leads": {
+   "id": "1OcI9x8g8tTOWA4eovtd3raM6SVENR94ED9T-XHFxmoY",
+   "aba": "Base de dados Comercial",
+   "col": {
+    "id": "B",
+    "data": "F",
+    "origem": "J",
+    "canal": "N",
+    "campanha": "CJ",
+    "tabulacao": "CK",
+    "form": "M",
+    "hora": "CG",
+    "titulo": "D",
+    "fase": "E",
+    "vendedor": "G",
+    "fone": "R",
+    "nomeLead": "T",
+    "nome": "V",
+    "cpf": "X",
+    "email": "AS"
+   }
+  },
+  "fin": {
+   "id": "1uusOH-nrI4euiYDdAaJ8QWYC4RfU45TH4K5d2IYCZX8",
+   "gid": "0",
+   "col": {
+    "lanc": "A",
+    "servico": "J",
+    "valor": "L",
+    "parcela": "N",
+    "venc": "P",
+    "dataLead": "S",
+    "midia": "Z",
+    "empresa": "AA",
+    "confirm": "D",
+    "consultor": "R",
+    "card": "C",
+    "status": "V",
+    "nome": "F",
+    "fone": "G",
+    "cpf": "H",
+    "email": "I",
+    "bruto": "K",
+    "forma": "M",
+    "vezes": "O"
+   }
+  },
+  "custos": {
+   "id": "1_Q029qNPIE66vVxsgGCA7kHfk5B0Yr0_7Fa2yiXzqEc",
+   "abaMeta": "RELATORIO_CAMPANHAS_2026",
+   "abaAds": "Custo campanhas Ads",
+   "abaOff": "Custo OFFLINE",
+   "abaAtivas": "CAMPANHAS_ATIVAS",
+   "abaMetro": "CUSTO METROPOLITANA SAIDAS",
+   "abaHist": "OFFLINE CUSTAS - HISTORICO",
+   "abaAnun": "ANUNCIOS JOGO ABERTO",
+   "meta": {
+    "mes": "A",
+    "gasto": "I",
+    "campanha": "L",
+    "empresa": "M",
+    "empConta": "F",
+    "atualiz": "K",
+    "conta": "D",
+    "nome": "B",
+    "bm": "N"
+   },
+   "ativas": {
+    "conta": "A",
+    "status": "E",
+    "empresa": "L",
+    "bm": "O"
+   },
+   "ads": {
+    "dia": "A",
+    "status": "E",
+    "canal": "F",
+    "custo": "K",
+    "orcamento": "P",
+    "campanha": "Q",
+    "empresa": "R"
+   }
+  },
+  "refresh": 60,
+  "faixas": {
+   "roasBom": 3,
+   "roasOk": 1,
+   "margemBoa": 60,
+   "margemOk": 30,
+   "icrBom": 25,
+   "icrOk": 40,
+   "roiBom": 150
+  },
+  "metas": {
+   "conv": 3,
+   "tmedia": 15,
+   "margem": 70,
+   "icr": 30,
+   "roas": 4,
+   "target": 15,
+   "churn": 85
+  },
+  "apelidos": {},
+  "formNomes": {
+   "GWA | Operação Capta+ | Janeiro": "BM1",
+   "GWA | CADASTRO | TRIAGEM CNH | FORMULÁRIO | R$50/DIA | 0555 | OUT/2026": "BM2",
+   "GWA | CADASTRO QUALIFICADO | FORMULÁRIO | R$50/DIA | 0555 | SET/2026": "BM2",
+   "[M12] [CADASTRO] BM1 SET26": "CADASTRO-BM1",
+   "[M12] [CADASTRO] [WAPP 2781] BM1 OUT26": "CADASTRO-BM5",
+   "(sem formulário)": "CADASTRO-BM5"
+  },
+  "bmContas": {},
+  "bmLinhas": {
+   "1929": "BM INTERNO 02",
+   "2515": "BM5",
+   "2781": "BM5",
+   "2837": "BM INTERNO 01",
+   "3908": "BM5",
+   "4276": "BM3"
+  },
+  "empLinhas": {
+   "1929": "GWA",
+   "2515": "M12",
+   "2781": "M12",
+   "2837": "GWA",
+   "3908": "M12",
+   "4276": "M12"
+  },
+  "bmEmp": {},
+  "bmRedir": {},
+  "linNomes": {},
+  "semCanal": {
+   "GWA": "0555",
+   "M12": "5844"
+  },
+  "bmCamp": {},
+  "rn": {
+   "sel": {
+    "capa": 1,
+    "exec": 0,
+    "mes": 1,
+    "leads": 1,
+    "funil": 1,
+    "camp": 1,
+    "aprov": 1,
+    "target": 1,
+    "linha": 1,
+    "balanc": 1,
+    "form": 1,
+    "qual": 1,
+    "vmes": 1,
+    "tempo": 1,
+    "invest": 1,
+    "ranking": 1,
+    "empresas": 0,
+    "custos": 1,
+    "ticket": 1,
+    "evol": 0,
+    "semanal": 1,
+    "proj": 1,
+    "bm": 1,
+    "anun": 0,
+    "oport": 0,
+    "fim": 1
+   },
+   "ordem": [
+    "capa",
+    "exec",
+    "mes",
+    "leads",
+    "funil",
+    "camp",
+    "form",
+    "balanc",
+    "qual",
+    "vmes",
+    "tempo",
+    "invest",
+    "ranking",
+    "empresas",
+    "custos",
+    "ticket",
+    "evol",
+    "semanal",
+    "proj",
+    "bm",
+    "anun",
+    "oport",
+    "fim"
+   ],
+   "tema": "escuro",
+   "semFat": 1
+  },
+  "empCamp": {
+   "JOGO ABERTO-24H": "OFF"
+  },
+  "leadCamp": {
+   "JOGO ABERTO-24H": "JOGO ABERTO-24H"
+  },
+  "anun": {
+   "camp": "JOGO ABERTO-OFF",
+   "nomes": {
+    "005": "REPORTER-FERIADAO",
+    "004": "REPORTER",
+    "001": "FERIADÃO",
+    "002": "UBER"
+   }
+  },
+  "rnLinks": [
+   {
+    "id": "8qjmv1jbb4",
+    "e": "M12",
+    "a": "2026-10-01",
+    "b": "2026-10-21",
+    "t": 1792676892928,
+    "url": "https://controle-de-tabulacoes.talisprojetos.workers.dev/#reuniao=zjVbbbuJIEP0Vq7QPezEa28EB_GbAgDOAiYFcJoqixrSJJ9gmvqDsJDys9ktW-7Afkh9bVXUbSLI7mjd396nb6ao-foYtWLoK0RIsaD5-jbf618WiDipwsGCkG6ACAwsMzTit6VpN00GFxdGGgRtBuALrGdacLXP8IG-6F7itp-aqWcy8S7vO022xPMnY6HR64Yz9Vt3ptma1q0HvKU6vMcoC47RZzpUlV5ZsmeZKJ415FkRsjTHS9d51G1RYsgINeqBCmkUrHoMFZ4hjCVuDBWP6jjcsuUdcB88KtijXLGApbnwGFcI0Q7sRqHCfZoTrIy4qyjWCuohhOXLhgApbniz5Ms3Agj5ZJ3jigwpJGvMhZ5jcTC7BggvMYROCBVfIaMwizMyewm6nQhglB67KMvcGtSRz67yMrrtLm501zy-vO3U_nNfN2aD-2Vwa7nXny1UTVFiRkXZgZc2SAD2DCjnPtlGQSja2bE3pDkGFDcsCvmaSmy0nk4mkUiY_BRXiaBkh6gvlvMl4jivbpnBJGBFlXbHKy3VBAXyiO0MfHcyiYEWZSwokG70DZf09MYMjYlzsrawsMPnqdpi8ni3_xtGfR9wFZV6kR612d64ZrcfxxHVOT7cXT_mq37EbD4PwwWxr15l21-gx4_fo6tujE4hWG3HqHt8Z2jPPd727jj2a2OOBPb3DzhYgG7sZOhhLqVopV3CXjr0w3B97vd7QHTvSroi2jEz3Tu2Ze2FP97Ez6sD5dOYpI2fmexNv6M7ssa1Mbbdb4QZRXmDFwrWCcHuq1JSBO8WcO56MlpQJ3s94Pu643lQ58_qeYrcdf4aAmAp9hpjYwztcsZwYdt8OyPDNbY_EqpMm-yljRcnW0Td5N4E86R7uF6dyEVN77RAuSHjeQ-3jvnDehBtWph6ZildEdOEHq2rAMSfqA5lRmgUs5gmtJ29rO38TzKcWyniY8fwerFMNZzx6EslmKcvbaQzWiUrf3gO9jzHLVjxup0zgxRLPTjQVoiAjE8Okb9yua2ge0bZuajtxERUdW3JfxJxK1M3KIVgN4U74xfhg1fHdyla8EMjgvswSsJomErXh62hJg7AT4zJO6aKfoX9pKy-Kt-EZe_3n9e9U6bBNwX5TXpQzlvCIGrA9wsdbIDt2157OfE95UWa-a_edkdIZD5QXpef5o_nw9Q_fxTP_J1P71HXRQjNNE0PMZ59oZNCf8dHf-dweuj23Y3e9H_A2dd55uxnpxq1yU7m7VdojHVEEqXZropIP2JtLezJRjEZTF3be_IOdCSr8nPNYQfbK9etfWZT-8h6yw-6kWZBUL-JhhI8BMq23jBalq7jjmeOPPUXDxA1TN2kbI2AKh0XzpPHOALM_aWnNPaZuNAQHJxicx5sP8fqX9iGKEGoZRS5EFAGTvsWJ9I0LKsWJN1VVPl9GmViso6Rqph2qStwRc0ethepjmpgoerHAbNbrkiVWectI3nJONgHbMBok_sQDsHCE0LWuVj8NugphmaAM6GJ06YNtslT8oOxHgDK7F84WTAifXim5rsJjyYSTbRWh4PEmFX85yZbnwknGkocoWYmcxNOQU16VtKBhFDzImHyLQqsREYIHXYVNln4VeYjQjF5iTYV0k2YFfYURHu3wdVrifN8IJiQPgoWKg4oBWb-saV-lLE0WVpW1L-pQ0lFB-3L2xchSDoXIMqgIWUJVgEj_lkLhw8nzoMxSYdtjhSgMVULcORwpT82oD4R2YVtgff8Per-zq5h8lo3wBoEuheTQNGiaSTo-8fyZ49d6ju_aXRuVT9PqRye0gdMhEK9_Cgg277ztCElIw3DEZPemYWgvSDm_I9MWvNmuyXIP_XQj508MnkjdHXeR04dNRH9uUY7ieAPJ9qgR4vVSaCxuok7gWUg_TWtx5bDXDCEYJDcgNQNx2GTFA0baK8-vH-Tnh8Rn9R_KQ2_AM8W0DE0TAa0T_CoewGppKHn0NnwfVP3L4Wjc0u8q0o_bGLTRMk4bp82W0TKau38B"
+   }
+  ],
+  "rnLinksExcl": [
+   "xlqbk89twh",
+   "dizpv61pha"
+  ],
+  "offMap": {},
+  "offAba": {
+   "CUSTO METROPOLITANA SAIDAS": "METROPOLITANA-OFF"
+  },
+  "empresas": [
+   "GWA",
+   "M12",
+   "OFF",
+   "IND"
+  ],
+  "tv": {
+   "periodo": "mes",
+   "vel": "media",
+   "zoom": "auto",
+   "tema": "dark",
+   "telas": []
+  },
+  "kpi": {
+   "lista": [
+    "nv",
+    "leads",
+    "mld",
+    "conv",
+    "tmed",
+    "lf",
+    "cpl",
+    "inv",
+    "margem",
+    "icr",
+    "roi",
+    "roas",
+    "cpa",
+    "tk"
+   ],
+   "metas": {
+    "*": {
+     "conv": 3,
+     "tmed": 15,
+     "margem": 70,
+     "icr": 30,
+     "roas": 4,
+     "tgt": 15,
+     "churn": 85
+    },
+    "GWA": {
+     "roi": 200,
+     "cpa": 300,
+     "tk": 900
+    },
+    "M12": {
+     "roi": 200,
+     "cpa": 300,
+     "tk": 900
+    }
+   },
+   "custom": [],
+   "val": {}
+  }
+ }
+}
