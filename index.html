@@ -3720,14 +3720,25 @@ function anunCond(semUpper){const c=anunCfg().camp,f=x=>semUpper?x:`upper(${x})`
   return reVars(c).map(v=>`${f(CAMP)} = '${v}'`).join(' or ')||`${CAMP} = '${c}'`}
 /* a consulta dos horários roda por fora do load(): é a mais pesada e não pode segurar o painel nem a reunião */
 let anunBusy=false;
-async function loadAnunLeads(from){
-  if(anunBusy)return;anunBusy=true;
+/* esta consulta lê a base de leads inteira do período (~30 s). Antes rodava a cada atualização do painel, junto com as
+   outras duas consultas pesadas, e deixava tudo em "atualizando…" e a reunião na fila (22/10/2026). Agora só roda quando
+   alguém precisa — aba Jogo Aberto Offline ou reunião com o slide de anúncios — e o resultado vale 10 minutos. */
+let anunP=null,anunK='',anunT=0;
+function loadAnunLeads(from,forca){
+  from=from||prevRange()[0]||d1;
+  const k=[from,d2,fO,fC,anunCfg().camp].join('|');
+  if(!forca&&k===anunK&&Date.now()-anunT<600000)return Promise.resolve();
+  if(anunP)return anunP;
+  anunBusy=true;
   const q=u=>`select ${ID}, ${DAT}, ${HORA}, ${TAB}, ${CAMP}, ${ORI}, ${CAN} where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${anunCond(u)})${filtroOC()}`;
-  try{let r;
-    try{r=await gviz(q(),60000)}catch(e){r=await gviz(q(true),60000)}
-    RAW.lead=r;anunLeads(r);salvaCache();renderAuto()}
-  catch(e){logEv('Painel','leads por anúncio',false,0,0,(e&&e.message)||'erro na consulta de horários')}
-  finally{anunBusy=false}}
+  anunP=(async()=>{
+    try{let r;
+      try{r=await gviz(q(),60000)}catch(e){r=await gviz(q(true),60000)}
+      RAW.lead=r;anunLeads(r);anunK=k;anunT=Date.now();salvaCache()}
+    catch(e){logEv('Painel','leads por anúncio',false,0,0,(e&&e.message)||'erro na consulta de horários')}
+    finally{anunBusy=false;anunP=null;
+      if(tab==='admin'&&aTab==='anun'&&!rnBusy)render();else renderAuto()}})();
+  return anunP}
 /* mesmas regras do painel: se uma regra de "leads que vão para outra campanha" tirou o lead
    daqui, ele também sai da divisão por anúncio — assim o total bate com o resto do painel */
 function anunLeads(rows){const alvo=anunCfg().camp;
@@ -3891,6 +3902,7 @@ function aAnuncios(){
       com os leads <b>até o próximo anúncio</b>, e o último do dia fica até as <b>23:59:59</b>. Dia sem inserção continua com o último anúncio que foi ao ar,
       então nenhum lead do Jogo Aberto fica sem anúncio. Mês sem extrato não é dividido. A planilha só é lida.</p>
     ${ANUN_ERR?`<div class="em-err" role="alert">Extrato: ${esc(ANUN_ERR)}</div>`:''}
+    ${anunBusy?'<p class="info" role="status">Buscando os horários dos leads do período (leva uns 30 segundos)…</p>':''}
     ${AN.msg?`<div class="okmsg" role="status">${esc(AN.msg)}</div>`:''}
     <div class="em-st">
       <div><span>Inserções no extrato</span><b>${n(ANUN.length)}</b></div>
@@ -4751,6 +4763,7 @@ async function gerarReuniao(modo,soSec){
     const ch=`${fE}|${d1}|${d2}`;let extra;
     if(rnCache&&rnCache.k===ch&&Date.now()-rnCache.t<180000)extra=rnCache.x;
     else{passo('Buscando formulários, leads e contas de anúncio…');extra=await rnExtras();rnCache={k:ch,t:Date.now(),x:extra}}
+    if(CF.sel.anun&&empOf(anunCfg().camp)===fE){passo('Buscando os horários dos leads do Jogo Aberto…');await loadAnunLeads()}
     passo('Montando os slides…');
     const pres=apresentar?new PresHTML():new window.PptxGenJS();pres.layout='LAYOUT_WIDE';
     pres.author='GWA Consultoria';pres.company='GWA Consultoria';
@@ -6490,7 +6503,7 @@ function bind(){
   if(tab==='admin'&&aTab==='tv'&&admOk())bindTv();
   if(tab==='admin'&&aTab==='email'&&admOk())bindEmail();
   if(tab==='admin'&&aTab==='offline'&&admOk())bindOffline();
-  if(tab==='admin'&&aTab==='anun'&&admOk())bindAnuncios();
+  if(tab==='admin'&&aTab==='anun'&&admOk()){bindAnuncios();if(!anunP)loadAnunLeads()}
   document.querySelectorAll('#cPer button').forEach(b=>b.onclick=()=>{
     per=b.dataset.p;[d1,d2]=PRE[per][1]();load()});
   document.querySelectorAll('#cEmp button').forEach(b=>b.onclick=()=>{fE=b.dataset.e;fCamp=null;render()});
@@ -6625,7 +6638,7 @@ async function load(){
     loadFin();loadCusto();
     /* a série diária é a consulta mais pesada: tempo maior e, se falhar, o resto segue ao vivo */
     const cond=reCond();
-    loadAnunLeads(from);
+    if(tab==='admin'&&aTab==='anun')loadAnunLeads(from);   /* nas outras telas não precisa */
     const [rc,rs,rr]=await Promise.allSettled([
       gviz(`select ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID})${wh()} group by ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,40000),
       gviz(`select ${DAT}, ${CAMP}, ${TAB}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}'${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}`,60000),
