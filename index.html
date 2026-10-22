@@ -811,6 +811,7 @@ function aplicaCfg(){const c=CFG.leads.col;SID=CFG.leads.id;SNAME=CFG.leads.aba;
 aplicaCfg();
 /* aberto por link de reunião: a configuração do link vale só nesta visita e nunca sobrescreve a deste navegador */
 var RN_LINK=null;
+var RN_SF=false;   /* reunião sem os valores de faturamento (R$); percentuais continuam */
 function salvaCfg(){if(RN_LINK)return true;try{localStorage.setItem('gwa.cfg',JSON.stringify(CFG));return true}catch(e){return false}}
 /* ═════ LOGS de cada consulta às planilhas ═════ */
 const LOGS=[];
@@ -4631,6 +4632,8 @@ const R={
   p2:v=>v==null||!isFinite(v)?'—':(v*100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%',
   m2:v=>v==null||!isFinite(v)?'—':'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),
   m0:v=>v==null||!isFinite(v)?'—':'R$ '+NF.format(Math.round(v)),
+  /* valores de faturamento: somem quando a reunião está "sem faturamento" (agência de marketing não vê quanto foi faturado) */
+  fm0:v=>RN_SF?'oculto':R.m0(v),fm2:v=>RN_SF?'oculto':R.m2(v),
   x2:v=>v==null||!isFinite(v)?'—':v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),
   sg:v=>(v>0?'+':v<0?'−':'')};
 const mesDe=d=>d?MESC[parse(d).getMonth()]:'—';
@@ -4731,7 +4734,7 @@ async function gerarReuniao(modo,soSec){
   if(rnBusy)return;
   if(!admOk()&&!RN_LINK){aviso('Entre na Administração para usar a Reunião');return}
   if(fE==='TODAS'){aviso('Escolha uma empresa no filtro de cima');return}
-  const CF=rnCfg();rnTema(CF.tema);
+  const CF=rnCfg();rnTema(CF.tema);RN_SF=!!CF.semFat;
   const titulo=soSec?`Prévia · ${(RN_MAP[soSec]||{}).n||soSec} · ${fE}`:`Reunião Online · ${fE} · ${dc(d1)} a ${dc(d2)}`;
   if(apresentar)pvAbre(titulo);
   rnBusy=true;rnMsg='Preparando os dados…';render();
@@ -4766,7 +4769,7 @@ async function gerarReuniao(modo,soSec){
     D.forms.forEach(f=>add('form','form',p=>rnForm(p,D,f)));
     add('qual','qual',rnQual);add('vmes','vmes',rnVendaMes);add('tempo','tempo',rnTempo);
     add('invest','invest',rnInvest);add('ranking','ranking',rnRanking);add('empresas','empresas',rnEmpresas);
-    add('custos','custos',rnCustos);add('ticket','ticket',rnTicket);add('evol','evol',rnEvol);
+    add('custos','custos',rnCustos);if(!RN_SF)add('ticket','ticket',rnTicket);   /* o slide do ticket é todo em R$ */add('evol','evol',rnEvol);
     add('semanal','semanal',rnSemanal);add('proj','proj',rnProj);
     if(D.bms.length)add('bm','bm',rnBM);
     if(anunTem(D)){add('anun','anun',rnAnun);add('anun','anun',rnAnunTab)}
@@ -4788,7 +4791,7 @@ async function gerarReuniao(modo,soSec){
       logEv('Reunião','apresentação gerada: '+nome,true,feitos);
       rnMsg='';aviso(`Apresentação pronta · ${feitos} slides`)}
   }catch(e){rnMsg='Erro: '+e.message;logEv('Reunião','falha ao gerar',false,0,0,e.message);if(apresentar)pvMsg('Não deu para montar a apresentação: '+e.message,true)}
-  finally{fO=salvo.fO;fC=salvo.fC;fCamp=salvo.fCamp;fServ=salvo.fServ;fOn=salvo.fOn;fBase=salvo.fBase;SER=salvo.SER;
+  finally{RN_SF=false;fO=salvo.fO;fC=salvo.fC;fCamp=salvo.fCamp;fServ=salvo.fServ;fOn=salvo.fOn;fBase=salvo.fBase;SER=salvo.SER;
     rnBusy=false;render()}}
 
 /* consultas extras só da reunião: formulários (cadastros), leads do período (para o BM) e leads antigos das vendas */
@@ -4951,6 +4954,8 @@ function rnKpis(pres,D,c){
   const ok=(v,m,maior)=>v==null||m==null?null:(maior?v>=m:v<=m);
   const linhas=kpiCfg().lista.map(kpiDef).filter(Boolean).map(d=>{const a=kpiValor(d.k,c,D,false),b=kpiValor(d.k,c,D,true),m=kpiMeta(c.k,d.k);
     const vazio=x=>d.custom&&x==null?'':kpiTxt(d.f,x,d.custom);
+    if(RN_SF&&['fat','lucro','tk'].includes(d.k)){const dv=vr(a,b);   /* sem faturamento: só a variação em % */
+      return [d.n,'oculto','oculto',m==null?'—':'oculto',dv==null?'—':R.sg(dv)+R.d1(Math.abs(dv*100))+'%',dv,!!d.up,null]}
     return [d.n,vazio(a),vazio(b),kpiMetaTxt(d.f,m),d.custom&&(a==null||b==null)?'':kpiVar(d,a,b),vr(a,b),!!d.up,ok(a,kpiMetaEsc(d,m),!!d.up)]});
   const hdr=['Indicador','Atual','Anterior','Meta GWA','Variação (Abs e %)'].map(h=>({text:h,options:{bold:true,color:K.mut,fontSize:8.5,fill:{color:K.bg}}}));
   const rows=[hdr,...linhas.map(([l,a,b2,m,v,dv,bom,ating])=>{const sv=setaR(dv,bom);
@@ -5259,9 +5264,9 @@ function rnCustos(pres,D){
     s.addShape(pres.shapes.OVAL,{x:8.98,y:y+0.06,w:0.12,h:0.12,fill:{color:cor},line:{color:cor}});
     txt(s,w.n,{x:9.18,y,w:1.5,h:0.2,fontSize:8.5,bold:true});txt(s,`${brd(w.ini)}-${brd(w.fim)}`,{x:9.18,y:y+0.19,w:1.5,h:0.18,fontSize:7,color:K.mut});
     txt(s,R.m2(w.inv),{x:10.7,y,w:1.9,h:0.2,fontSize:8.5,bold:true,color:cor,align:'right'});txt(s,w.st==='PARCIAL'?'Parcial':'Investimento',{x:10.7,y:y+0.19,w:1.9,h:0.18,fontSize:7,color:K.mut,align:'right'})});
-  card(pres,s,0.62,4.5,12.11,2.5);txt(s,'Evolução de Investimento vs Retorno (por semana)',{x:0.8,y:4.6,w:6,h:0.26,fontSize:10,bold:true});
+  card(pres,s,0.62,4.5,12.11,2.5);txt(s,RN_SF?'Evolução do Investimento (por semana)':'Evolução de Investimento vs Retorno (por semana)',{x:0.8,y:4.6,w:6,h:0.26,fontSize:10,bold:true});
   s.addChart(pres.charts.LINE,[{name:'Investimento',labels:W.map(w=>w.n.replace('Semana','Sem')),values:W.map(w=>Math.round(w.inv))},
-    {name:'Faturamento',labels:W.map(w=>w.n.replace('Semana','Sem')),values:W.map(w=>Math.round(w.fat))}],
+    ...(RN_SF?[]:[{name:'Faturamento',labels:W.map(w=>w.n.replace('Semana','Sem')),values:W.map(w=>Math.round(w.fat))}])],
     {x:0.72,y:4.88,w:11.9,h:2.05,chartColors:[K.or,K.gr],lineSize:2,lineDataSymbol:'circle',lineDataSymbolSize:6,showLegend:true,legendPos:'t',legendColor:K.sub,legendFontSize:8,
      catAxisLabelColor:K.sub,catAxisLabelFontSize:8,valAxisLabelColor:K.mut,valAxisLabelFontSize:7,valAxisLabelFormatCode:'"R$ "#,##0',valGridLine:{color:K.bord,size:0.5},catGridLine:{style:'none'}})}
 
@@ -5283,15 +5288,15 @@ function rnTicket(pres,D){
      catAxisLabelColor:K.tx2,catAxisLabelFontSize:9,valAxisLabelColor:K.mut,valAxisLabelFontSize:7,valAxisLabelFormatCode:'"R$ "#,##0',
      valGridLine:{color:K.bord,size:0.5},catGridLine:{style:'none'},showLegend:false});
   card(pres,s,8.8,2.05,3.93,1.1);txt(s,`Ticket Atual (${MESC[at.m]})`,{x:8.8,y:2.15,w:3.93,h:0.22,fontSize:8.5,color:K.mut,align:'center'});
-  txt(s,R.m2(at.v),{x:8.8,y:2.4,w:3.93,h:0.6,fontSize:26,bold:true,color:alerta?K.rd:K.gr,align:'center'});
+  txt(s,R.fm2(at.v),{x:8.8,y:2.4,w:3.93,h:0.6,fontSize:26,bold:true,color:alerta?K.rd:K.gr,align:'center'});
   card(pres,s,8.8,3.3,1.9,0.95,alerta?'1A0808':K.card,alerta?'7F1D1D':K.bord);card(pres,s,10.83,3.3,1.9,0.95);
   txt(s,'Var. vs mês ant.',{x:8.8,y:3.38,w:1.9,h:0.2,fontSize:8,color:alerta?K.rd2:K.mut,align:'center'});
   txt(s,dv==null?'—':R.sg(dv)+R.d1(Math.abs(dv*100))+'%',{x:8.8,y:3.6,w:1.9,h:0.45,fontSize:17,bold:true,color:alerta?K.rd:K.gr,align:'center'});
   txt(s,`Pico (${MESC[pico.m]})`,{x:10.83,y:3.38,w:1.9,h:0.2,fontSize:8,color:K.mut,align:'center'});
-  txt(s,R.m2(pico.v),{x:10.83,y:3.6,w:1.9,h:0.45,fontSize:14,bold:true,align:'center'});
-  caixaTexto(pres,s,8.8,4.4,3.93,1.9,'Card de Análise',`${MESC[at.m]} fecha com ticket de ${R.m2(at.v)}${ant?`, ${dv<0?'queda':'alta'} de ${R.d1(Math.abs(dv*100))}% (${R.sg(at.v-ant.v)}R$ ${R.d2(Math.abs(at.v-ant.v))}) em relação a ${MESC[ant.m]} (${R.m2(ant.v)})`:''}. ${at.v<med?'Abaixo':'Acima'} da média do ano.`,alerta?K.rd:K.gr);
+  txt(s,R.fm2(pico.v),{x:10.83,y:3.6,w:1.9,h:0.45,fontSize:14,bold:true,align:'center'});
+  caixaTexto(pres,s,8.8,4.4,3.93,1.9,'Card de Análise',`${MESC[at.m]} fecha com ticket de ${R.fm2(at.v)}${ant?`, ${dv<0?'queda':'alta'} de ${R.d1(Math.abs(dv*100))}% (${R.sg(at.v-ant.v)}R$ ${R.d2(Math.abs(at.v-ant.v))}) em relação a ${MESC[ant.m]} (${R.fm2(ant.v)})`:''}. ${at.v<med?'Abaixo':'Acima'} da média do ano.`,alerta?K.rd:K.gr);
   card(pres,s,0.62,6.45,12.11,0.58);
-  txt(s,`●  A média do período (${MES3[tk[0].m]}-${MES3[at.m]}) está em ${R.m2(med)}. O valor de ${MESC[at.m]} (${R.m2(at.v)}) ${at.v<med?'fica abaixo':'fica acima'} da média do ano${queda!=null&&pico!==at?`, ${R.d1(Math.abs(queda*100))}% ${queda<0?'abaixo':'acima'} do pico de ${MESC[pico.m]}`:''}.`,
+  txt(s,`●  A média do período (${MES3[tk[0].m]}-${MES3[at.m]}) está em ${R.fm2(med)}. O valor de ${MESC[at.m]} (${R.fm2(at.v)}) ${at.v<med?'fica abaixo':'fica acima'} da média do ano${queda!=null&&pico!==at?`, ${R.d1(Math.abs(queda*100))}% ${queda<0?'abaixo':'acima'} do pico de ${MESC[pico.m]}`:''}.`,
     {x:0.8,y:6.45,w:11.8,h:0.58,fontSize:9,color:K.tx2,valign:'middle'})}
 
 function rnSemanal(pres,D){
@@ -5324,32 +5329,30 @@ function rnSemanal(pres,D){
 function rnBM(pres,D){
   const T=D.Tm||D.T,P=D.Pm||D.P,B=D.bms,X=D.BMR,fm=D.foraMeta||[];
   const s=slideBase(pres,'Performance por BM','Business Manager',
-    `Campanhas do Meta (${D.periodo})${fm.length?' · fora: '+fm.slice(0,4).join(', ')+(fm.length>4?' e mais '+(fm.length-4):''):''}`,'GWA CONSULTORIA | BM ANALYSIS');
-  const somaBM=(X?X.lista:[]).reduce((q,b)=>q+b.nv,0),semNv=X?X.sem.nv:0;
-  [['Total Leads',R.int(T.leads),vr(T.leads,P.leads),''],['Total Vendas',R.int(T.nv),vr(T.nv,P.nv),`${R.int(somaBM)} nos BMs + ${R.int(semNv)} sem vínculo`],
-   ['Custo Total',R.m0(T.inv),vr(T.inv,P.inv),''],['ROAS Médio',R.x2(T.roas)+'x',vr(T.roas,P.roas),'']].forEach(([l,v,dv,nota],i)=>{
+    `Campanhas do Meta por Business Manager (${D.periodo})`,'GWA CONSULTORIA | BM ANALYSIS');
+  /* só os BMs (pedido do Carlos, 22/10/2026): sem o cartão "sem vínculo"; os totais de cima são a soma dos cartões */
+  const Bc=(X?X.lista:B||[]).slice(0,5),resto=(X?X.lista:[]).length-Bc.length;
+  const S=Bc.reduce((o,b)=>{o.leads+=b.leads||0;o.nv+=b.nv||0;o.inv+=b.inv||0;o.fat+=b.fat||0;return o},{leads:0,nv:0,inv:0,fat:0});
+  const nb=`soma de ${Bc.length} BM${Bc.length===1?'':'s'}`;
+  [['Total Leads',R.int(S.leads),null,nb],['Total Vendas',R.int(S.nv),null,`conversão ${R.p1(S.leads?S.nv/S.leads:null)}`],
+   ['Custo Total',R.m0(S.inv),null,RN_SF?nb:`faturamento ${R.m0(S.fat)}`],['ROAS Médio',S.inv?R.x2(S.fat/S.inv)+'x':'—',null,`CPL ${R.m2(S.inv&&S.leads?S.inv/S.leads:null)}`]].forEach(([l,v,dv,nota],i)=>{
     const x=0.62+i*3.05;card(pres,s,x,1.35,2.9,0.82);txt(s,l,{x:x+0.15,y:1.43,w:2,h:0.2,fontSize:8,color:K.sub});txt(s,v,{x:x+0.15,y:1.63,w:2.2,h:0.42,fontSize:18,bold:true});
-    txt(s,dv==null?'—':R.sg(dv)+R.d1(Math.abs(dv*100))+'%',{x:x+1.9,y:1.5,w:0.9,h:0.2,fontSize:8,bold:true,color:dv==null?K.mut:dv>=0?K.gr:K.rd,align:'right'});
+    if(dv!=null)txt(s,R.sg(dv)+R.d1(Math.abs(dv*100))+'%',{x:x+1.9,y:1.5,w:0.9,h:0.2,fontSize:8,bold:true,color:dv>=0?K.gr:K.rd,align:'right'});
     txt(s,nota||'vs período ant.',{x:x+1.1,y:1.72,w:1.7,h:0.2,fontSize:7,color:nota?K.sub:K.mut,align:'right'})});
-  /* o card "sem vínculo" entra junto para a soma dos cards bater com o total do slide */
-  const semX=X?X.sem:null,temSem=semX&&(semX.leads>0||semX.nv>0||semX.inv>0||semX.fat>0);
-  const Bc=temSem?B.slice(0,4).concat([Object.assign({bm:'SEM VÍNCULO',semv:true},semX,
-    {cpl:semX.inv&&semX.leads?semX.inv/semX.leads:null,cpa:semX.inv&&semX.nv?semX.inv/semX.nv:null,
-     roas:semX.inv?semX.fat/semX.inv:null,margem:semX.fat?(semX.fat-semX.inv)/semX.fat:null})]):B.slice(0,4);
   const n=Math.max(1,Bc.length),w=Math.min(4.6,(12.11-(n-1)*0.18)/n),x0=0.62+(12.11-(n*w+(n-1)*0.18))/2,fx=CFG.faixas||{};
   const st=b=>b.inv<=0?['SEM CUSTO',K.mut]:(b.roas||0)>=(fx.roasBom||3)?['FORTE',K.gr]:(b.roas||0)>=2?['SAUDÁVEL',K.bl]:(b.roas||0)>=(fx.roasOk||1)?['ATENÇÃO',K.am]:['CRÍTICO',K.rd];
-  const ord=['Principal','Secundária','Terciária','Quarta'];
+  const ord=['Principal','Secundária','Terciária','Quarta','Quinta'];
   /* cabeçalho em duas linhas (sigla + selo em cima, nome embaixo): com 5 cartões o nome não cabe ao lado do selo */
   const pw=Math.max(0.9,Math.min(1.26,w-0.9)),lw=Math.min(1.5,w*0.52),vw=Math.min(1.72,w-0.42);
-  Bc.forEach((b,i)=>{const x=x0+i*(w+0.18),[stt0,cor0]=st(b),stt=b.semv?'FORA DO BM':stt0,cor=b.semv?K.sl:cor0,ab=b.semv?'S/V':b.bm.replace(/^BM\s*INTERNO\s*/i,'BI').replace(/\s+/g,'').slice(0,4);
+  Bc.forEach((b,i)=>{const x=x0+i*(w+0.18),[stt,cor]=st(b),ab=b.bm.replace(/^BM\s*INTERNO\s*/i,'BI').replace(/\s+/g,'').slice(0,4);
     card(pres,s,x,2.33,w,3.9);
     s.addShape(pres.shapes.OVAL,{x:x+0.18,y:2.46,w:0.44,h:0.44,fill:{color:K.bx2},line:{color:cor}});
     txt(s,ab,{x:x+0.18,y:2.46,w:0.44,h:0.44,fontSize:7.5,bold:true,color:cor,align:'center',valign:'middle'});
     s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:x+w-0.18-pw,y:2.53,w:pw,h:0.28,rectRadius:0.14,fill:{color:K.card},line:{color:cor}});
     txt(s,stt,{x:x+w-0.18-pw,y:2.53,w:pw,h:0.28,fontSize:7.5,bold:true,color:cor,align:'center',valign:'middle'});
     txt(s,b.bm,{x:x+0.18,y:2.98,w:w-0.36,h:0.26,fontSize:10.5,bold:true,fit:'shrink'});
-    txt(s,b.semv?'Google, VOIP, TV…':(ord[i]||''),{x:x+0.18,y:3.26,w:w-0.36,h:0.18,fontSize:7.5,color:K.mut});
-    [['Leads',R.int(b.leads)],['Vendas',R.int(b.nv)],['Conversão',R.p1(b.leads?b.nv/b.leads:null)],['Faturamento',R.m0(b.fat)]].forEach(([l,v],j)=>{
+    txt(s,ord[i]||'',{x:x+0.18,y:3.26,w:w-0.36,h:0.18,fontSize:7.5,color:K.mut});
+    [['Leads',R.int(b.leads)],['Vendas',R.int(b.nv)],['Conversão',R.p1(b.leads?b.nv/b.leads:null)],['Faturamento',R.fm0(b.fat)]].forEach(([l,v],j)=>{
       txt(s,l,{x:x+0.18,y:3.56+j*0.285,w:lw,h:0.24,fontSize:8.5,color:K.sub});
       txt(s,v,{x:x+w-0.18-vw,y:3.56+j*0.285,w:vw,h:0.24,fontSize:8.5,bold:true,color:j===2?cor:K.txt,align:'right',fit:'shrink'})});
     card(pres,s,x+0.18,4.74,w-0.36,1.08,K.bx4);
@@ -5358,38 +5361,33 @@ function rnBM(pres,D){
     txt(s,'Margem',{x:x+0.18,y:5.92,w:lw,h:0.2,fontSize:8,color:K.mut});txt(s,R.p1(b.margem),{x:x+w-0.18-vw,y:5.92,w:vw,h:0.2,fontSize:8.5,bold:true,color:cor,align:'right'});
     s.addShape(pres.shapes.RECTANGLE,{x:x+0.18,y:6.13,w:w-0.36,h:0.06,fill:{color:K.ln},line:{color:K.ln}});
     s.addShape(pres.shapes.RECTANGLE,{x:x+0.18,y:6.13,w:Math.max(0.02,(w-0.36)*Math.max(0,Math.min(1,b.margem||0))),h:0.06,fill:{color:cor},line:{color:cor}})});
-  /* rodapé: como foi atribuído e o que ficou sem vínculo */
-  const H=X?X.how:{},tl=Object.values(H).reduce((q,v)=>q+v,0)||1,pc=v=>R.p0((v||0)/tl);
-  const sem=X?X.sem:{leads:0,nv:0,fat:0};
-  const lsem=X?Object.entries(X.linSem).filter(([l,v])=>l!==SEMCANAL&&v>=10).sort((x,y)=>y[1]-x[1]).slice(0,3).map(([l])=>linNome(l,l)):[];
-  const fora=X&&X.foraBM?Object.keys(X.foraBM):[];
+  /* rodapé: só como foi atribuído — percentuais sobre os leads que entraram em algum BM */
+  const H=X?X.how:{},tl=((H.form||0)+(H.linha||0)+(H.rateio||0)+(H.manual||0))||1,pc=v=>R.p0((v||0)/tl);
   card(pres,s,0.62,6.33,12.11,0.68);
   txt(s,[{text:'Como foi atribuído: ',options:{bold:true,color:K.or}},
-    {text:`custo pela conta de anúncio de cada BM · leads pelo formulário (${pc(H.form)}) ou pela linha de WhatsApp anunciada no mês (${pc((H.linha||0)+(H.rateio||0))})${H.manual?` ou pelo número vinculado na Administração (${pc(H.manual)})`:''} · vendas pela chave do card do lead.`,options:{color:K.tx2,breakLine:true}},
-    {text:'Sem vínculo com BM: ',options:{bold:true,color:K.sub}},
-    {text:`${R.int(sem.leads)} leads · ${R.int(sem.nv)} vendas · ${R.m0(sem.fat)} (Google, VOIP, TV e linhas sem campanha Meta${lsem.length?': '+lsem.join(', '):''}).`+(fora.length?` Inclui o que caiu em BM de outra empresa (${fora.join(', ')}) — defina o destino em Administração → BM por empresa.`:''),options:{color:K.sub}}],
+    {text:`custo pela conta de anúncio de cada BM · leads pelo formulário (${pc(H.form)}) ou pela linha de WhatsApp anunciada no mês (${pc((H.linha||0)+(H.rateio||0))})${H.manual?` ou pelo número vinculado na Administração (${pc(H.manual)})`:''} · vendas pela chave do card do lead.`+
+      (resto>0?` Mais ${resto} BM${resto===1?'':'s'} com volume menor não aparece${resto===1?'':'m'} aqui.`:'')}],
     {x:0.8,y:6.37,w:11.8,h:0.6,fontSize:8.5,valign:'middle'})}
-
 /* ═════ Comparativo geral: mesmo trecho do mês passado × este mês ═════ */
 function rnMes(pres,D){
   const T=D.T,P=D.P,s=slideBase(pres,'Comparativo Mensal',`${mesDe(D.pa)} × ${mesDe(D.b)}`,
     `Mesmo trecho dos dois meses — ${brd(D.pa)} a ${brd(D.pb)} contra ${brd(D.a)} a ${brd(D.b)}`,'GWA CONSULTORIA | MÊS A MÊS');
-  txt(s,'Mês anterior',{x:9.9,y:0.3,w:1.3,h:0.18,fontSize:7.5,color:K.mut,align:'center'});
+  if(!RN_SF){txt(s,'Mês anterior',{x:9.9,y:0.3,w:1.3,h:0.18,fontSize:7.5,color:K.mut,align:'center'});
   txt(s,R.m0(P.fat),{x:9.6,y:0.48,w:1.9,h:0.34,fontSize:14,bold:true,color:K.sub,align:'center'});
   txt(s,'Mês atual',{x:11.5,y:0.3,w:1.2,h:0.18,fontSize:7.5,color:K.mut,align:'center'});
-  txt(s,R.m0(T.fat),{x:11.2,y:0.48,w:1.5,h:0.34,fontSize:14,bold:true,color:K.or2,align:'center'});
+  txt(s,R.m0(T.fat),{x:11.2,y:0.48,w:1.5,h:0.34,fontSize:14,bold:true,color:K.or2,align:'center'})}
   /* tabela: indicador | mês passado | mês atual | variação */
   const L=[['Leads','leads','int',true],['Vendas','nv','int',true],['Faturamento','fat','m0',true],
     ['Investimento','inv','m0',null],['Conversão','conv','p2',true],['CPL','cpl','m2',false],
     ['CAC','cac','m2',false],['Ticket médio','ticket','m2',true],['ROAS','roas','x',true],
     ['ROI','roi','p0',true],['% ICR','icr','p1',false],['Lucro após mídia','lucro','m0',true]];
   const val=(o,k)=>k==='lucro'?(o.fat-o.inv):k==='roi'?(o.inv?(o.fat-o.inv)/o.inv:null):k==='icr'?(o.inv&&o.fat?o.inv/o.fat:null):o[k];
-  const fmt=(v,t)=>t==='int'?R.int(v):t==='m0'?R.m0(v):t==='m2'?R.m2(v):t==='p1'?R.p1(v):t==='p2'?R.p2(v):t==='p0'?R.p0(v):v==null?'—':R.x2(v)+'x';
+  const fmt=(v,t,k)=>RN_SF&&['fat','lucro','ticket'].includes(k)?'oculto':t==='int'?R.int(v):t==='m0'?R.m0(v):t==='m2'?R.m2(v):t==='p1'?R.p1(v):t==='p2'?R.p2(v):t==='p0'?R.p0(v):v==null?'—':R.x2(v)+'x';
   card(pres,s,0.62,1.3,7.5,5.72);
   txt(s,'Indicadores no mesmo trecho do mês',{x:0.85,y:1.4,w:5,h:0.28,fontSize:11,bold:true,color:K.tx2});
   const rows=[[`Indicador`,mesDe(D.pa),mesDe(D.b),'Variação'].map((h,i)=>({text:h,options:{bold:true,fontSize:8,color:i===2?K.or:K.sub}})),
     ...L.map(([rot,k,t,bom])=>{const a=val(P,k),b=val(T,k),v=vr(b,a);
-      return [{text:rot,options:{bold:true,color:K.tx2}},{text:fmt(a,t),options:{color:K.sub}},{text:fmt(b,t),options:{bold:true,color:K.txt}},
+      return [{text:rot,options:{bold:true,color:K.tx2}},{text:fmt(a,t,k),options:{color:K.sub}},{text:fmt(b,t,k),options:{bold:true,color:K.txt}},
         {text:v==null?'—':R.sg(v)+R.d1(Math.abs(v*100))+'%',options:{bold:true,color:v==null||bom==null?K.mut:(v>=0)===bom?K.gr:K.rd}}]})];
   s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:K.tx2}}:c)),{x:0.8,y:1.76,w:7.14,colW:[2.3,1.6,1.6,1.64],rowH:0.39,fontFace:FT,fontSize:9,align:'center',
     border:{type:'solid',pt:0.5,color:K.ln},valign:'middle'});
@@ -5400,7 +5398,7 @@ function rnMes(pres,D){
     {x:8.32,y:1.68,w:4.35,h:2.26,chartColors:[K.sl,K.or2],showValue:true,dataLabelColor:'FFFFFF',dataLabelFontSize:8,showLegend:true,legendPos:'b',legendColor:K.sub,legendFontSize:7,
      catAxisLabelColor:K.tx2,catAxisLabelFontSize:8,valAxisHidden:true,valGridLine:{style:'none'},catGridLine:{style:'none'},catAxisLineShow:false,valAxisLineShow:false,barGapWidthPct:60});
   /* três destaques */
-  const kpi=[['Faturamento',R.m0(T.fat),vr(T.fat,P.fat),true],['Conversão',R.p2(T.conv),vr(T.conv,P.conv),true],['ROAS',T.roas==null?'—':R.x2(T.roas)+'x',vr(T.roas,P.roas),true]];
+  const kpi=[['Faturamento',R.fm0(T.fat),vr(T.fat,P.fat),true],['Conversão',R.p2(T.conv),vr(T.conv,P.conv),true],['ROAS',T.roas==null?'—':R.x2(T.roas)+'x',vr(T.roas,P.roas),true]];
   kpi.forEach(([l,v,dv,bom],i)=>{const y=4.16+i*0.6;card(pres,s,8.26,y,4.47,0.52,K.bx4);
     txt(s,l,{x:8.44,y:y+0.06,w:1.9,h:0.4,fontSize:8.5,color:K.sub,valign:'middle'});
     txt(s,v,{x:10.1,y:y+0.06,w:1.5,h:0.4,fontSize:11,bold:true,align:'right',valign:'middle'});
@@ -5469,7 +5467,7 @@ function rnVendaMes(pres,D){
   txt(s,'Onde fecharam as vendas do período',{x:0.85,y:2.68,w:5,h:0.28,fontSize:11,bold:true,color:K.tx2});
   const rows=[['Mídia','Leads','Vendas','Conv %','Ticket médio','Faturamento'].map((h,i)=>({text:h,options:{bold:true,fontSize:8,color:i?K.sub:K.or}})),
     ...V.porCamp.slice(0,7).map(c=>[{text:c.nome,options:{bold:true,color:K.tx2,fit:'shrink'}},R.int(c.leads),{text:R.int(c.v),options:{bold:true,color:K.gr}},
-      {text:R.p2(c.leads?c.v/c.leads:null),options:{bold:true,color:K.am}},R.m2(c.ticket),R.m0(c.fat)])];
+      {text:R.p2(c.leads?c.v/c.leads:null),options:{bold:true,color:K.am}},R.fm2(c.ticket),R.fm0(c.fat)])];
   s.addTable(rows.map(r=>r.map(c=>typeof c==='string'?{text:c,options:{color:K.tx2}}:c)),{x:0.8,y:3.0,w:6.94,colW:[1.74,0.86,0.86,0.9,1.3,1.28],rowH:Math.min(0.42,3.4/Math.max(2,rows.length)),fontFace:FT,fontSize:8.5,align:'center',
     border:{type:'solid',pt:0.5,color:K.ln},valign:'middle'});
   txt(s,'Vendas na base = leads do período com tabulação "Venda". O financeiro conta a venda pela data da 1ª parcela, por isso os dois números podem diferir.',
@@ -5566,6 +5564,7 @@ function vReuniao(){
         <button class="btn rn-b2" id="btReuniao"${dis}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Baixar .pptx</button>
         <button class="btn rn-b2" id="btRnLink"${dis}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>Gerar link</button></div></div>
     ${rnLinkErr?`<p class="rn-err" role="alert">${esc(rnLinkErr)}</p>`:''}
+    ${rnCfg().semFat?`<p class="warn" style="margin:8px 0 0"><span><b>Faturamento oculto nesta reunião:</b> valores em R$ de faturamento, ticket médio e lucro aparecem como "oculto" (os % continuam). O link gerado também vai assim. Para mudar, use "Faturamento" na lista de slides abaixo.</span></p>`:''}
     ${rnLinksHtml()}
     ${rnLinkUrl?`<div class="rn-lk"><label class="cf" style="flex:1"><span>Link da reunião · ${esc(rnLinkTxt)}</span>
         <input id="rnLinkIn" readonly value="${esc(rnLinkUrl)}" aria-label="Link da reunião"></label>
@@ -5694,16 +5693,16 @@ function rnAnun(pres,D){
   [['Anúncios no ar',R.int(A.L.length),K.or,`${R.int(T.ins)} ${T.ins===1?'inserção':'inserções'} no período`],
    ['Leads',R.int(T.leads),K.bl,T.ins?`${R.d1(T.leads/T.ins)} por inserção`:''],
    ['Investimento',R.m0(T.inv),K.am,T.cpl!=null?`CPL ${R.m2(T.cpl)}`:''],
-   ['Faturamento',R.m0(T.fat),K.gr,T.roas!=null?`ROAS ${R.x2(T.roas)}x`:'sem venda ligada']]
+   ['Faturamento',R.fm0(T.fat),K.gr,T.roas!=null?`ROAS ${R.x2(T.roas)}x`:'sem venda ligada']]
     .forEach(([rot,v,cor,ex],i)=>kpiBox(pres,s,0.62+i*3.05,1.3,2.9,1.08,rot,v,cor,ex));
   /* tabela: um anúncio por linha */
   const rows=[cabT(['Anúncio','Ins.','Leads','% leads','Vendas','Conv.','Custo','CPL','Faturamento','ROAS'])];
   A.L.forEach(o=>rows.push([{text:o.sem?o.cod+' (sem anúncio)':anunNome(o.cod),options:{bold:true,align:'left',color:o.sem?K.mut:K.txt}},
     o.sem?'—':R.int(o.ins),R.int(o.leads),T.leads?R.p1(o.leads/T.leads):'—',R.int(o.nv),R.p1(o.conv),
-    R.m0(o.inv),o.cpl==null?'—':R.m2(o.cpl),R.m0(o.fat),
+    R.m0(o.inv),o.cpl==null?'—':R.m2(o.cpl),R.fm0(o.fat),
     {text:o.roas==null?'—':R.x2(o.roas)+'x',options:{bold:true,color:o.roas==null?K.mut:o.roas>=(T.roas||0)?K.gr:K.am}}]));
   rows.push([{text:'Total',options:{bold:true,align:'left',color:K.or}},R.int(T.ins),R.int(T.leads),'100%',R.int(T.nv),
-    R.p1(T.conv),R.m0(T.inv),T.cpl==null?'—':R.m2(T.cpl),R.m0(T.fat),
+    R.p1(T.conv),R.m0(T.inv),T.cpl==null?'—':R.m2(T.cpl),R.fm0(T.fat),
     {text:T.roas==null?'—':R.x2(T.roas)+'x',options:{bold:true,color:K.or}}]);
   const hT=Math.min(3.1,0.34*rows.length+0.1);
   tbl(pres,s,0.62,2.62,7.5,hT,rows,[1.35,0.45,0.55,0.6,0.6,0.55,0.85,0.8,0.95,0.8]);
@@ -5764,9 +5763,9 @@ function rnAnunTab(pres,D){
 function rnExec(pres,D){
   const T=D.T,P=D.P,s=slideBase(pres,'Resumo Executivo',D.mesAno,
     `Visão de diretoria — ${empNome()} · ${D.periodo} contra o período anterior`,'GWA CONSULTORIA | RESUMO EXECUTIVO');
-  const L=[['Faturamento',R.m0(T.fat),vr(T.fat,P.fat),true,'parcelas vencidas no período',K.gr],
+  const L=[['Faturamento',R.fm0(T.fat),vr(T.fat,P.fat),true,'parcelas vencidas no período',K.gr],
     ['Investimento em mídia',R.m0(T.inv),vr(T.inv,P.inv),null,'Meta, Google e offline',K.bl],
-    ['Lucro após mídia',R.m0(T.lucro),vr(T.lucro,P.lucro),true,'faturamento menos mídia',K.pu],
+    ['Lucro após mídia',R.fm0(T.lucro),vr(T.lucro,P.lucro),true,'faturamento menos mídia',K.pu],
     ['ROAS',R.x2(T.roas)+'x',vr(T.roas,P.roas),true,'retorno por real investido',K.am]];
   L.forEach(([rot,v,dv,bom,rod,cor],i)=>kpiCard(pres,s,0.62+i*3.05,1.3,2.9,1.32,rot,v,dv,bom,rod,cor));
   /* tabela indicador x meta */
@@ -5777,7 +5776,7 @@ function rnExec(pres,D){
     ['Conversão',T.conv,P.conv,mt('conv')==null?null:mt('conv')/100,v=>R.p2(v),true],
     ['CPL',T.cpl,P.cpl,null,v=>R.m2(v),false],
     ['CAC',T.cac,P.cac,null,v=>R.m2(v),false],
-    ['Ticket médio',T.ticket,P.ticket,null,v=>R.m2(v),true],
+    ['Ticket médio',T.ticket,P.ticket,null,v=>R.fm2(v),true],
     ['ROAS',T.roas,P.roas,mt('roas'),v=>R.x2(v)+'x',true],
     ['ROI',T.roi,P.roi,null,v=>R.p0(v),true],
     ['Margem após mídia',T.margem,P.margem,mt('margem')==null?null:mt('margem')/100,v=>R.p1(v),true],
@@ -5800,14 +5799,15 @@ function rnExec(pres,D){
   tbl(pres,s,0.8,3.3,7.5,3.6,rows,[2.5,1.3,1.25,1.25,1.2]);
   /* gráfico e leitura */
   card(pres,s,8.72,2.82,4.01,2.05);
-  txt(s,'Faturamento x Investimento',{x:8.92,y:2.92,w:3.6,h:0.26,fontSize:10,bold:true,color:K.sub});
-  s.addChart(pres.charts.BAR,[{name:'Anterior',labels:['Faturamento','Investimento'],values:[Math.round(P.fat),Math.round(P.inv)]},
-    {name:'Período',labels:['Faturamento','Investimento'],values:[Math.round(T.fat),Math.round(T.inv)]}],
+  txt(s,RN_SF?'Investimento':'Faturamento x Investimento',{x:8.92,y:2.92,w:3.6,h:0.26,fontSize:10,bold:true,color:K.sub});
+  const exL=RN_SF?['Investimento']:['Faturamento','Investimento'],exV=o=>RN_SF?[Math.round(o.inv)]:[Math.round(o.fat),Math.round(o.inv)];
+  s.addChart(pres.charts.BAR,[{name:'Anterior',labels:exL,values:exV(P)},{name:'Período',labels:exL,values:exV(T)}],
     {x:8.85,y:3.2,w:3.75,h:1.58,barDir:'col',chartColors:[K.sl,K.or],showValue:false,showLegend:true,legendPos:'b',
      legendColor:K.sub,legendFontSize:7,catAxisLabelColor:K.sub,catAxisLabelFontSize:7.5,valAxisLabelColor:K.mut,valAxisLabelFontSize:6.5,
      valGridLine:{color:K.ln,size:0.5},catGridLine:{style:'none'},barGapWidthPct:60});
   const fAlvo=mt('roas'),gap=fAlvo&&T.roas!=null?T.roas-fAlvo:null;
-  const txtExec=[`${empNome()} faturou ${R.m0(T.fat)} com ${R.m0(T.inv)} de mídia no período (ROAS ${R.x2(T.roas)}x, margem ${R.p1(T.margem)}).`,
+  const txtExec=[RN_SF?`${empNome()} investiu ${R.m0(T.inv)} em mídia no período (ROAS ${R.x2(T.roas)}x, margem ${R.p1(T.margem)}).`
+      :`${empNome()} faturou ${R.m0(T.fat)} com ${R.m0(T.inv)} de mídia no período (ROAS ${R.x2(T.roas)}x, margem ${R.p1(T.margem)}).`,
     T.leads?`Foram ${R.int(T.leads)} leads e ${R.int(T.nv)} vendas — conversão de ${R.p2(T.conv)} e CAC de ${R.m2(T.cac)}.`:'',
     gap!=null?(gap>=0?`O ROAS está ${R.d2(gap)} acima da meta de ${R.x2(fAlvo)}x.`:`O ROAS está ${R.d2(Math.abs(gap))} abaixo da meta de ${R.x2(fAlvo)}x.`):'',
     vr(T.fat,P.fat)!=null?`Contra o período anterior, o faturamento ${T.fat>=P.fat?'subiu':'caiu'} ${R.d1(Math.abs(vr(T.fat,P.fat))*100)}% e o investimento ${T.inv>=P.inv?'subiu':'caiu'} ${R.d1(Math.abs(vr(T.inv,P.inv)||0)*100)}%.`:''].filter(Boolean).join(' ');
@@ -5867,7 +5867,7 @@ function rnEmpresas(pres,D){
     .sort((x,y)=>y[1].fat-x[1].fat).map(([k,o])=>({k,o,p:B[k]||null}));
   const tot=EM.reduce((a,x)=>({fat:a.fat+x.o.fat,inv:a.inv+x.o.inv,leads:a.leads+x.o.leads,nv:a.nv+x.o.nv}),{fat:0,inv:0,leads:0,nv:0});
   /* cartões do topo */
-  [['Faturamento total',R.m0(tot.fat),K.gr],['Investimento total',R.m0(tot.inv),K.bl],
+  [['Faturamento total',R.fm0(tot.fat),K.gr],['Investimento total',R.m0(tot.inv),K.bl],
    ['ROAS consolidado',(tot.inv?R.x2(tot.fat/tot.inv):'—')+'x',K.am],['Empresas com movimento',R.int(EM.length),K.pu]]
     .forEach(([rot,v,cor],i)=>{const x=0.62+i*3.05;card(pres,s,x,1.3,2.9,0.9);
       s.addShape(pres.shapes.RECTANGLE,{x,y:1.3,w:2.9,h:0.04,fill:{color:cor},line:{color:cor}});
@@ -5880,19 +5880,19 @@ function rnEmpresas(pres,D){
   EM.forEach(e=>{const dv=e.p?vr(e.o.fat,e.p.fat):null,sv2=setaR(dv,true),aqui=e.k===fE;
     rows.push([{text:(aqui?'● ':'')+e.k,options:{bold:true,color:aqui?K.or:K.txt,align:'left'}},
       R.int(e.o.leads),{text:R.int(e.o.nv),options:{bold:true,color:K.gr}},R.p2(e.o.conv),R.m0(e.o.inv),
-      {text:R.m0(e.o.fat),options:{bold:true}},{text:(e.o.roas==null?'—':R.x2(e.o.roas)+'x'),options:{bold:true,color:e.o.roas>=3?K.gr:e.o.roas>=1?K.am:K.rd}},
+      {text:R.fm0(e.o.fat),options:{bold:true}},{text:(e.o.roas==null?'—':R.x2(e.o.roas)+'x'),options:{bold:true,color:e.o.roas>=3?K.gr:e.o.roas>=1?K.am:K.rd}},
       R.p1(e.o.margem),{text:dv==null?'—':`${sv2.t} ${R.sg(dv)}${R.d1(Math.abs(dv*100))}%`,options:{bold:true,color:sv2.c}}])});
   rows.push([{text:'TOTAL',options:{bold:true,color:K.or,align:'left'}},{text:R.int(tot.leads),options:{bold:true}},
     {text:R.int(tot.nv),options:{bold:true,color:K.gr}},{text:R.p2(tot.leads?tot.nv/tot.leads:null),options:{bold:true}},
-    {text:R.m0(tot.inv),options:{bold:true}},{text:R.m0(tot.fat),options:{bold:true}},
+    {text:R.m0(tot.inv),options:{bold:true}},{text:R.fm0(tot.fat),options:{bold:true}},
     {text:(tot.inv?R.x2(tot.fat/tot.inv)+'x':'—'),options:{bold:true,color:K.or}},
     {text:R.p1(tot.fat?(tot.fat-tot.inv)/tot.fat:null),options:{bold:true}},'']);
   tbl(pres,s,0.8,2.86,11.75,2.16,rows,[1.65,1.1,1.1,1.1,1.6,1.6,1.1,1.2,1.3]);
   /* gráficos */
   card(pres,s,0.62,5.26,6.2,1.76);
-  txt(s,'Faturamento x Investimento por empresa',{x:0.85,y:5.34,w:5,h:0.24,fontSize:9.5,bold:true,color:K.sub});
+  txt(s,RN_SF?'Investimento por empresa':'Faturamento x Investimento por empresa',{x:0.85,y:5.34,w:5,h:0.24,fontSize:9.5,bold:true,color:K.sub});
   s.addChart(pres.charts.BAR,[{name:'Investimento',labels:EM.map(e=>e.k),values:EM.map(e=>Math.round(e.o.inv))},
-    {name:'Faturamento',labels:EM.map(e=>e.k),values:EM.map(e=>Math.round(e.o.fat))}],
+    ...(RN_SF?[]:[{name:'Faturamento',labels:EM.map(e=>e.k),values:EM.map(e=>Math.round(e.o.fat))}])],
     {x:0.8,y:5.6,w:5.85,h:1.3,barDir:'col',chartColors:[K.sl,K.gr],showLegend:true,legendPos:'b',legendColor:K.sub,legendFontSize:7,
      catAxisLabelColor:K.sub,catAxisLabelFontSize:7.5,valAxisLabelColor:K.mut,valAxisLabelFontSize:6.5,
      valGridLine:{color:K.ln,size:0.5},catGridLine:{style:'none'},barGapWidthPct:50});
@@ -5909,8 +5909,8 @@ function rnInvest(pres,D){
     `Para onde foi o dinheiro e o que ele trouxe (${D.periodo})`,'GWA CONSULTORIA | MÍDIA');
   const C=D.camps.filter(c=>c.o.inv>0||c.o.fat>0),T=D.T;
   const top=C.slice(0,8);
-  [['Investido no período',R.m0(T.inv),K.bl],['Faturamento gerado',R.m0(T.fat),K.gr],
-   ['Retorno líquido',R.m0(T.lucro),K.pu],['Custo por venda (CAC)',R.m2(T.cac),K.am]]
+  [['Investido no período',R.m0(T.inv),K.bl],['Faturamento gerado',R.fm0(T.fat),K.gr],
+   ['Retorno líquido',R.fm0(T.lucro),K.pu],['Custo por venda (CAC)',R.m2(T.cac),K.am]]
     .forEach(([rot,v,cor],i)=>{const x=0.62+i*3.05;card(pres,s,x,1.3,2.9,0.9);
       s.addShape(pres.shapes.RECTANGLE,{x,y:1.3,w:2.9,h:0.04,fill:{color:cor},line:{color:cor}});
       txt(s,rot,{x:x+0.16,y:1.42,w:2.6,h:0.2,fontSize:8.5,color:K.sub});
@@ -5921,16 +5921,16 @@ function rnInvest(pres,D){
   const rows=[cabT(['Mídia','Investido','% inv.','Faturamento','% fat.','ROAS','CAC','Eficiência'])];
   top.forEach(c=>{const si=T.inv?c.o.inv/T.inv:0,sf=T.fat?c.o.fat/T.fat:0,ef=sf-si;
     rows.push([{text:c.nome,options:{bold:true,color:K.txt,align:'left',fit:'shrink'}},R.m0(c.o.inv),R.p1(si),
-      {text:R.m0(c.o.fat),options:{bold:true}},R.p1(sf),
+      {text:R.fm0(c.o.fat),options:{bold:true}},R.p1(sf),
       {text:c.o.roas==null?'—':R.x2(c.o.roas)+'x',options:{bold:true,color:c.o.roas>=3?K.gr:c.o.roas>=1?K.am:K.rd}},
       R.m2(c.o.cac),{text:(ef>=0?'+':'−')+R.d1(Math.abs(ef*100))+'pp',options:{bold:true,color:ef>=0?K.gr:K.rd}}])});
   tbl(pres,s,0.8,3.06,6.94,3.7,rows,[1.5,0.95,0.6,1.05,0.6,0.62,0.8,0.82]);
   /* gráfico */
   card(pres,s,8.12,2.4,4.61,2.3);
-  txt(s,'Investimento x Faturamento',{x:8.32,y:2.5,w:4,h:0.26,fontSize:10,bold:true,color:K.sub});
+  txt(s,RN_SF?'Investimento por mídia':'Investimento x Faturamento',{x:8.32,y:2.5,w:4,h:0.26,fontSize:10,bold:true,color:K.sub});
   const g=top.slice(0,5);
   s.addChart(pres.charts.BAR,[{name:'Investimento',labels:g.map(c=>c.nome),values:g.map(c=>Math.round(c.o.inv))},
-    {name:'Faturamento',labels:g.map(c=>c.nome),values:g.map(c=>Math.round(c.o.fat))}],
+    ...(RN_SF?[]:[{name:'Faturamento',labels:g.map(c=>c.nome),values:g.map(c=>Math.round(c.o.fat))}])],
     {x:8.25,y:2.8,w:4.35,h:1.82,barDir:'bar',chartColors:[K.sl,K.gr],showLegend:true,legendPos:'b',legendColor:K.sub,legendFontSize:7,
      catAxisLabelColor:K.sub,catAxisLabelFontSize:7,valAxisLabelColor:K.mut,valAxisLabelFontSize:6.5,
      valGridLine:{color:K.ln,size:0.5},catGridLine:{style:'none'},barGapWidthPct:40});
@@ -5952,15 +5952,15 @@ function rnEvol(pres,D){
     const o=dsTot(ini,fim);M.push({m,n:MES3[m],o,parcial:m===mf})}
   const soma=M.reduce((a,x)=>({leads:a.leads+x.o.leads,nv:a.nv+x.o.nv,inv:a.inv+x.o.inv,fat:a.fat+x.o.fat}),{leads:0,nv:0,inv:0,fat:0});
   [['Leads no ano',R.int(soma.leads),K.bl],['Vendas no ano',R.int(soma.nv),K.gr],
-   ['Investido no ano',R.m0(soma.inv),K.pu],['Faturado no ano',R.m0(soma.fat),K.am]]
+   ['Investido no ano',R.m0(soma.inv),K.pu],['Faturado no ano',R.fm0(soma.fat),K.am]]
     .forEach(([rot,v,cor],i)=>{const x=0.62+i*3.05;card(pres,s,x,1.3,2.9,0.9);
       s.addShape(pres.shapes.RECTANGLE,{x,y:1.3,w:2.9,h:0.04,fill:{color:cor},line:{color:cor}});
       txt(s,rot,{x:x+0.16,y:1.42,w:2.6,h:0.2,fontSize:8.5,color:K.sub});
       txt(s,v,{x:x+0.16,y:1.62,w:2.6,h:0.44,fontSize:19,bold:true,fit:'shrink'})});
   card(pres,s,0.62,2.4,12.11,2.34);
-  txt(s,'Faturamento e investimento por mês',{x:0.85,y:2.5,w:6,h:0.26,fontSize:10.5,bold:true,color:K.sub});
+  txt(s,RN_SF?'Investimento por mês':'Faturamento e investimento por mês',{x:0.85,y:2.5,w:6,h:0.26,fontSize:10.5,bold:true,color:K.sub});
   s.addChart(pres.charts.BAR,[{name:'Investimento',labels:M.map(x=>x.n),values:M.map(x=>Math.round(x.o.inv))},
-    {name:'Faturamento',labels:M.map(x=>x.n),values:M.map(x=>Math.round(x.o.fat))}],
+    ...(RN_SF?[]:[{name:'Faturamento',labels:M.map(x=>x.n),values:M.map(x=>Math.round(x.o.fat))}])],
     {x:0.8,y:2.8,w:11.75,h:1.86,barDir:'col',chartColors:[K.sl,K.gr],showLegend:true,legendPos:'b',legendColor:K.sub,legendFontSize:7.5,
      catAxisLabelColor:K.sub,catAxisLabelFontSize:8,valAxisLabelColor:K.mut,valAxisLabelFontSize:7,
      valGridLine:{color:K.ln,size:0.5},catGridLine:{style:'none'},barGapWidthPct:45});
@@ -5968,7 +5968,7 @@ function rnEvol(pres,D){
   txt(s,'Indicadores mês a mês',{x:0.85,y:4.94,w:5,h:0.26,fontSize:10.5,bold:true});
   const rows=[cabT(['Mês',...M.map(x=>x.n+(x.parcial?'*':''))])];
   const linhasE=[['Leads',x=>R.int(x.o.leads)],['Vendas',x=>R.int(x.o.nv)],['Conversão',x=>R.p2(x.o.conv)],
-    ['Investimento',x=>R.m0(x.o.inv)],['Faturamento',x=>R.m0(x.o.fat)],['ROAS',x=>x.o.roas==null?'—':R.x2(x.o.roas)+'x']];
+    ['Investimento',x=>R.m0(x.o.inv)],['Faturamento',x=>R.fm0(x.o.fat)],['ROAS',x=>x.o.roas==null?'—':R.x2(x.o.roas)+'x']];
   linhasE.forEach(([rot,f])=>rows.push([{text:rot,options:{bold:true,color:K.txt,align:'left'}},
     ...M.map(x=>({text:f(x),options:rot==='ROAS'?{bold:true,color:(x.o.roas||0)>=3?K.gr:(x.o.roas||0)>=1?K.am:K.rd}:{}}))]));
   const cw=[1.5].concat(M.map(()=>(10.25/Math.max(1,M.length))));
@@ -5993,20 +5993,20 @@ function rnRanking(pres,D){
     rows.push([{text:String(i+1),options:{bold:true,color:K.mut,align:'left'}},
       {text:c.nome,options:{bold:true,color:K.txt,align:'left',fit:'shrink'}},
       R.int(c.o.leads),{text:R.int(c.o.nv),options:{bold:true,color:K.gr}},R.p2(c.o.conv),R.m0(c.o.inv),
-      {text:R.m0(c.o.fat),options:{bold:true}},
+      {text:R.fm0(c.o.fat),options:{bold:true}},
       {text:c.o.roas==null?'—':R.x2(c.o.roas)+'x',options:{bold:true,color:cor}},R.p1(c.o.margem),R.m2(c.o.cac),
       {text:String(nt),options:{bold:true,color:cor}}])});
   if(!C.length)rows.push([{text:'—',options:{align:'left'}},{text:'Sem campanha com movimento no período',options:{color:K.mut,align:'left'}},'','','','','','','','','']);
   rows.push([{text:'',options:{align:'left'}},{text:'TOTAL',options:{bold:true,color:K.or,align:'left'}},
     {text:R.int(T.leads),options:{bold:true}},{text:R.int(T.nv),options:{bold:true,color:K.gr}},
-    {text:R.p2(T.conv),options:{bold:true}},{text:R.m0(T.inv),options:{bold:true}},{text:R.m0(T.fat),options:{bold:true}},
+    {text:R.p2(T.conv),options:{bold:true}},{text:R.m0(T.inv),options:{bold:true}},{text:R.fm0(T.fat),options:{bold:true}},
     {text:T.roas==null?'—':R.x2(T.roas)+'x',options:{bold:true,color:K.or}},{text:R.p1(T.margem),options:{bold:true}},
     {text:R.m2(T.cac),options:{bold:true}},'']);
   tbl(pres,s,0.8,2.0,11.75,nR*rhR,rows,[0.5,2.3,0.95,0.95,0.95,1.3,1.4,0.85,0.95,1.05,0.6]);
   const yL=1.3+hCard+0.2;
   if(7.02-yL>=1.1){const lider=C[0],ultimo=C.filter(c=>c.o.inv>0)[C.filter(c=>c.o.inv>0).length-1];
     caixaTexto(pres,s,0.62,yL,12.11,7.02-yL,'Leitura do ranking',
-      `${lider?`${lider.nome} lidera com ROAS ${R.x2(lider.o.roas)}x, ${R.int(lider.o.nv)} vendas e ${R.m0(lider.o.fat)} de faturamento.`:'Sem campanha com movimento no período.'} `+
+      `${lider?`${lider.nome} lidera com ROAS ${R.x2(lider.o.roas)}x, ${R.int(lider.o.nv)} vendas${RN_SF?'':` e ${R.m0(lider.o.fat)} de faturamento`}.`:'Sem campanha com movimento no período.'} `+
       `${ultimo&&lider&&ultimo.k!==lider.k?`Na outra ponta, ${ultimo.nome} entrega ROAS ${R.x2(ultimo.o.roas)}x com ${R.m0(ultimo.o.inv)} investidos — vale revisar criativo, público e oferta antes de manter a verba.`:''} `+
       `${T.inv?`A conta inteira fechou o período em ROAS ${R.x2(T.roas)}x com margem de ${R.p1(T.margem)} após mídia.`:''}`,K.or)}}
 
@@ -6023,7 +6023,7 @@ function rnOport(pres,D){
   if(fraca){const ganho=fraca.o.inv*((mediaRoas||0)-(fraca.o.roas||0));
     op.push({t:'Realocar verba de '+fraca.nome,c:K.rd,
       n:R.m0(fraca.o.inv),r:'investido no período',
-      d:`ROAS de ${R.x2(fraca.o.roas)}x contra ${R.x2(mediaRoas)}x da média. Levando essa verba para a média da conta, o faturamento subiria cerca de ${R.m0(ganho)}.`})}
+      d:`ROAS de ${R.x2(fraca.o.roas)}x contra ${R.x2(mediaRoas)}x da média. Levando essa verba para a média da conta, o faturamento subiria${RN_SF?' na mesma proporção do ROAS':' cerca de '+R.m0(ganho)}.`})}
   /* 2. não atende */
   const tb=tabsCamp(D.a,D.b,'*');
   const na=Object.entries(tb.m).filter(([t])=>ehNaoAt(t)).reduce((q,[,v])=>q+v,0);
@@ -6080,7 +6080,7 @@ function rnProj(pres,D){
   const aIni=iso(new Date(ano,mes-1,1)),aFim=iso(new Date(ano,mes,0)),A=dsTot(aIni,aFim);
   const proj={leads:M.leads*fator,nv:M.nv*fator,fat:M.fat*fator,inv:M.inv*fator};
   [['Dias corridos',`${decor} de ${ndMes}`,R.p0(decor/ndMes)+' do mês',K.bl],
-   ['Faturamento até agora',R.m0(M.fat),`projeta ${R.m0(proj.fat)}`,K.gr],
+   ['Faturamento até agora',R.fm0(M.fat),RN_SF?'valores ocultos':`projeta ${R.m0(proj.fat)}`,K.gr],
    ['Investimento até agora',R.m0(M.inv),`projeta ${R.m0(proj.inv)}`,K.pu],
    ['ROAS do mês',R.x2(M.roas)+'x',A.roas!=null?`mês passado ${R.x2(A.roas)}x`:'sem base',K.am]]
     .forEach(([rot,v,rod,cor],i)=>{const x=0.62+i*3.05;card(pres,s,x,1.3,2.9,1.08);
@@ -6094,7 +6094,7 @@ function rnProj(pres,D){
   txt(s,`Projeção = realizado ÷ ${decor} dias × ${ndMes} dias do mês`,{x:0.85,y:3.0,w:6.8,h:0.22,fontSize:7.5,color:K.mut});
   const met=[['Leads',M.leads,proj.leads,A.leads,v=>R.int(v),K.bl],
     ['Vendas',M.nv,proj.nv,A.nv,v=>R.int(v),K.gr],
-    ['Faturamento',M.fat,proj.fat,A.fat,v=>R.m0(v),K.or],
+    ['Faturamento',M.fat,proj.fat,A.fat,v=>R.fm0(v),K.or],
     ['Investimento',M.inv,proj.inv,A.inv,v=>R.m0(v),K.pu]];
   met.forEach(([rot,at,pj,ant,f,cor],i)=>{const y=3.36+i*0.88;
     txt(s,rot,{x:0.85,y,w:2.2,h:0.24,fontSize:10,bold:true});
@@ -6112,14 +6112,14 @@ function rnProj(pres,D){
   const rowsD=[cabT(['Por dia','Mês','Mês passado'])];
   [['Leads',M.leads/decor,A.leads/Math.max(1,new Date(ano,mes,0).getDate()),v=>R.d1(v)],
    ['Vendas',M.nv/decor,A.nv/Math.max(1,new Date(ano,mes,0).getDate()),v=>R.d1(v)],
-   ['Faturamento',M.fat/decor,A.fat/Math.max(1,new Date(ano,mes,0).getDate()),v=>R.m0(v)],
+   ['Faturamento',M.fat/decor,A.fat/Math.max(1,new Date(ano,mes,0).getDate()),v=>R.fm0(v)],
    ['Investimento',M.inv/decor,A.inv/Math.max(1,new Date(ano,mes,0).getDate()),v=>R.m0(v)]]
     .forEach(([rot,at,ant,f])=>rowsD.push([{text:rot,options:{color:K.tx2,align:'left'}},
       {text:f(at),options:{bold:true}},{text:f(ant),options:{color:K.mut}}]));
   tbl(pres,s,8.3,3.0,4.25,1.44,rowsD,[1.55,1.35,1.35]);
   const dvF=vr(proj.fat,A.fat);
   caixaTexto(pres,s,8.12,4.74,4.61,2.28,'O que o mês deve fechar',
-    `Mantido o ritmo de ${decor} ${decor===1?'dia':'dias'}, ${MESC[mes]} fecha em torno de ${R.m0(proj.fat)} de faturamento e ${R.int(proj.nv)} vendas, com ${R.m0(proj.inv)} de mídia. `+
+    `Mantido o ritmo de ${decor} ${decor===1?'dia':'dias'}, ${MESC[mes]} fecha em torno de ${RN_SF?'':R.m0(proj.fat)+' de faturamento e '}${R.int(proj.nv)} vendas, com ${R.m0(proj.inv)} de mídia. `+
     `${dvF!=null?`Isso é ${dvF>=0?'acima':'abaixo'} do mês passado em ${R.d1(Math.abs(dvF*100))}%.`:''} `+
     `${M.roas!=null?`O ROAS do mês está em ${R.x2(M.roas)}x.`:''} A projeção é linear e não considera sazonalidade do fim do mês.`,
     dvF==null?K.bl:(dvF>=0?K.gr:K.am))}
@@ -6162,8 +6162,8 @@ function rnCfg(){const P=rnPadrao(),C=(CFG.rn&&typeof CFG.rn==='object')?CFG.rn:
   const sel=Object.assign({},P.sel);Object.keys(C.sel||{}).forEach(k=>{if(P.sel[k]!==undefined)sel[k]=C.sel[k]?1:0});
   const ordem=(Array.isArray(C.ordem)?C.ordem:[]).filter((k,i,a)=>P.ordem.indexOf(k)>=0&&a.indexOf(k)===i);
   P.ordem.forEach((k,i)=>{if(ordem.indexOf(k)<0)ordem.splice(Math.min(i,ordem.length),0,k)});
-  return{sel,ordem,tema:C.tema==='pb'?'pb':'escuro'}}
-function rnGrava(c,msg){CFG.rn={sel:c.sel,ordem:c.ordem,tema:c.tema};salvaCfg();rnCache=null;
+  return{sel,ordem,tema:C.tema==='pb'?'pb':'escuro',semFat:C.semFat?1:0}}
+function rnGrava(c,msg){CFG.rn={sel:c.sel,ordem:c.ordem,tema:c.tema,semFat:c.semFat?1:0};salvaCfg();rnCache=null;
   logEv('Reunião',msg||'slides da apresentação salvos',true,c.ordem.filter(k=>c.sel[k]).length);
   if(msg)aviso(msg);render()}
 /* quantos slides a apresentação deve gerar (estimativa para a tela) */
@@ -6198,6 +6198,10 @@ function vSlides(){
         <span class="info" style="margin:0 6px 0 0">Estilo:</span>
         <button data-sl-tema="escuro" aria-pressed="${C.tema!=='pb'}">Escuro com laranja</button>
         <button data-sl-tema="pb" aria-pressed="${C.tema==='pb'}">Preto e branco</button></div>
+      <div class="chips" role="group" aria-label="Valores de faturamento na apresentação">
+        <span class="info" style="margin:0 6px 0 0">Faturamento:</span>
+        <button data-sl-fat="1" aria-pressed="${!C.semFat}">Mostrar valores</button>
+        <button data-sl-fat="0" aria-pressed="${!!C.semFat}">Ocultar (só %)</button></div>
       <button class="btn" id="slPadrao">Restaurar padrão</button></div>
     <h4 class="cfg-t" style="margin:0 16px 8px">Na apresentação <span class="m">(${dentro.length}) · nesta ordem</span></h4>
     <ol class="sl-l">${dentro.map(linhaIn).join('')||'<li class="info">Nenhum slide selecionado.</li>'}</ol>
@@ -6215,6 +6219,8 @@ function bindSlides(){const g=id=>document.getElementById(id);
     const a=C.ordem.indexOf(k),b=C.ordem.indexOf(alvo);C.ordem[a]=alvo;C.ordem[b]=k});
   document.querySelectorAll('[data-sl-up]').forEach(b=>b.onclick=()=>move(b.dataset.slUp,-1));
   document.querySelectorAll('[data-sl-dn]').forEach(b=>b.onclick=()=>move(b.dataset.slDn,1));
+  document.querySelectorAll('[data-sl-fat]').forEach(b=>b.onclick=()=>mexe(C=>{C.semFat=b.dataset.slFat==='0'?1:0},
+    b.dataset.slFat==='0'?'Faturamento oculto: os valores em R$ de faturamento, ticket e lucro saem da reunião (os % continuam)':'Faturamento visível na reunião'));
   document.querySelectorAll('[data-sl-tema]').forEach(b=>b.onclick=()=>mexe(C=>{C.tema=b.dataset.slTema},'Estilo: '+(b.dataset.slTema==='pb'?'preto e branco':'escuro com laranja')));
   document.querySelectorAll('[data-sl-pv]').forEach(b=>b.onclick=()=>{
     if(fE==='TODAS'){aviso('Escolha uma empresa no filtro de cima');return}
