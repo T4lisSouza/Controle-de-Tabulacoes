@@ -1572,6 +1572,9 @@ function empOff(c){const e=empOf(c);return e==='—'?'OFF':e}
 function offCamp(camp,aba){
   const M=CFG.offMap||{},A=CFG.offAba||{};
   const direto=M[camp]||M[nc(camp)];if(direto)return nc(direto);
+  /* linha que já é uma campanha (tem sufixo de empresa: BACCI-OFF, XYZ-GWA…) fica com o próprio nome — o padrão da aba
+     é só para nomes de inserção sem campanha (CHUPIM, FELIPE CAMPOS…). Antes o BACCI-OFF caía em METROPOLITANA-OFF (26/10/2026). */
+  if(empOf(nc(camp))!=='—')return nc(camp);
   const padrao=aba&&(A[aba]||A[nc(aba)]);if(padrao)return nc(padrao);
   return camp}
 /* campanhas que realmente têm leads ou faturamento — são os destinos possíveis do custo de offline */
@@ -2623,6 +2626,7 @@ function vRel(){
 
   <div class="card wide rp"><div class="ch"><h3>Tabulações por mídia</h3><span class="m">${n(TB.tot)} leads · cor = maior concentração na linha</span></div>
     <div class="tw">${tabTab}</div></div>
+  ${anunRelHtml(D.a,D.b)}
 
   <div class="card wide rp"><div class="ch"><h3>Investimento por campanha</h3><span class="m">${mo(T.inv)}</span></div>
     <div class="tw">${tabInv}</div></div>
@@ -3735,7 +3739,8 @@ function loadAnunLeads(from,forca){
     try{let r;
       try{r=await gviz(q(),60000)}catch(e){r=await gviz(q(true),60000)}
       RAW.lead=r;anunLeads(r);anunK=k;anunT=Date.now();salvaCache()}
-    catch(e){logEv('Painel','leads por anúncio',false,0,0,(e&&e.message)||'erro na consulta de horários')}
+    catch(e){logEv('Painel','leads por anúncio',false,0,0,(e&&e.message)||'erro na consulta de horários');
+      anunK=k;anunT=Date.now()-540000}   /* falhou: tenta de novo daqui a ~1 minuto, não a cada redesenho */
     finally{anunBusy=false;anunP=null;
       if(tab==='admin'&&aTab==='anun'&&!rnBusy)render();else renderAuto()}})();
   return anunP}
@@ -3772,6 +3777,35 @@ function anunDados(a,b){
   const T=dsDeriva(L.reduce((o,x)=>{o.leads+=x.leads;o.ins+=x.ins;o.inv+=x.inv;o.nv+=x.nv;o.fat+=x.fat;o.tot+=x.tot;
     o.dsum+=x.dsum;o.dn+=x.dn;return o},{leads:0,tb:{},ins:0,inv:0,nv:0,fat:0,tot:0,dsum:0,dn:0}));
   return {L,T,semExtrato,custoTot,camp,noPainel,mesesSem,meses:Object.keys(ANUN_M).sort()}}
+
+/* Relatórios: a mesma matriz "Tabulações por mídia", agora por anúncio do Jogo Aberto Offline (pedido de 26/10/2026).
+   Aparece quando a empresa do filtro é a da campanha (OFF) ou "Todas". Os horários dos leads são buscados sob demanda. */
+function anunRelHtml(a,b){
+  const camp=anunCfg().camp,emp=empOf(camp);
+  if(!(fE==='TODAS'||fE===emp)||(fCamp&&fCamp!==camp))return '';
+  const k=[prevRange()[0]||d1,d2,fO,fC,camp].join('|');
+  if(!anunP&&(anunK!==k||Date.now()-anunT>600000))loadAnunLeads();
+  const cab=`<div class="card wide rp"><div class="ch"><h3>Tabulações por anúncio · ${esc(nomeCamp(camp))}</h3>`;
+  if(anunBusy&&!LEADH.length)return cab+`<span class="m">buscando os horários dos leads…</span></div><p class="info" style="margin:0 16px 14px">Leva uns 30 segundos na primeira vez; depois fica guardado por 10 minutos.</p></div>`;
+  if(!ANUN.length)return cab+`<span class="m">sem extrato</span></div><p class="info" style="margin:0 16px 14px">${ANUN_ERR?'Extrato: '+esc(ANUN_ERR):'Cole o extrato da emissora na aba '+esc(SH_ANUN||'ANUNCIOS JOGO ABERTO')+' para separar os leads por anúncio.'}</p></div>`;
+  const A=anunDados(a,b),L=A.L.filter(o=>o.leads>0||o.ins>0);
+  if(!L.length)return cab+`<span class="m">sem leads no período</span></div></div>`;
+  const ORD=['Venda','Pré - Venda','Pré-Venda','Negociando','Fechado','1 Habilitação','Discador','Não atende','Desqualificado','Sem tabulação'];
+  const nomeT=t=>!t||t==='—'||t==='-'?'Sem tabulação':t;
+  const row={},get=(t,o)=>Object.entries(o.tb).filter(([x])=>nomeT(x)===t).reduce((q,[,v])=>q+v,0);
+  L.forEach(o=>Object.entries(o.tb).forEach(([t,v])=>{row[nomeT(t)]=(row[nomeT(t)]||0)+v}));
+  const tabs=Object.keys(row).sort((x,y)=>{const i=ORD.indexOf(x),j=ORD.indexOf(y);return (i<0?99:i)-(j<0?99:j)||row[y]-row[x]});
+  const tot=L.reduce((q,o)=>q+o.leads,0),pcN=(v,t)=>t?dd1(v/t*100)+'%':'—';
+  const tab=`<table class="xl"><thead><tr><th>Tabulação</th>${L.map(o=>`<th colspan="2">${o.sem?esc(nomeCamp(camp))+' (sem anúncio)':esc(anunNome(o.cod))}</th>`).join('')}<th colspan="2">Total</th></tr>
+      <tr class="sub"><th class="lft m">inserções</th>${L.map(o=>`<th colspan="2" class="m">${o.sem?'—':n(o.ins)}</th>`).join('')}<th colspan="2" class="m">${n(A.T.ins)}</th></tr></thead>
+    <tbody>${tabs.map(t=>{const ps=L.map(o=>o.leads?get(t,o)/o.leads:0),mx=Math.max(...ps,0),mn=Math.min(...ps,0);
+      return `<tr><td class="lft"><b>${esc(t)}</b></td>${L.map((o,i)=>{const q=mx>mn?(ps[i]-mn)/(mx-mn):0;
+        return `<td>${n(get(t,o))}</td><td class="pct" style="background:rgba(232,113,31,${(q*.28).toFixed(3)})">${dd1(ps[i]*100)}%</td>`}).join('')}
+        <td><b>${n(row[t])}</b></td><td class="pct">${pcN(row[t],tot)}</td></tr>`}).join('')}</tbody>
+    <tfoot><tr class="tt"><td class="lft"><b>Total</b></td>${L.map(o=>`<td><b>${n(o.leads)}</b></td><td class="pct">100%</td>`).join('')}
+      <td><b>${n(tot)}</b></td><td class="pct">100%</td></tr></tfoot></table>`;
+  return cab+`<span class="m">${n(tot)} leads · ${n(A.T.ins)} inserções · cada dia: 00:00 até o próximo anúncio = 1º do dia; o último fica até 23:59</span></div>
+    <div class="tw">${tab}</div>${A.semExtrato>0||Object.keys(A.mesesSem).length?`<p class="info" style="margin:6px 16px 12px">Meses sem extrato ficam na coluna "sem anúncio".</p>`:''}</div>`}
 
 /* ═════ Administração · Custo offline (histórico gravado) ═════ */
 const OA={busy:'',msg:'',erro:''};
