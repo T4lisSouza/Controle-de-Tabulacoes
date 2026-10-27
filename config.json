@@ -1,5 +1,5 @@
 {
- "t": "2026-10-27T19:06:27.957Z",
+ "t": "2026-10-27T19:15:34.729Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -215,7 +215,21 @@
   "openaiCamp": {
    "*": "GPT-M12"
   },
-  "usuarios": [],
+  "usuarios": [
+   {
+    "u": "davi",
+    "criado": "2026-10-27T19:15:30.712Z",
+    "ativo": true,
+    "nome": "M12",
+    "papel": "parceiro",
+    "emps": [
+     "M12"
+    ],
+    "valores": false,
+    "sal": "c04b894820f4239a",
+    "h": "613b841ed8da44d8b3280222364a7f0205ea948681689ccb01105a1cec182f05"
+   }
+  ],
   "rnLinks": [],
   "rnLinksExcl": [],
   "offMap": {},
@@ -233,7 +247,118 @@
    "vel": "media",
    "zoom": "auto",
    "tema": "dark",
-   "telas": []
+   "telas": [
+    {
+     "t": "resumo",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "leads",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "camp",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "emp",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "tab",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "fat",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "vendas",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "perf:exec",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "perf:custos",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "perf:cpl",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "perf:cac",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "perf:roi",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "perf:emp",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "perf:camp",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "perf:sem",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "perf:proj",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "perf:onoff",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    },
+    {
+     "t": "relat",
+     "e": "TODAS",
+     "s": 20,
+     "on": 1
+    }
+   ],
+   "vivo": true,
+   "seg": 30
   },
   "kpi": {
    "lista": [
