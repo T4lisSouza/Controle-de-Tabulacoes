@@ -1,5 +1,5 @@
 {
- "t": "2026-10-27T19:05:11.102Z",
+ "t": "2026-10-27T19:06:27.957Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -206,8 +206,8 @@
   "anun": {
    "camp": "JOGO ABERTO-OFF",
    "nomes": {
-    "004": "REPORTER",
     "005": "R-FERIADO",
+    "004": "REPORTER",
     "001": "SOGRA",
     "002": "FERIADÃO"
    }
