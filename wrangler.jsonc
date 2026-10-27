@@ -1,0 +1,10 @@
+{
+  // Site estático do painel GWA. Este arquivo existe para o Cloudflare não tentar
+  // "adivinhar" o tipo de projeto: com o config.json na raiz ele confundia o site
+  // com um projeto Hugo e a publicação falhava.
+  "name": "controle-de-tabulacoes",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./"
+  }
+}
