@@ -769,6 +769,7 @@ const CFG_PADRAO={
     abaOff:"Custo OFFLINE",abaAtivas:"CAMPANHAS_ATIVAS",
     abaMetro:"CUSTO METROPOLITANA SAIDAS",abaHist:"OFFLINE CUSTAS - HISTORICO",
     abaAnun:"ANUNCIOS JOGO ABERTO",
+    abaOpenai:"OpenAI_Ads - Custas",openai:{dia:"A",id:"B",campanha:"C",custo:"F"},
     meta:{mes:"A",gasto:"I",campanha:"L",empresa:"M",empConta:"F",atualiz:"K",conta:"D",nome:"B",bm:"N"},
     ativas:{conta:"A",status:"E",empresa:"L",bm:"O"},
     ads:{dia:"A",status:"E",canal:"F",custo:"K",orcamento:"P",campanha:"Q",empresa:"R"}},
@@ -788,6 +789,7 @@ const CFG_PADRAO={
   empCamp:{"JOGO ABERTO-24H":"OFF"},  /* campanha -> empresa responsável (vale acima do sufixo do nome e da coluna da planilha) */
   leadCamp:{"JOGO ABERTO-24H":"JOGO ABERTO-24H"},
   anun:{camp:"JOGO ABERTO-OFF",nomes:{}},
+  openaiCamp:{"*":"GPT-M12"},  /* campanha da OpenAI (nome ou ID) -> campanha do painel; "*" vale para todas as outras */
   rnLinks:[],      /* links de reunião gerados aqui: {id,e,a,b,t,url} */
   rnLinksExcl:[],  /* ids de links de reunião excluídos — quem abrir um deles vê "link excluído" */  /* extrato de anúncios: campanha que usa a separação e o nome de cada código */  /* origem/canal na base -> campanha que recebe esses leads no painel */
   offMap:{},     /* campanha da grade de offline -> campanha mapeada que recebe o custo (CHUPIM -> METROPOLITANA-OFF) */
@@ -802,12 +804,12 @@ function mesclar(a,b){for(const k in b){const v=b[k];
   if(v&&typeof v==='object'&&!Array.isArray(v)&&a[k]&&typeof a[k]==='object')mesclar(a[k],v);else a[k]=v}return a}
 let CFG=clone(CFG_PADRAO);
 try{const s=JSON.parse(localStorage.getItem('gwa.cfg')||'null');if(s)mesclar(CFG,s)}catch(e){}
-let SID,SNAME,CAMP,TAB,ORI,CAN,DAT,ID,FSID,FGID,KSID,SH_META,SH_ADS,SH_OFF,SH_ATV,SH_METRO,SH_HIST,SH_ANUN,HORA;
+let SID,SNAME,CAMP,TAB,ORI,CAN,DAT,ID,FSID,FGID,KSID,SH_META,SH_ADS,SH_OFF,SH_ATV,SH_METRO,SH_HIST,SH_ANUN,SH_OPENAI,HORA;
 function aplicaCfg(){const c=CFG.leads.col;SID=CFG.leads.id;SNAME=CFG.leads.aba;
   CAMP=c.campanha;TAB=c.tabulacao;ORI=c.origem;CAN=c.canal;DAT=c.data;ID=c.id;
   FSID=CFG.fin.id;FGID=CFG.fin.gid;KSID=CFG.custos.id;SH_META=CFG.custos.abaMeta;SH_ADS=CFG.custos.abaAds;
   SH_OFF=CFG.custos.abaOff;SH_ATV=CFG.custos.abaAtivas;
-  SH_METRO=CFG.custos.abaMetro||'';SH_HIST=CFG.custos.abaHist||'';SH_ANUN=CFG.custos.abaAnun||'';HORA=c.hora||'CG'}
+  SH_METRO=CFG.custos.abaMetro||'';SH_HIST=CFG.custos.abaHist||'';SH_ANUN=CFG.custos.abaAnun||'';SH_OPENAI=CFG.custos.abaOpenai||'';HORA=c.hora||'CG'}
 aplicaCfg();
 /* aberto por link de reunião: a configuração do link vale só nesta visita e nunca sobrescreve a deste navegador */
 var RN_LINK=null;
@@ -1495,7 +1497,7 @@ function vVendas(){
 
 
 /* ═════════ PERFORMANCE · CUSTOS · RENTABILIDADE ═════════ */
-const SRCLAB={META:'Meta Ads',ADS:'Google Ads',OFFLINE:'Offline'};
+const SRCLAB={META:'Meta Ads',ADS:'Google Ads',OFFLINE:'Offline',OPENAI:'OpenAI Ads'};
 const SRCCOL={META:'var(--blue)',ADS:'var(--orange)',OFFLINE:'var(--gold)'};
 const DOW=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 const serial=v=>{const ms=(Number(v)-25569)*864e5;const d=new Date(ms);
@@ -1543,6 +1545,19 @@ function buildCusto(meta,ads,off,metro,hist){
     out.push({d,camp,emp,val,src:'ADS',canal:String(r[2]||'Google').trim(),
       estado:String(r[1]||'').trim(),budget:+r[4]||0,apx:false});
   });
+  /* 2b. OPENAI (aba "OpenAI_Ads - Custas", diária: A data, B id da campanha, C campanha, F custo) — campanha do GPT.
+     A campanha da OpenAI vira a do painel por CFG.openaiCamp (padrão: tudo em GPT-M12). Se o mesmo dia da mesma campanha
+     vier repetido (exportação refeita), vale o MAIOR valor do dia — o custo de um dia só cresce. */
+  {const oa=RAW.openai||[],dia={};
+    oa.forEach(r=>{const d=gdate(r[0]);if(!d)return;const val=typeof r[3]==='number'?r[3]:+String(r[3]==null?'':r[3]).replace(/[^\d,.-]/g,'').replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.')||0;
+      const id=String(r[1]==null?'':r[1]).trim(),nome=String(r[2]==null?'':r[2]).trim(),k=d+'|'+(id||nome);
+      if(!dia[k]||val>dia[k].val)dia[k]={d,id,nome,val}});
+    const MP=CFG.openaiCamp||{};
+    Object.values(dia).forEach(x=>{if(!x.val)return;
+      const alvo=MP[x.id]||MP[x.nome]||MP['*'];
+      if(!alvo){EXCL.n++;EXCL.v+=x.val;return}
+      const camp=nc(alvo),emp=(CFG.empCamp||{})[camp]||empOf(camp);
+      out.push({d:x.d,camp,emp,val:x.val,src:'OPENAI',canal:'OpenAI',apx:false,orig:x.nome||x.id})})}
   /* 3. OFFLINE: grade de inserções do mês da planilha, só até "Atualizado em" e ajustada para bater com a
      coluna AA (custo realizado até hoje). Meses anteriores vêm do histórico gravado no serviço (a aba só tem o mês corrente). */
   const hojeI=iso(hoje);
@@ -2543,13 +2558,14 @@ function vRel(){
   /* investimento */
   const inv=Object.entries(D.C).filter(([k,o])=>o.inv>0).sort((x,y)=>y[1].inv-x[1].inv);
   const porSrc={};inv.forEach(([k,o])=>Object.entries(o.src).forEach(([s,v])=>porSrc[s]=(porSrc[s]||0)+v));
-  const tabInv=`<table class="xl"><thead><tr><th>Campanha</th><th>Meta</th><th>Google</th><th>Offline</th><th>Total</th><th>%</th><th>CPL</th><th>ROAS</th></tr></thead>
+  const temOA=!!porSrc.OPENAI;
+  const tabInv=`<table class="xl"><thead><tr><th>Campanha</th><th>Meta</th><th>Google</th>${temOA?'<th>OpenAI</th>':''}<th>Offline</th><th>Total</th><th>%</th><th>CPL</th><th>ROAS</th></tr></thead>
     <tbody>${inv.map(([k,o])=>`<tr><td class="lft"><b>${esc(curto(k))}</b></td>
-      <td>${o.src.META?mo2(o.src.META):'—'}</td><td>${o.src.ADS?mo2(o.src.ADS):'—'}</td><td>${o.src.OFFLINE?mo2(o.src.OFFLINE):'—'}</td>
+      <td>${o.src.META?mo2(o.src.META):'—'}</td><td>${o.src.ADS?mo2(o.src.ADS):'—'}</td>${temOA?`<td>${o.src.OPENAI?mo2(o.src.OPENAI):'—'}</td>`:''}<td>${o.src.OFFLINE?mo2(o.src.OFFLINE):'—'}</td>
       <td><b>${mo2(o.inv)}</b></td><td class="pct">${pc(o.inv,T.inv)}</td><td>${fmtOr(o.cpl,mo2)}</td>
-      <td class="h-${FX.roas(o.roas)}">${xN(o.roas)}</td></tr>`).join('')||'<tr><td colspan="8">Sem custo no período.</td></tr>'}</tbody>
+      <td class="h-${FX.roas(o.roas)}">${xN(o.roas)}</td></tr>`).join('')||`<tr><td colspan="${temOA?9:8}">Sem custo no período.</td></tr>`}</tbody>
     <tfoot><tr class="tt"><td class="lft"><b>Total</b></td><td>${porSrc.META?mo2(porSrc.META):'—'}</td>
-      <td>${porSrc.ADS?mo2(porSrc.ADS):'—'}</td><td>${porSrc.OFFLINE?mo2(porSrc.OFFLINE):'—'}</td>
+      <td>${porSrc.ADS?mo2(porSrc.ADS):'—'}</td>${temOA?`<td>${mo2(porSrc.OPENAI)}</td>`:''}<td>${porSrc.OFFLINE?mo2(porSrc.OFFLINE):'—'}</td>
       <td><b>${mo2(T.inv)}</b></td><td class="pct">100%</td><td>${fmtOr(T.cpl,mo2)}</td><td>${xN(T.roas)}</td></tr></tfoot></table>`;
 
   /* vendas: serviço, consultor, tempo, origem */
@@ -2726,11 +2742,11 @@ function gerarXlsx(){
 
   /* 5 investimento */
   const s5=titulo('Investimento por campanha');
-  s5.push(['Campanha','Empresa','Meta','Google','Offline','Total','%','Leads','CPL','Vendas','CAC','Faturamento','ROAS'].map(h));
+  s5.push(['Campanha','Empresa','Meta','Google','OpenAI','Offline','Total','%','Leads','CPL','Vendas','CAC','Faturamento','ROAS'].map(h));
   Object.entries(D.C).filter(([k,o])=>o.inv>0).sort((x,y)=>y[1].inv-x[1].inv).forEach(([k,o])=>s5.push([bd(curto(k)),tx(empOf(k)),
-    c(o.src.META||0,S.money),c(o.src.ADS||0,S.money),c(o.src.OFFLINE||0,S.money),c(o.inv,S.money),c(T.inv?o.inv/T.inv:null,S.pct),
+    c(o.src.META||0,S.money),c(o.src.ADS||0,S.money),c(o.src.OPENAI||0,S.money),c(o.src.OFFLINE||0,S.money),c(o.inv,S.money),c(T.inv?o.inv/T.inv:null,S.pct),
     c(o.leads,S.int),c(o.cpl,S.money),c(o.nv,S.int),c(o.cac,S.money),c(o.fat,S.money),hx(o.roas)]));
-  s5.push([{v:'Total',s:S.tot},{v:'',s:S.tot},{v:'',s:S.tot},{v:'',s:S.tot},{v:'',s:S.tot},c(T.inv,S.totMoney),c(1,S.totPct)]);
+  s5.push([{v:'Total',s:S.tot},{v:'',s:S.tot},{v:'',s:S.tot},{v:'',s:S.tot},{v:'',s:S.tot},{v:'',s:S.tot},c(T.inv,S.totMoney),c(1,S.totPct)]);
 
   /* 6 vendas: serviço e consultor */
   const V=dsVendas(D.a,D.b), FS=dsFatPorServ(D.a,D.b);
@@ -2762,7 +2778,7 @@ function gerarXlsx(){
     {nome:'Por mídia',rows:s2,w:[20,11,10,10,8,9,10,12,9,12,14,15,15,10,9,10,9,12,12]},
     {nome:'Semanal',rows:s3,w:[12,12,12,9,9,11,14,11,12,15,9,10,11,15,11,12]},
     {nome:'Tabulações',rows:s4,w:[20,...TB.camps.flatMap(()=>[11,8]),10,8]},
-    {nome:'Investimento',rows:s5,w:[22,10,14,14,14,15,8,9,11,9,12,15,9]},
+    {nome:'Investimento',rows:s5,w:[22,10,14,14,14,14,15,8,9,11,9,12,15,9]},
     {nome:'Serviços e consultores',rows:s6,w:[26,9,17,13,19,18]},
     {nome:'Vendas (detalhe)',rows:s7,w:[13,13,10,20,22,20,16,10,13,15,15]},
     {nome:'Custos (detalhe)',rows:s8,w:[12,22,12,12,20,14,28]},
@@ -2880,7 +2896,7 @@ function aMapa(){
   FIN.forEach(x=>{const o=g(x.mi);o.src.add('Vendas');if(inRange(finDate(x)))o.fat+=x.v});
   SALES.forEach(x=>{if(inRange(finDate(x)))g(x.mi).nv++});
   const L=Object.entries(m).sort((a,b)=>empOf(a[0]).localeCompare(empOf(b[0]))||a[0].localeCompare(b[0]));
-  const sit=o=>{const s=o.src,l=s.has('Leads'),c=s.has('Meta Ads')||s.has('Google Ads')||s.has('Offline'),v=s.has('Vendas');
+  const sit=o=>{const s=o.src,l=s.has('Leads'),c=s.has('Meta Ads')||s.has('Google Ads')||s.has('Offline')||s.has('OpenAI Ads'),v=s.has('Vendas');
     if(l&&c&&v)return['g','Completa'];if(c&&!l)return['r','Custo sem leads'];if(l&&!c&&v)return['y','Sem custo (orgânica?)'];
     if(v&&!l&&!c)return['y','Só vendas'];if(l&&!v)return['y','Sem vendas'];return['n','Parcial']};
   const meses=Object.entries(EXCL.porMes||{}).sort((a,b)=>b[0].localeCompare(a[0]));
@@ -6650,11 +6666,11 @@ function ingCusto(meta,ads,off,atv,metro,hist){
 /* cache local: abre o painel na hora com os últimos dados e atualiza por trás */
 function salvaCache(){
   try{localStorage.setItem('gwa.cache',JSON.stringify({t:Date.now(),d1,d2,fO,fC,cube:RAW.cube,ser:RAW.ser,rec:RAW.rec,
-    fin:RAW.fin,meta:RAW.meta,ads:RAW.ads,off:RAW.off,atv:RAW.atv,metro:RAW.metro,hist:RAW.hist,anun:RAW.anun,lead:RAW.lead}))}
+    fin:RAW.fin,meta:RAW.meta,ads:RAW.ads,off:RAW.off,atv:RAW.atv,metro:RAW.metro,hist:RAW.hist,anun:RAW.anun,lead:RAW.lead,openai:RAW.openai}))}
   catch(e){try{localStorage.removeItem('gwa.cache')}catch(_){}}}
 function hidrata(){
   try{const c=JSON.parse(localStorage.getItem('gwa.cache')||'null');if(!c)return false;
-    Object.assign(RAW,{fin:c.fin,meta:c.meta,ads:c.ads,off:c.off,atv:c.atv,metro:c.metro,hist:c.hist,anun:c.anun,lead:c.lead});
+    Object.assign(RAW,{fin:c.fin,meta:c.meta,ads:c.ads,off:c.off,atv:c.atv,metro:c.metro,hist:c.hist,anun:c.anun,lead:c.lead,openai:c.openai});
     anunIng(c.anun||[]);anunLeads(c.lead||[]);
     if(c.fin)ingFin(c.fin);
     if(c.meta||c.ads||c.off)ingCusto(c.meta,c.ads,c.off,c.atv,c.metro,c.hist);
@@ -6721,14 +6737,15 @@ function metaSuspeita(meta,ant){
 async function loadCusto(){
   if(cusBusy)return;cusBusy=true;offhCarrega(false);
   try{const m=CFG.custos.meta,a=CFG.custos.ads,t=CFG.custos.ativas||{};
-    let [meta,ads,off,atv,metro,hist,anun]=await Promise.all([
+    let [meta,ads,off,atv,metro,hist,anun,oai]=await Promise.all([
       gvizK(SH_META,`select ${m.mes}, ${m.gasto}, ${m.campanha}, ${m.empresa}, ${m.empConta}, ${m.atualiz}, ${m.conta||'D'}, ${m.nome||'B'}, ${m.bm||'N'}`).catch(()=>null),
       gvizK(SH_ADS,`select ${a.dia}, ${a.status}, ${a.canal}, ${a.custo}, ${a.orcamento}, ${a.campanha}, ${a.empresa}`).catch(()=>null),
       gvizK(SH_OFF,"select *",0).catch(()=>null),
       gvizK(SH_ATV,`select ${t.conta||'A'}, ${t.status||'E'}, ${t.empresa||'L'}, ${t.bm||'O'}`).catch(()=>null),
       SH_METRO?gvizK(SH_METRO,"select *",0).catch(()=>null):Promise.resolve(null),
       SH_HIST?gvizK(SH_HIST,"select *",0).catch(()=>null):Promise.resolve(null),
-      SH_ANUN?gvizA(SH_ANUN).catch(()=>null):Promise.resolve(null)
+      SH_ANUN?gvizA(SH_ANUN).catch(()=>null):Promise.resolve(null),
+      SH_OPENAI?gvizK(SH_OPENAI,(o=>`select ${o.dia||'A'}, ${o.id||'B'}, ${o.campanha||'C'}, ${o.custo||'F'}`)(CFG.custos.openai||{})).catch(()=>null):Promise.resolve(null)
     ]);
     if(meta){const sus=metaSuspeita(meta,RAW.meta);
       if(sus&&metaTent<3){metaTent++;cusAviso=sus;
@@ -6741,6 +6758,7 @@ async function loadCusto(){
     const M=meta||RAW.meta||[],A=ads||RAW.ads||[],O=off||RAW.off||[],V=atv||RAW.atv||[];
     const MT=metro||RAW.metro||[],HS=hist||RAW.hist||[];
     const AN=anun||RAW.anun||[];RAW.anun=AN;anunIng(AN);
+    RAW.openai=oai||RAW.openai||[];   /* se a aba da OpenAI falhar, fica a última leitura boa */
     if(ingCusto(M,A,O,V,MT,HS)){Object.assign(RAW,{meta:M,ads:A,off:O,atv:V,metro:MT,hist:HS});salvaCache();renderAuto()}
     else {cusErr='sem linhas';renderAuto()}
   }catch(e){cusErr=e&&e.message?e.message:'erro';renderAuto()}
