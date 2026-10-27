@@ -1,0 +1,274 @@
+{
+ "t": "2026-10-27T19:05:11.102Z",
+ "quem": "painel GWA",
+ "cfg": {
+  "leads": {
+   "id": "1OcI9x8g8tTOWA4eovtd3raM6SVENR94ED9T-XHFxmoY",
+   "aba": "Base de dados Comercial",
+   "col": {
+    "id": "B",
+    "data": "F",
+    "origem": "J",
+    "canal": "N",
+    "campanha": "CJ",
+    "tabulacao": "CK",
+    "form": "M",
+    "hora": "CG",
+    "titulo": "D",
+    "fase": "E",
+    "vendedor": "G",
+    "fone": "R",
+    "nomeLead": "T",
+    "nome": "V",
+    "cpf": "X",
+    "email": "AS"
+   }
+  },
+  "fin": {
+   "id": "1uusOH-nrI4euiYDdAaJ8QWYC4RfU45TH4K5d2IYCZX8",
+   "gid": "0",
+   "col": {
+    "lanc": "A",
+    "servico": "J",
+    "valor": "L",
+    "parcela": "N",
+    "venc": "P",
+    "dataLead": "S",
+    "midia": "Z",
+    "empresa": "AA",
+    "confirm": "D",
+    "consultor": "R",
+    "card": "C",
+    "status": "V",
+    "nome": "F",
+    "fone": "G",
+    "cpf": "H",
+    "email": "I",
+    "bruto": "K",
+    "forma": "M",
+    "vezes": "O"
+   }
+  },
+  "custos": {
+   "id": "1_Q029qNPIE66vVxsgGCA7kHfk5B0Yr0_7Fa2yiXzqEc",
+   "abaMeta": "RELATORIO_CAMPANHAS_2026",
+   "abaAds": "Custo campanhas Ads",
+   "abaOff": "Custo OFFLINE",
+   "abaAtivas": "CAMPANHAS_ATIVAS",
+   "abaMetro": "CUSTO METROPOLITANA SAIDAS",
+   "abaHist": "OFFLINE CUSTAS - HISTORICO",
+   "abaAnun": "ANUNCIOS JOGO ABERTO",
+   "abaOpenai": "OpenAI_Ads - Custas",
+   "openai": {
+    "dia": "A",
+    "id": "B",
+    "campanha": "C",
+    "custo": "F"
+   },
+   "meta": {
+    "mes": "A",
+    "gasto": "I",
+    "campanha": "L",
+    "empresa": "M",
+    "empConta": "F",
+    "atualiz": "K",
+    "conta": "D",
+    "nome": "B",
+    "bm": "N"
+   },
+   "ativas": {
+    "conta": "A",
+    "status": "E",
+    "empresa": "L",
+    "bm": "O"
+   },
+   "ads": {
+    "dia": "A",
+    "status": "E",
+    "canal": "F",
+    "custo": "K",
+    "orcamento": "P",
+    "campanha": "Q",
+    "empresa": "R"
+   }
+  },
+  "refresh": 60,
+  "faixas": {
+   "roasBom": 3,
+   "roasOk": 1,
+   "margemBoa": 60,
+   "margemOk": 30,
+   "icrBom": 25,
+   "icrOk": 40,
+   "roiBom": 150
+  },
+  "metas": {
+   "conv": 3,
+   "tmedia": 15,
+   "margem": 70,
+   "icr": 30,
+   "roas": 4,
+   "target": 15,
+   "churn": 85
+  },
+  "apelidos": {},
+  "formNomes": {
+   "[M12] [CADASTRO] BM1 SET26": "CADASTRO-BM1",
+   "[M12] [CADASTRO] BM1 SET26 V2": "CADASTRO-BM1",
+   "[M12] [CADASTRO] [WAPP 3908] BM5 OUT26": "CADASTRO-BM5",
+   "(sem formulário)": "CADASTRO-BM5",
+   "[M12] [CADASTRO] [WAPP 2781] BM1 OUT26": "CADASTRO-BM1"
+  },
+  "bmContas": {},
+  "bmLinhas": {
+   "1929": "BM INTERNO 02",
+   "2837": "BM INTERNO 01",
+   "4276": "BM3"
+  },
+  "empLinhas": {
+   "1929": "GWA",
+   "2837": "GWA",
+   "4276": "M12"
+  },
+  "bmEmp": {},
+  "bmRedir": {},
+  "linNomes": {},
+  "semCanal": {
+   "GWA": "0555",
+   "M12": "5844"
+  },
+  "bmCamp": {
+   "GPT-M12": 0
+  },
+  "rn": {
+   "sel": {
+    "capa": 1,
+    "exec": 0,
+    "mes": 1,
+    "leads": 1,
+    "funil": 1,
+    "camp": 1,
+    "aprov": 1,
+    "target": 1,
+    "linha": 1,
+    "balanc": 1,
+    "form": 1,
+    "qual": 1,
+    "vmes": 1,
+    "tempo": 1,
+    "invest": 1,
+    "ranking": 1,
+    "empresas": 0,
+    "custos": 1,
+    "ticket": 1,
+    "evol": 0,
+    "semanal": 1,
+    "proj": 1,
+    "bm": 1,
+    "anun": 1,
+    "oport": 0,
+    "fim": 1
+   },
+   "ordem": [
+    "capa",
+    "exec",
+    "mes",
+    "leads",
+    "funil",
+    "camp",
+    "balanc",
+    "form",
+    "qual",
+    "vmes",
+    "tempo",
+    "invest",
+    "ranking",
+    "empresas",
+    "custos",
+    "ticket",
+    "evol",
+    "semanal",
+    "proj",
+    "bm",
+    "anun",
+    "oport",
+    "fim"
+   ],
+   "tema": "escuro",
+   "semFat": 0
+  },
+  "empCamp": {
+   "JOGO ABERTO-24H": "OFF"
+  },
+  "leadCamp": {
+   "JOGO ABERTO-24H": "JOGO ABERTO-24H"
+  },
+  "anun": {
+   "camp": "JOGO ABERTO-OFF",
+   "nomes": {
+    "004": "REPORTER",
+    "005": "R-FERIADO",
+    "001": "SOGRA",
+    "002": "FERIADÃO"
+   }
+  },
+  "openaiCamp": {
+   "*": "GPT-M12"
+  },
+  "usuarios": [],
+  "rnLinks": [],
+  "rnLinksExcl": [],
+  "offMap": {},
+  "offAba": {
+   "CUSTO METROPOLITANA SAIDAS": "METROPOLITANA-OFF"
+  },
+  "empresas": [
+   "GWA",
+   "M12",
+   "OFF",
+   "IND"
+  ],
+  "tv": {
+   "periodo": "mes",
+   "vel": "media",
+   "zoom": "auto",
+   "tema": "dark",
+   "telas": []
+  },
+  "kpi": {
+   "lista": [
+    "nv",
+    "leads",
+    "mld",
+    "conv",
+    "tmed",
+    "lf",
+    "cpl",
+    "inv",
+    "margem",
+    "icr",
+    "roi",
+    "roas",
+    "cpa",
+    "tk"
+   ],
+   "metas": {
+    "*": {
+     "conv": 3,
+     "tmed": 15,
+     "margem": 70,
+     "icr": 30,
+     "roas": 4,
+     "tgt": 15,
+     "churn": 85
+    },
+    "M12": {
+     "roi": 200,
+     "tk": 900
+    }
+   },
+   "custom": [],
+   "val": {}
+  }
+ }
+}
