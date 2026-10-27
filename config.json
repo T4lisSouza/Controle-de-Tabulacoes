@@ -1,5 +1,5 @@
 {
- "t": "2026-10-27T19:28:50.914Z",
+ "t": "2026-10-27T19:31:47.573Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -226,8 +226,8 @@
      "M12"
     ],
     "valores": false,
-    "sal": "90f06d1830b162bc",
-    "h": "028c4316b8136d6eb21e6f7bae25a98874775f165335012eaa857eadfc90febc"
+    "sal": "d1142c1b1f62c5d5",
+    "h": "3e2d71e765ae85395b48be3838b0ba1e1aa63a01fd6728a0c4bfe31e7a9f95eb"
    }
   ],
   "rnLinks": [],
