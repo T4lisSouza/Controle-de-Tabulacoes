@@ -1,5 +1,5 @@
 {
- "t": "2026-10-27T20:43:34.251Z",
+ "t": "2026-10-27T20:44:47.024Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -117,7 +117,9 @@
    "[M12] [CADASTRO] BM1 SET26 V2": "CADASTRO-BM1",
    "[M12] [CADASTRO] [WAPP 3908] BM5 OUT26": "CADASTRO-BM5",
    "(sem formulário)": "CADASTRO-BM5",
-   "[M12] [CADASTRO] [WAPP 2781] BM1 OUT26": "CADASTRO-BM1"
+   "[M12] [CADASTRO] [WAPP 2781] BM1 OUT26": "CADASTRO-BM1",
+   "GWA | CADASTRO | TRIAGEM CNH | FORMULÁRIO | R$50/DIA | 0555 | OUT/2026": "CADASTRO-GWA-01",
+   "GWA | CADASTRO | PORTARIAS DETRAN | FORM 0555 | R$50/DIA | OUT/2026": "CADASTRO-GWA-01"
   },
   "bmContas": {},
   "bmLinhas": {
