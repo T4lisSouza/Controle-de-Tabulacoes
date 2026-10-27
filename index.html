@@ -752,6 +752,10 @@ body.lg-on{overflow:hidden}
 .usr[hidden]{display:none}.usr-n{max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--ink)}
 .usr button{border:0;background:var(--bg2);color:var(--ink2);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}.usr button:hover{color:var(--ink)}
 @media(max-width:600px){body:has(.usr:not([hidden])) .stat #st{display:none}.usr-n{display:none}.usr{padding:3px;border:0;background:transparent}.usr button{padding:6px 9px}}
+/* ── publicação automática ── */
+.gh-f{display:grid;gap:10px;padding:0 16px 12px;grid-template-columns:1fr}@media(min-width:760px){.gh-f{grid-template-columns:1.4fr 1fr auto;align-items:end}}
+.gh-f .cf{margin:0}.gh-f input{width:100%}
+.gh-como{margin:0 16px 16px;font-size:13px}.gh-como summary{cursor:pointer;font-weight:600;padding:4px 0}.gh-como ol{margin:8px 0;padding-left:20px;display:grid;gap:4px;color:var(--ink2)}
 /* ── acessos ── */
 .ac-f{display:grid;gap:12px;padding:0 16px 18px;grid-template-columns:1fr}
 @media(min-width:760px){.ac-f{grid-template-columns:1fr 1fr 1fr}.ac-fs{grid-column:span 1}.ac-bt{grid-column:1/-1}}
@@ -881,7 +885,9 @@ aplicaCfg();
 /* aberto por link de reunião: a configuração do link vale só nesta visita e nunca sobrescreve a deste navegador */
 var RN_LINK=null;
 var RN_SF=false;   /* reunião sem os valores de faturamento (R$); percentuais continuam */
-function salvaCfg(){if(RN_LINK)return true;try{localStorage.setItem('gwa.cfg',JSON.stringify(CFG));return true}catch(e){return false}}
+function salvaCfg(){if(RN_LINK)return true;let ok=true;try{localStorage.setItem('gwa.cfg',JSON.stringify(CFG))}catch(e){ok=false}
+  if(typeof ghAgenda==='function')ghAgenda();   /* publicação automática no GitHub, se estiver ligada */
+  return ok}
 /* ═════ LOGS de cada consulta às planilhas ═════ */
 const LOGS=[];
 try{const l=JSON.parse(localStorage.getItem('gwa.logs')||'[]');if(Array.isArray(l))LOGS.push(...l.slice(0,200))}catch(e){}
@@ -3123,7 +3129,7 @@ const ROT={form:'Nome do formulário',conta:'Conta de anúncio (BM)',nome:'Nome 
   empConta:'Empresa da conta',atualiz:'Última atualização',dia:'Dia',status:'Status',custo:'Custo',orcamento:'Orçamento'};
 const link=id=>`https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/edit`;
 function aConfig(){const C=CFG,f=C.faixas;
-  return vSync()+`<div class="card wide"><div class="ch"><h3>Planilhas</h3><span class="m">ID = trecho do link entre /d/ e /edit</span></div>
+  return ghCard()+vSync()+`<div class="card wide"><div class="ch"><h3>Planilhas</h3><span class="m">ID = trecho do link entre /d/ e /edit</span></div>
     <div class="cfg-g">
       <div class="cfg-b"><h4>Leads <a href="${link(C.leads.id)}" target="_blank" rel="noopener">abrir</a></h4>${campo('c_l_id','ID da planilha',C.leads.id)}${campo('c_l_aba','Aba',C.leads.aba)}</div>
       <div class="cfg-b"><h4>Faturamento <a href="${link(C.fin.id)}" target="_blank" rel="noopener">abrir</a></h4>${campo('c_f_id','ID da planilha',C.fin.id)}${campo('c_f_gid','gid da aba',C.fin.gid)}</div>
@@ -4790,6 +4796,80 @@ async function syBaixa(){
   logEv('Configuração','config.json gerado',true,0,0,'versão '+t+' · '+onde);
   aviso(onde==='pasta'?'config.json salvo — agora suba ele no GitHub junto com o index.html'
     :'config.json baixado (pasta Downloads) — coloque ao lado do index.html e suba no GitHub');render()}
+/* ═════ Publicação automática do config.json no GitHub (27/10/2026) ═════
+   Com a chave (token) do GitHub conectada neste navegador, todo ajuste salvo pelo administrador vira um commit do
+   config.json no repositório; o Cloudflare publica sozinho, como já faz com o index.html. A chave fica só neste
+   navegador (localStorage), nunca vai para o config.json nem para o link da reunião. Só publica se a configuração mudou. */
+const GH={st:'',msg:'',busy:false,ult:'',json:''};
+const GH_REPO_P='T4lisSouza/Controle-de-Tabulacoes';
+const ghTok=()=>{try{return localStorage.getItem('gwa.ghTok')||''}catch(e){return ''}};
+const ghRepo=()=>{try{return localStorage.getItem('gwa.ghRepo')||GH_REPO_P}catch(e){return GH_REPO_P}};
+const ghAtivo=()=>!!ghTok()&&!RN_LINK&&admOk();
+const b64utf8=s=>{const u=new TextEncoder().encode(s);let b='';for(let i=0;i<u.length;i+=0x8000)b+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(b)};
+async function ghApi(path,opt){
+  const r=await fetch('https://api.github.com/repos/'+ghRepo()+path,Object.assign({cache:'no-store'},opt||{},{headers:Object.assign({
+    'Accept':'application/vnd.github+json','Authorization':'Bearer '+ghTok(),'X-GitHub-Api-Version':'2022-11-28'},(opt&&opt.headers)||{})}));
+  let j=null;try{j=await r.json()}catch(e){}return {ok:r.ok,status:r.status,j}}
+const ghErro=r=>r.status===401?'o GitHub não aceitou a chave (confira se copiou inteira; se ela expirou ou foi apagada, gere outra e conecte de novo)'
+  :(r.status===403||r.status===404)?'a chave não tem permissão de escrita no repositório '+ghRepo()+' (em "Contents", marque "Read and write")'
+  :((r.j&&r.j.message)||('erro '+r.status));
+async function ghPublica(motivo,forca){
+  if(!ghTok())return false;
+  const corpo=JSON.stringify(CFG);if(!forca&&corpo===GH.json){GH.st=GH.st==='pend'?'ok':GH.st;ghMostra();return true}
+  GH.busy=true;GH.st='env';ghMostra();
+  const t=new Date().toISOString(),txt=JSON.stringify({t,quem:'painel GWA',cfg:CFG},null,1);
+  try{
+    for(let i=0;i<2;i++){
+      const cur=await ghApi('/contents/config.json?ref=main');
+      if(!cur.ok&&cur.status!==404)throw new Error(ghErro(cur));
+      const sha=cur.ok&&cur.j&&cur.j.sha?cur.j.sha:undefined;
+      const put=await ghApi('/contents/config.json',{method:'PUT',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(Object.assign({message:'Painel: configuração atualizada'+(motivo?' — '+motivo:''),content:b64utf8(txt),branch:'main'},sha?{sha}:{}))});
+      if(put.ok){GH.json=corpo;syMarca(t);SY.tSite=t;SY.st='ok';GH.st='ok';GH.ult=t;GH.msg='';
+        logEv('Configuração','config.json publicado no GitHub',true,0,0,motivo||'');return true}
+      if(i===0&&(put.status===409||put.status===422))continue;   /* alguém publicou no meio: pega a versão nova e tenta de novo */
+      throw new Error(ghErro(put))}
+    throw new Error('o GitHub recusou a gravação duas vezes')}
+  catch(e){GH.st='erro';GH.msg=e.message;logEv('Configuração','publicação no GitHub',false,0,0,e.message);
+    if(!forca&&typeof aviso==='function')aviso('A configuração não foi publicada no GitHub: '+e.message);return false}
+  finally{GH.busy=false;ghMostra()}}
+let ghTimer=null;
+function ghAgenda(motivo){if(!ghAtivo())return;clearTimeout(ghTimer);GH.st='pend';ghMostra();ghTimer=setTimeout(()=>ghPublica(motivo),4000)}
+function ghStTxt(){const h=GH.ult?new Date(GH.ult).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
+  if(!ghTok())return '<span class="tg s">publicação automática desligada</span>';
+  return GH.st==='pend'?'<span class="tg o">vai publicar em instantes…</span>'
+    :GH.st==='env'?'<span class="tg o">publicando no GitHub…</span>'
+    :GH.st==='erro'?`<span class="tg r">não publicou</span> <span class="m">${esc(GH.msg)}</span>`
+    :GH.st==='ok'?`<span class="tg g">publicado às ${h}</span> <span class="m">o site atualiza em cerca de 1 a 2 minutos</span>`
+    :'<span class="tg g">publicação automática ligada</span>'}
+function ghMostra(){document.querySelectorAll('[data-ghst]').forEach(el=>{el.innerHTML=ghStTxt()})}
+function ghCard(){const on=!!ghTok();
+  return `<div class="card wide"><div class="ch"><h3>Publicação automática da configuração</h3><span class="m" data-ghst>${ghStTxt()}</span></div>
+    <p class="info" style="margin:0 16px 10px">Com a chave do GitHub conectada, todo ajuste que você salvar aqui (usuários, nomes, slides, mapeamentos…) é publicado sozinho no
+      <b>config.json</b> do repositório <code>${esc(ghRepo())}</code>, e o Cloudflare atualiza o site como já faz com o index.html. Não precisa mais gerar e subir o arquivo.</p>
+    ${on?`<div class="em-ac" style="margin:0 16px 16px"><button class="btn pri" id="ghAgora" type="button">Publicar agora</button><button class="btn" id="ghDesl" type="button">Desconectar</button></div>`
+    :`<form id="ghForm" class="gh-f" autocomplete="off">
+        <label class="cf"><span>Chave do GitHub (token)</span><input name="tok" type="password" placeholder="github_pat_…" required></label>
+        <label class="cf"><span>Repositório</span><input name="repo" value="${esc(ghRepo())}" required></label>
+        <button class="btn pri" type="submit">Conectar e publicar</button></form>
+      <details class="gh-como"><summary>Como criar a chave (uma vez só, leva 2 minutos)</summary><ol>
+        <li>No GitHub, clique na sua foto → <b>Settings</b> → no fim do menu, <b>Developer settings</b>.</li>
+        <li><b>Personal access tokens</b> → <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>
+        <li>Nome: "Painel GWA". Validade: a maior que aparecer (ou "No expiration").</li>
+        <li>Em <b>Repository access</b>, escolha <b>Only select repositories</b> e marque <b>Controle-de-Tabulacoes</b>.</li>
+        <li>Em <b>Permissions → Repository permissions → Contents</b>, escolha <b>Read and write</b>.</li>
+        <li>Clique em <b>Generate token</b>, copie o código (começa com <code>github_pat_</code>) e cole aqui.</li></ol>
+        <p class="info">A chave fica guardada só neste navegador e só dá acesso a esse repositório. Se trocar de computador, conecte de novo lá.</p></details>`}
+  </div>`}
+function bindGh(){const g=id=>document.getElementById(id);
+  if(g('ghForm'))g('ghForm').onsubmit=async e=>{e.preventDefault();const f=e.target,tok=f.tok.value.trim(),repo=f.repo.value.trim().replace(/^https?:\/\/github\.com\//,'').replace(/\/+$/,'');
+    if(!/^[\w.-]+\/[\w.-]+$/.test(repo)){aviso('Repositório no formato dono/nome');return}
+    try{localStorage.setItem('gwa.ghTok',tok);localStorage.setItem('gwa.ghRepo',repo)}catch(x){}
+    const ok=await ghPublica('conexão do painel',true);
+    if(!ok){try{localStorage.removeItem('gwa.ghTok')}catch(x){}aviso('Não conectou: '+GH.msg)}else aviso('Conectado — config.json publicado no GitHub');render()};
+  if(g('ghAgora'))g('ghAgora').onclick=()=>ghPublica('publicação manual',true);
+  if(g('ghDesl'))g('ghDesl').onclick=()=>{try{localStorage.removeItem('gwa.ghTok')}catch(x){}GH.st='';logEv('Configuração','publicação automática desligada',true);render()}}
+
 function vSync(){
   const S={ini:['s','verificando…'],ok:['g','em dia'],sem:['o','o site ainda não tem config.json'],
     local:['s','abrindo do arquivo local'],erro:['r','não deu para ler']}[SY.st]||['s','—'];
@@ -4812,7 +4892,7 @@ function vSync(){
       <button class="btn" id="syDown"${SY.busy?' disabled':''}>${SY.busy==='puxar'?'<span class="em-spin"></span> Lendo…':'Pegar a configuração do site'}</button></div>
     <p class="info" style="margin:10px 0 0"><b>Como publicar:</b> clique em "Gerar config.json", depois suba o arquivo no GitHub
       <code>T4lisSouza/Controle-de-Tabulacoes</code> na mesma pasta do index.html. Pronto — os outros computadores pegam sozinhos ao abrir.</p></div>`}
-function bindSync(){const g=id=>document.getElementById(id);
+function bindSync(){const g=id=>document.getElementById(id);bindGh();
   if(g('syGera'))g('syGera').onclick=syBaixa;
   if(g('syDown'))g('syDown').onclick=()=>syPuxa(true)}
 
@@ -6619,8 +6699,10 @@ function aAcessos(){
   return `<div class="card wide"><div class="ch"><h3>Acessos ao painel</h3><span class="m">${L.length} usuário${L.length===1?'':'s'} · o administrador entra com o usuário dele</span></div>
     <p class="info" style="margin:0 16px 10px">Todo mundo agora entra pela tela de login. <b>Equipe</b> vê tudo (sem a Administração). <b>Parceiro</b> vê só as empresas marcadas e,
       se "valores" estiver desligado, nenhum valor em R$ — só percentuais, quantidades e leads. Parceiro não vê Administração nem Clientes.</p>
-    <p class="warn" style="margin:0 16px 12px"><span><b>Para valer nos outros computadores e celulares:</b> depois de criar, editar ou bloquear, clique em
-      <b>Gerar config.json</b> e suba o arquivo no GitHub junto com o index.html. <button class="btn sm" id="acSy" type="button">Gerar config.json</button></span></p>
+    ${ghTok()?`<p class="info" style="margin:0 16px 12px">Publicação automática: <span data-ghst>${ghStTxt()}</span> — o que você criar, mudar ou bloquear aqui vale nos outros aparelhos sozinho.</p>`
+    :`<p class="warn" style="margin:0 16px 12px"><span><b>Para valer nos outros computadores e celulares:</b> depois de criar, editar ou bloquear, clique em
+      <b>Gerar config.json</b> e suba o arquivo no GitHub junto com o index.html — ou ligue a <b>publicação automática</b> em Administração → Configuração.
+      <button class="btn sm" id="acSy" type="button">Gerar config.json</button></span></p>`}
     ${AC.msg?`<div class="okmsg" role="status" style="margin:0 16px 10px">${AC.msg}</div>`:''}
     ${AC.erro?`<p class="rn-err" role="alert" style="margin:0 16px 10px">${esc(AC.erro)}</p>`:''}
     <div class="tw" style="margin:0 16px 14px"><table class="xl ac-t"><thead><tr><th class="lft">Usuário</th><th>Perfil</th><th class="lft">Empresas</th><th>Valores</th><th>Situação</th><th></th></tr></thead>
@@ -6643,7 +6725,7 @@ function aAcessos(){
       <div class="ac-bt"><button class="btn pri" type="submit">${ed?'Salvar alterações':'Criar usuário'}</button></div>
     </form></div>`}
 function bindAcessos(){const g=id=>document.getElementById(id),f=g('acForm');
-  const salva=(msg)=>{salvaCfg();AC.msg=msg+' Lembre de <b>gerar o config.json</b> e subir no GitHub para valer nos outros aparelhos.';AC.erro='';render()};
+  const salva=(msg)=>{salvaCfg();AC.msg=msg+(ghTok()?' Vai ser publicado no GitHub sozinho em instantes.':' Lembre de <b>gerar o config.json</b> e subir no GitHub para valer nos outros aparelhos.');AC.erro='';render()};
   if(g('acSy'))g('acSy').onclick=()=>syBaixa();
   if(g('acCancela'))g('acCancela').onclick=()=>{AC.ed='';AC.nova='';AC.msg='';AC.erro='';render()};
   if(g('acGera'))g('acGera').onclick=()=>{const a='abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789',r=crypto.getRandomValues(new Uint8Array(12));
