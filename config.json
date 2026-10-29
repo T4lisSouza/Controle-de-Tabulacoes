@@ -1,5 +1,5 @@
 {
- "t": "2026-10-27T20:44:47.024Z",
+ "t": "2026-10-29T12:58:27.046Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -178,8 +178,8 @@
     "leads",
     "funil",
     "camp",
-    "balanc",
     "form",
+    "balanc",
     "qual",
     "vmes",
     "tempo",
