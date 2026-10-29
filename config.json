@@ -1,5 +1,5 @@
 {
- "t": "2026-10-29T12:58:27.046Z",
+ "t": "2026-10-29T13:08:17.725Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -167,7 +167,7 @@
     "semanal": 1,
     "proj": 1,
     "bm": 1,
-    "anun": 1,
+    "anun": 0,
     "oport": 0,
     "fim": 1
    },
@@ -197,7 +197,7 @@
     "fim"
    ],
    "tema": "escuro",
-   "semFat": 0
+   "semFat": 1
   },
   "empCamp": {
    "JOGO ABERTO-24H": "OFF"
@@ -232,7 +232,16 @@
     "h": "3e2d71e765ae85395b48be3838b0ba1e1aa63a01fd6728a0c4bfe31e7a9f95eb"
    }
   ],
-  "rnLinks": [],
+  "rnLinks": [
+   {
+    "id": "xd5q9cv3x1",
+    "e": "M12",
+    "a": "2026-10-01",
+    "b": "2026-10-28",
+    "t": 1793278745749,
+    "url": "https://controle-de-tabulacoes.talisprojetos.workers.dev/#reuniao=zjVbdctrIEn4VVde5OLslKpKMDOhuDAKUACJCtuN1pVxjaYR1rB8iCcobwsXWPsl5lrzYVveMAMebrb2bme7-uvub7unZww4cU4c0BgdeYvvLINpdvJiggwAH5qYFOnBwwDKsy45pdAwUPZ4dWH3QIUrW4OwhEzyucUFoph95g5f-ut-E_i3rinLXxBcVn1-ubtxFMOi6o0HY-TQdv-TlHXp5RD9XvBZaLLSYx2WtDctcVFHKM_RRZkfoK9Ah5g0ajEGHskrXIgcH3qMeL3gGDixonW948YR6Q5Q1_HGb8YiXePABdEjKCu3moMNTWZHeBPXSZpuh0gh1eI1cuKDDThSxiMsKHJiQdYGSAHQoylzMBMfgQrUFB24whk0CDnxCRnOeYmRsBYeDDklanLjabmt_2ikqryu26d0oZvx9_-Pt3bAbJNddO5x2P9ix5d0Nf_uEfK_JyDixkvEiQmTQoRbVLo1KxcaOZxTuDHTY8CoSGVfc7ASZLBWVKvgV6JCncYpav1HMm0rUuGOM3BVJSpSN5K7eZg05CIjuCjGGGEXDm22tKFBsjE-UTY7ETM-I8bC2qm2Dwbe3w9X17MRXgXg-cRdt66Y8K7WHj4Y1-LJYeu7l5e7mpV5Phqz3PE2e7SvjrjIeemNu_Z5--vrFjWSpzQVVT-DOWOgHnv8wZPMlW0zZ6gErWyoxrGYYoi-tLaVaw1MS-0lyFPvj8cxbuMquSXecTI-gLPRu2Orou6IKvF6FvjZ3w8Bf-jMvZAumrZg3avWmad1gxhJaQ3W20jra1FthzENfeSu2Bd7P4nox9PyV9t6f-Bq7coNQKfgbUfAUkTaiYN4Di2uto2HcHDMplXgP8trxno9ddt5BoHinqzzokBOHe8jpYtBszaXYe205e1VIc7kblsWxgXmz5Vn6VV17pCSjU-lgKI85Ve4B1SW_-6MqOy8595W7WWvqk6l8oE6ZvrJq347xWaof6IGJeC4K2i9f5_bxlbOAqrMSSSXqJ3AuDXw-0hcZbFXy-qrMwbnQae0_09Ob82ot8quSS325RdmFoUMaVWRi2bTG466B5ikdm7ahLqKlY0fwTS4oRdNuAcHpSTiJi_7B6eKTWK1FIzWjp21VgNO3kaiNyNKYeuwgO3FR0kXv4X5uWp-1-yEbsVUY-J-1q7mprdzQuqSSl6edqzmOip_rajfWv1C_v2XLpXYxMPpoamv-9Rs3Nujw31rkGga5zb7_v0rLX96q_ATa6vVNGdXfQGNIk1umfdPaQ-2bFgYem7hzbbiYat-0sR_Mr2ff_wg8lAX_sY13Iw8tDNu2tW-I-o5elDPgyS2Tg_QN9tIPQhZ4bKWN3DBgC-WgBTuD_wfcAxY8tZe6vcd8luLThZdnDqwBNtRc8xahGyx8zcAZb_Uvej8cY4Bdq3dJxxeIKvLNG6DJLTuZy40yws8DOXfzTRtHIOK0kpssLdqKOuDUyoey-faE4gCmDDqhOGD3u12VFyc0mCzDDsmwASqapLUg84hvODWWeBERONhS6MXU2_-JqUOyLXDimLKVacE3VSn_QseWoCCfJNgjlzPWbD8Npg5ftlyC7FoPjcg3pfxQFTtRS5CKF89psZYxyaeiprjaKYaGafSsfIodznSDOJGUmDpsqvJ_Mg7pmtOjb-DrXVYNrZIURQd8rWLs93vJhOJBstBy0DKg8lc5HbNUqanE2rSOSZ1SOkvomM4xGZXKKRGVBiWhUmgTkOF_Jlf4kIo62laltB3zRl4zTg11_WdDrmN1p3JMYoVgfj9X-vHk0DK5V4XwSgMh5QiiijcMG5_4ztgNPDbC4WoYXfpEYNu6AR2Y-InyJwGjHdauVP_-p_y5yGnbRvgrNo2qZBQmyZyrZimThD3SfP2Hf4IDr447ioRTld2rnpQ_eZmQtxgh088bGvpZWuMIvYdid1YeeRbLSYyHOE1QltCvLZOFAMfJIscKDSVQkwX1sPSaZ_R0nE-_vhlS_2pErX-cT9KXYxkGuXAGBpYHPQf7vxG1H0Zsis_0J0aK8RiBe4MLq9fvde1ed3D4Cw"
+   }
+  ],
   "rnLinksExcl": [],
   "offMap": {},
   "offAba": {
