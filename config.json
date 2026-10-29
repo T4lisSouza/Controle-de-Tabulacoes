@@ -1,5 +1,5 @@
 {
- "t": "2026-10-29T13:09:35.072Z",
+ "t": "2026-10-29T13:14:27.944Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -230,6 +230,17 @@
     "valores": false,
     "sal": "d1142c1b1f62c5d5",
     "h": "3e2d71e765ae85395b48be3838b0ba1e1aa63a01fd6728a0c4bfe31e7a9f95eb"
+   },
+   {
+    "u": "higor",
+    "criado": "2026-10-29T13:14:23.941Z",
+    "ativo": true,
+    "nome": "GWA",
+    "papel": "equipe",
+    "emps": [],
+    "valores": true,
+    "sal": "68e87305464995b1",
+    "h": "cd4491fa84293c0ee06f78a083b882456c994d7f818ccd1e9362cef1870e6371"
    }
   ],
   "rnLinks": [
