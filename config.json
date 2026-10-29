@@ -1,5 +1,5 @@
 {
- "t": "2026-10-29T13:14:27.944Z",
+ "t": "2026-10-29T18:10:04.866Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -197,7 +197,7 @@
     "fim"
    ],
    "tema": "escuro",
-   "semFat": 1
+   "semFat": 0
   },
   "empCamp": {
    "JOGO ABERTO-24H": "OFF"
