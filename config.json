@@ -1,5 +1,5 @@
 {
- "t": "2026-10-29T18:10:04.866Z",
+ "t": "2026-10-29T20:42:18.559Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -241,6 +241,17 @@
     "valores": true,
     "sal": "68e87305464995b1",
     "h": "cd4491fa84293c0ee06f78a083b882456c994d7f818ccd1e9362cef1870e6371"
+   },
+   {
+    "u": "keila",
+    "criado": "2026-10-29T20:42:14.556Z",
+    "ativo": true,
+    "nome": "GWA",
+    "papel": "equipe",
+    "emps": [],
+    "valores": true,
+    "sal": "b8507db19799ab6a",
+    "h": "cfbe063a366f48e612598a9b418dca209485466a4bfcbc6cd541762b74387e9e"
    }
   ],
   "rnLinks": [
