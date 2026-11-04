@@ -7064,7 +7064,7 @@ function stat(k,t){document.getElementById('dot').className='dot'+(k==='on'?' on
 const haQuanto=ts=>{const s=Math.round((Date.now()-ts)/1000);
   if(s<10)return 'agora';if(s<60)return 'há '+s+' s';const m=Math.round(s/60);
   if(m<60)return 'há '+m+' min';return new Date(ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})};
-function tique(){if(busy)return;
+function tique(){if(busy&&!busyAuto)return;
   if(ultOk)stat('on',(serieErr?'ao vivo (sem série diária) · ':'ao vivo · ')+haQuanto(ultOk));
   else if(cacheTs)stat('','dados de '+haQuanto(cacheTs))}
 /* re-render vindo da atualização automática: sem animação de entrada e sem mexer na área administrativa */
@@ -7147,10 +7147,31 @@ function hidrata(){
     if(c.d1===d1&&c.d2===d2&&(c.fO||'TODAS')===fO&&(c.fC||'TODAS')===fC&&c.cube){RAW.cube=c.cube;RAW.ser=c.ser||[];RAW.rec=c.rec||[];ingLeads(c.cube,c.ser||[],c.rec||[]);live=true}
     cacheTs=c.t;return true}catch(e){return false}}
 
-let recarga=false;
-async function load(){
-  if(busy){recarga=true;return}busy=true;recarga=false;
-  stat('','atualizando…');document.getElementById('rf').classList.add('spin');
+let recarga=false,busyAuto=false,durUlt=0,fimUlt=0;
+/* ── uma consulta só no lugar de três (04/11/2026) ──
+   Antes cada atualização fazia 3 consultas pesadas na base de leads (cubo, série diária e leads redirecionados),
+   ~31 s ao todo no site real — com a atualização a cada 60 s o painel ficava quase sempre em "atualizando…".
+   Agora vem tudo de UMA consulta (dia × campanha × tabulação × origem × canal, ~11 s) e o cubo, a série e os
+   redirecionados são montados aqui, com as mesmas regras das consultas antigas. Se ela falhar, usa o caminho antigo. */
+function reCondJs(){const R=CFG.leadCamp||{},V=[];
+  Object.keys(R).filter(k=>String(k||'').trim()&&String(R[k]||'').trim())
+    .forEach(k=>reVars(k).forEach(v=>V.push(v.replace(/\\'/g,"'"))));
+  if(!V.length)return null;const S=new Set(V);
+  return r=>S.has(String(r[3]==null?'':r[3]).toUpperCase())||S.has(String(r[4]==null?'':r[4]).toUpperCase())}
+function ocJs(){const o=fO,c=fC,vaz=x=>x==null||x==='';
+  return r=>(o==='TODAS'||(o===BL?vaz(r[3]):r[3]===o))&&(c==='TODAS'||(c===BL?vaz(r[4]):r[4]===c))}
+function leadsDeUma(rows,a,b){
+  const cube={},ser={},rec=[],ok=ocJs(),re=reCondJs();
+  rows.forEach(r=>{const n=+r[5]||0;if(!n)return;const d=gdate(r[0]);if(!d)return;
+    if(d>=a&&d<=b){const k=JSON.stringify([r[1],r[2],r[3],r[4]]);const o=cube[k]||(cube[k]=[r[1],r[2],r[3],r[4],0]);o[4]+=n}
+    if(ok(r)){const k=JSON.stringify([r[0],r[1],r[2]]);const o=ser[k]||(ser[k]=[r[0],r[1],r[2],0]);o[3]+=n;
+      if(re&&re(r))rec.push(r.slice())}});
+  return {cube:Object.values(cube),ser:Object.values(ser),rec}}
+async function load(auto){
+  /* atualização automática não entra na fila: se ainda está buscando, espera a próxima vez */
+  if(busy){if(!auto)recarga=true;return}busy=true;recarga=false;
+  busyAuto=!!(auto&&(ultOk||cacheTs));
+  if(!busyAuto)stat('','atualizando…');document.getElementById('rf').classList.add('spin');
   const t0=performance.now();
   try{
     const P=prevRange();
@@ -7159,6 +7180,13 @@ async function load(){
     /* a série diária é a consulta mais pesada: tempo maior e, se falhar, o resto segue ao vivo */
     const cond=reCond();
     if(tab==='admin'&&aTab==='anun')loadAnunLeads(from);   /* nas outras telas não precisa */
+    let uma=null;
+    if(d1&&d2){const ini=from<d1?from:d1;
+      try{const rows=await gviz(`select ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID}) where ${DAT} >= date '${ini}' and ${DAT} <= date '${d2}' group by ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,60000);
+        uma=leadsDeUma(rows,d1,d2)}
+      catch(e){logEv('Painel','consulta única dos leads falhou — usando as 3 consultas antigas',false,0,0,(e&&e.message)||'erro')}}
+    if(uma){serieErr=false;RAW.cube=uma.cube;RAW.ser=uma.ser;RAW.rec=uma.rec}
+    else{
     const [rc,rs,rr]=await Promise.allSettled([
       gviz(`select ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID})${wh()} group by ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,40000),
       gviz(`select ${DAT}, ${CAMP}, ${TAB}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}'${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}`,60000),
@@ -7171,12 +7199,14 @@ async function load(){
     if(cond&&rr.status!=='fulfilled'){const c2=reCond(true);
       RAW.rec=await gviz(`select ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}, count(${ID}) where ${DAT} >= date '${from}' and ${DAT} <= date '${d2}' and (${c2})${filtroOC()} group by ${DAT}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}`,60000)
         .catch(e=>{logEv('Painel','leads redirecionados de campanha',false,0,0,(e&&e.message)||'erro na consulta extra');return []})}
+    }
     ingLeads(RAW.cube,RAW.ser,RAW.rec);
     live=true;ultOk=Date.now();salvaCache();
     logEv('Painel','atualização completa dos leads',true,RAW.cube.length+RAW.ser.length,Math.round(performance.now()-t0));
   }catch(e){
     if(!cacheTs&&!ultOk){live=false;CUBE=SNAP.cube.slice();SER=SNAP.serie.map(x=>[x[0],'','',x[1]]);stat('off','dados salvos')}
-  }finally{busy=false;document.getElementById('rf').classList.remove('spin');tique();renderAuto();if(recarga)load()}}
+  }finally{busy=false;busyAuto=false;durUlt=performance.now()-t0;fimUlt=Date.now();
+    document.getElementById('rf').classList.remove('spin');tique();renderAuto();if(recarga)load()}}
 
 async function loadFin(){
   if(finBusy)return;finBusy=true;
@@ -7237,8 +7267,10 @@ async function loadCusto(){
 /* virada do dia: painel e TV passam sozinhos para o novo dia/mês */
 setInterval(()=>{const n=new Date();if(iso(n)===iso(hoje))return;hoje=n;
   if(PRE[per]){const [a,z]=PRE[per][1]();if(a!==d1||z!==d2){d1=a;d2=z;load();return}}render()},60000);
-function agenda(){clearInterval(timer);if(typeof TV!=='undefined'&&TV.on){tvAgenda();return}const s=+CFG.refresh||0;if(s>0)timer=setInterval(()=>{if(!document.hidden)load()},s*1000)}
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-ultOk>20000)load()});
+function agenda(){clearInterval(timer);if(typeof TV!=='undefined'&&TV.on){tvAgenda();return}const s=+CFG.refresh||0;if(s>0)timer=setInterval(()=>{if(document.hidden)return;
+    /* se a planilha está lenta, dá um respiro: espera pelo menos 2× o tempo da última busca antes da próxima */
+    if(fimUlt&&Date.now()-fimUlt<2*durUlt)return;load(true)},s*1000)}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-ultOk>20000)load(true)});
 setInterval(tique,5000);
 
 document.getElementById('rf').onclick=()=>{load()};
