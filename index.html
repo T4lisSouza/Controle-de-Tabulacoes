@@ -1643,14 +1643,22 @@ function buildCusto(meta,ads,off,metro,hist){
   /* 3. OFFLINE: grade de inserções do mês da planilha, só até "Atualizado em" e ajustada para bater com a
      coluna AA (custo realizado até hoje). Meses anteriores vêm do histórico gravado no serviço (a aba só tem o mês corrente). */
   const hojeI=iso(hoje);
-  OFF_ABAS=[];const mesesFolha={};
+  OFF_ABAS=[];const mesesFolha={},blocos=[];
   [[off,SH_OFF],[metro,SH_METRO],[hist,SH_HIST]].forEach(([dados,nome])=>{
-    if(!nome)return;const P=offParseD(dados,hojeI);if(!P)return;
-    OFF_ABAS.push({aba:nome,mes:P.mes,corte:P.corte,tot:P.tot,prog:P.prog,camps:Object.keys(P.c)});
+    if(!nome)return;offParseBlocos(dados,hojeI).forEach(P=>blocos.push([P,nome]))});
+  /* a aba de HISTÓRICO manda (04/11/2026): todo mês o Carlos copia o mês fechado para lá, com o nome do mês em cima.
+     Se a mesma campanha do mesmo mês ainda estiver na aba do mês corrente (ou na da Metropolitana), vale a do histórico
+     e a outra é ignorada — assim nunca soma em dobro. */
+  const doHist=new Set();
+  blocos.forEach(([P,nome])=>{if(nome===SH_HIST)Object.keys(P.c).forEach(c=>doHist.add(P.mes+'|'+c))});
+  blocos.forEach(([P,nome])=>{
+    const dup=nome!==SH_HIST&&nome!==undefined?Object.keys(P.c).filter(c=>doHist.has(P.mes+'|'+c)):[];
+    dup.forEach(c=>{P.tot-=P.vc[c]||0;P.prog-=P.pc[c]||0;delete P.c[c]});
+    OFF_ABAS.push({aba:nome,mes:P.mes,corte:P.corte,tot:P.tot,prog:P.prog,camps:Object.keys(P.c),dup});
     mesesFolha[P.mes]=1;
     Object.keys(P.c).forEach(camp=>{const alvo=offCamp(camp,nome);
       Object.keys(P.c[camp]).forEach(d=>{const q=P.c[camp][d];
-        out.push({d,camp:alvo,emp:empOff(alvo),val:q.v,src:'OFFLINE',canal:'Offline',ins:q.q,apx:false,aba:nome,orig:camp})})})});
+        out.push({d,camp:alvo,emp:empOff(alvo),val:q.v,src:'OFFLINE',canal:'Offline',ins:q.q,apx:false,aba:nome,ames:P.mes,orig:camp})})})});
   const atual=OFF_ABAS.find(x=>x.aba===SH_OFF)||OFF_ABAS[0]||null;
   OFF_MES=atual?atual.mes:'';OFF_CORTE=atual?atual.corte:'';
   OFF_INFO=atual?{tot:OFF_ABAS.filter(x=>x.mes===atual.mes).reduce((a,x)=>a+x.tot,0),
@@ -1672,7 +1680,10 @@ function offCamp(camp,aba){
   /* linha que já é uma campanha (tem sufixo de empresa: BACCI-OFF, XYZ-GWA…) fica com o próprio nome — o padrão da aba
      é só para nomes de inserção sem campanha (CHUPIM, FELIPE CAMPOS…). Antes o BACCI-OFF caía em METROPOLITANA-OFF (26/10/2026). */
   if(empOf(nc(camp))!=='—')return nc(camp);
-  const padrao=aba&&(A[aba]||A[nc(aba)]);if(padrao)return nc(padrao);
+  let padrao=aba&&(A[aba]||A[nc(aba)]);
+  /* no HISTÓRICO, nome de inserção sem sufixo (CHUPIM…) é da Metropolitana: usa o padrão daquela aba */
+  if(!padrao&&aba&&aba===SH_HIST&&SH_METRO)padrao=A[SH_METRO]||A[nc(SH_METRO)];
+  if(padrao)return nc(padrao);
   return camp}
 /* campanhas que realmente têm leads ou faturamento — são os destinos possíveis do custo de offline */
 function campsAlvo(){const s=new Set();
@@ -1684,7 +1695,7 @@ function campsAlvo(){const s=new Set();
 /* ── custo offline: leitura da aba (coluna AA) e histórico gravado no serviço ── */
 let OFF_MES='',OFF_CORTE='',OFF_INFO=null,OFF_ABAS=[],OFFH=null,offhBusy=false,offhFalha=0;
 try{const c=JSON.parse(localStorage.getItem('gwa.offh')||'null');if(c&&c.meses)OFFH=c}catch(e){}
-function offParseD(off,hojeIso){
+function offParseD(off,hojeIso,anoForca){
   if(!off||!off.length)return null;
   const A=i=>String(off[i]&&off[i][0]!=null?off[i][0]:'').trim();
   let hdr=-1,fim=off.length,mesTxt='',upd=null,topo='';
@@ -1698,13 +1709,15 @@ function offParseD(off,hojeIso){
   if(hdr<0)return null;
   let y,mo;
   const t=mesTxt.toLowerCase().match(/([a-zç]{3})[a-zç]*\.?\s*\/\s*(\d{4})/);
-  if(t&&MESPT[t[1]]){y=+t[2];mo=MESPT[t[1]]}
+  let anoExp=false;
+  if(t&&MESPT[t[1]]){y=+t[2];mo=MESPT[t[1]];anoExp=true}
   else{/* aba de histórico: às vezes só o nome do mês ("SETEMBRO"). Assume o mês já fechado mais recente. */
     const cab=((mesTxt||'')+' '+topo).toLowerCase();
     const m2=cab.match(/\b(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-zç]*\b/);
     if(!m2||!MESPT[m2[1]])return null;
     mo=MESPT[m2[1]];const hj=hojeIso||iso(hoje),hy=+hj.slice(0,4),hm=+hj.slice(5,7);
-    y=mo<=hm?hy:hy-1;const ya=(cab.match(/\b(20\d{2})\b/)||[])[1];if(ya)y=+ya}
+    y=mo<=hm?hy:hy-1;const ya=(cab.match(/\b(20\d{2})\b/)||[])[1];if(ya){y=+ya;anoExp=true}
+    else if(anoForca)y=anoForca}
   const mes=y+'-'+String(mo).padStart(2,'0'),ult=new Date(y,mo,0).getDate();
   let corte=mes+'-'+String(ult).padStart(2,'0');
   if(upd&&+upd[2]===mo)corte=mes+'-'+String(Math.min(+upd[1],ult)).padStart(2,'0');
@@ -1713,18 +1726,39 @@ function offParseD(off,hojeIso){
   for(let c=1;c<22;c++){const v=H[c];if(v==null||v==='')continue;const n=Number(v),g=gdate(v);
     if(g)dias.push([c,g]);else if(isFinite(n)&&n>40000){const s=serial(n);if(s)dias.push([c,s])}
     else if(isFinite(n)&&n>=1&&n<=31)dias.push([c,mes+'-'+String(n).padStart(2,'0')])}
-  const out={mes,corte,c:{},tot:0,prog:0};
+  const out={mes,corte,c:{},tot:0,prog:0,vc:{},pc:{},anoExp};
   for(let i=hdr+1;i<fim;i++){const camp=nc(A(i));if(!camp||/^TOTAL/i.test(camp))continue;
     const unit=+(off[i][23])||0,pv=off[i][26],parc=pv===''||pv==null?null:(+pv||0);
-    out.prog+=+(off[i][24])||0;
+    out.prog+=+(off[i][24])||0;out.pc[camp]=(out.pc[camp]||0)+(+(off[i][24])||0);
     const pts=dias.filter(([c,s])=>s<=corte&&(+(off[i][c])||0)>0).map(([c,s])=>[s,+(off[i][c])||0,(+(off[i][c])||0)*unit]);
     const base=pts.reduce((q,p)=>q+p[2],0),alvo=parc==null?base:parc;if(!(alvo>0))continue;
     /* a mesma campanha pode ter várias linhas na grade (ex.: duas saídas da METROPOLITANA no mesmo dia):
        cada linha tem seu custo unitário e sua coluna AA, então soma-se linha a linha em vez de substituir */
-    const m=out.c[camp]||(out.c[camp]={});out.tot+=alvo;
+    const m=out.c[camp]||(out.c[camp]={});out.tot+=alvo;out.vc[camp]=(out.vc[camp]||0)+alvo;
     const soma=(s,q,v)=>{const cel=m[s]||(m[s]={v:0,q:0});cel.v+=v;cel.q+=q};
     if(base>0)pts.forEach(([s,q,v])=>soma(s,q,v*alvo/base));else soma(corte,0,alvo)}
   return out}
+/* ── aba com VÁRIOS meses, um embaixo do outro (OFFLINE CUSTAS - HISTORICO, 04/11/2026) ──
+   Cada bloco: nome do mês numa linha ("OUTUBRO", "OUTUBRO/2026", "out./2026"…), a linha "CAMPANHA PADRONIZADA"
+   com os dias, as campanhas e a linha TOTAL. Aba com um bloco só continua exatamente como antes.
+   Mês sem ano: o último bloco é o mês já fechado mais recente; os de cima vêm antes dele (ano anterior quando o mês "volta"). */
+function offParseBlocos(off,hojeIso){
+  if(!off||!off.length)return [];
+  const A=i=>String(off[i]&&off[i][0]!=null?off[i][0]:'').trim();
+  const hs=[];off.forEach((r,i)=>{if(/CAMPANHA\s+PADRON/i.test(A(i)))hs.push(i)});
+  if(hs.length<=1){const P=offParseD(off,hojeIso);return P?[P]:[]}
+  const fatias=hs.map((hdr,k)=>{let ini=0;
+    if(k>0){const ant=hs[k-1];let tot=-1;for(let i=ant+1;i<hdr;i++)if(/^TOTAL/i.test(A(i))){tot=i;break}
+      ini=tot>=0?tot+1:Math.max(ant+1,hdr-3)}
+    const fim=k<hs.length-1?hs[k+1]:off.length;
+    let f2=fim;if(k<hs.length-1){for(let i=hdr+1;i<fim;i++)if(/^TOTAL/i.test(A(i))){f2=i+1;break}}
+    return off.slice(ini,f2)});
+  const P=fatias.map(f=>offParseD(f,hojeIso));
+  /* acerta o ano dos blocos sem ano, de baixo para cima: cada bloco é anterior ao de baixo */
+  for(let k=P.length-2;k>=0;k--){const a=P[k],b=P[k+1];if(!a||!b||a.anoExp)continue;
+    let y=+a.mes.slice(0,4);while(a.mes>=b.mes&&y>2000){y--;P[k]=offParseD(fatias[k],hojeIso,y);if(!P[k])break;
+      if(P[k].mes<b.mes)break}}
+  return P.filter(Boolean)}
 function offLinhasD(pular){const out=[],M=(OFFH&&OFFH.meses)||{};
   const fora=Array.isArray(pular)?pular:(pular?[pular]:[]);
   Object.keys(M).forEach(mes=>{if(fora.indexOf(mes)>=0)return;const o=M[mes],man=(o.manual&&o.manual.c)||{},pl=(o.planilha&&o.planilha.c)||{};
@@ -4000,10 +4034,11 @@ function aOffline(){
   const abasMes={};OFF_ABAS.forEach(a=>{abasMes[a.mes]=1});
   const ks=Object.keys(M).filter(k=>!abasMes[k]).sort().reverse();
   /* agrupa pelo nome que está na grade (orig) e guarda para qual campanha mapeada o custo foi */
-  const totAba=a=>{const t={};CUSTO.forEach(x=>{if(x.src==='OFFLINE'&&x.aba===a.aba){const k=x.orig||x.camp;
+  const totAba=a=>{const t={};CUSTO.forEach(x=>{if(x.src==='OFFLINE'&&x.aba===a.aba&&(!x.ames||x.ames===a.mes)){const k=x.orig||x.camp;
     const o=t[k]||(t[k]={v:0,alvo:x.camp});o.v+=x.val}});return t};
   const linhaAba=a=>{const t=totAba(a),tot=Object.values(t).reduce((q,o)=>q+o.v,0);
-    return `<tr><td class="lft"><b>${esc(a.aba)}</b><div class="kp-h">${esc(mesBR(a.mes))}${a.corte?' · realizado até '+esc(dc(a.corte)):''}</div></td>
+    return `<tr><td class="lft"><b>${esc(a.aba)}</b><div class="kp-h">${esc(mesBR(a.mes))}${a.corte?' · realizado até '+esc(dc(a.corte)):''}</div>
+      ${a.dup&&a.dup.length?`<div class="kp-h">já está no histórico (não soma de novo): ${a.dup.map(esc).join(', ')}</div>`:''}</td>
       <td class="lft">${Object.entries(t).sort((x,y)=>y[1].v-x[1].v).map(([c,o])=>`<div class="oa-c"><span>${esc(c)}${o.alvo!==c?` <em>→ ${esc(o.alvo)}</em>`:''}</span><b>${mo2(o.v)}</b></div>`).join('')||'—'}</td>
       <td><b>${mo2(tot)}</b></td><td>${a.prog?mo2(a.prog):'—'}</td></tr>`};
   const porMes={};CUSTO.forEach(x=>{if(x.src!=='OFFLINE')return;const k=x.d.slice(0,7);porMes[k]=(porMes[k]||0)+x.val});
@@ -4035,7 +4070,7 @@ function aOffline(){
         sozinha e a campanha que tem os leads aparece com custo zerado. Aqui você diz qual campanha recebe cada nome — a planilha nunca é alterada.</p>
       ${dl}
       <div class="tw"><table class="xl oa-t"><thead><tr><th>Aba</th><th>Campanha padrão da aba</th></tr></thead>
-        <tbody>${OFF_ABAS.map(a=>`<tr><td class="lft"><b>${esc(a.aba)}</b></td>
+        <tbody>${OFF_ABAS.filter((a,i,L)=>L.findIndex(x=>x.aba===a.aba)===i).map(a=>`<tr><td class="lft"><b>${esc(a.aba)}</b></td>
           <td class="lft"><input data-oma="${esc(a.aba)}" list="omCamps" value="${esc((CFG.offAba||{})[a.aba]||'')}" placeholder="manter o nome da grade" aria-label="Campanha padrão da aba ${esc(a.aba)}"></td></tr>`).join('')}</tbody></table></div>
       <p class="info" style="margin:10px 16px">O <b>padrão da aba</b> vale para toda campanha dela que não tenha um destino próprio abaixo — assim, campanha nova que você lançar no mês já entra certa.</p>
       <div class="tw"><table class="xl oa-t"><thead><tr><th>Aba</th><th>Nome na grade</th><th>Custo lido</th><th>Campanha que recebe</th><th>Situação</th></tr></thead>
@@ -4045,7 +4080,7 @@ function aOffline(){
   return `<div class="card wide oa">
     <div class="ch"><h3>Custo offline</h3><span class="m">${offhBusy?'<span class="em-spin"></span> lendo histórico…':`<button class="lnk" id="oaRecarrega">atualizar</button>`}</span></div>
     <p class="info" style="margin-top:0">O painel lê <b>três abas</b> da planilha REPORTE GWA, todas com a mesma grade de inserções:
-      <b>${esc(SH_OFF||'—')}</b> e <b>${esc(SH_METRO||'—')}</b> com o mês em andamento, e <b>${esc(SH_HIST||'—')}</b> com o mês já fechado.
+      <b>${esc(SH_OFF||'—')}</b> e <b>${esc(SH_METRO||'—')}</b> com o mês em andamento, e <b>${esc(SH_HIST||'—')}</b> com os meses já fechados (um embaixo do outro).
       De cada uma vêm só os dias com inserção até a data de "Atualizado em", ajustados para bater com a coluna <b>CUSTO REALIZADO</b> (AA).
       Você só preenche a programação na planilha; o painel não escreve nada nela.</p>
     ${OA.msg?`<div class="okmsg" role="status">${esc(OA.msg)}</div>`:''}${OA.erro?`<div class="em-err" role="alert">${esc(OA.erro)}</div>`:''}
@@ -4060,8 +4095,10 @@ function aOffline(){
     ${OFF_ABAS.length?`<div class="tw"><table class="xl oa-t"><thead><tr><th>Aba / mês</th><th>Campanhas</th><th>Realizado</th><th>Programado</th></tr></thead>
       <tbody>${OFF_ABAS.map(linhaAba).join('')}</tbody></table></div>`
       :'<p class="info" style="margin:0 16px 14px">Nada lido ainda.</p>'}
-    <p class="info" style="margin:0 16px 14px">Para fechar um mês: deixe a programação dele na aba <b>${esc(SH_HIST||'de histórico')}</b> e comece a nova na aba <b>${esc(SH_OFF||'do mês')}</b>.
-      O painel passa a usar a do histórico para aquele mês sozinho — não precisa lançar nada aqui.</p></div>
+    <p class="info" style="margin:0 16px 14px">Para fechar um mês: copie a grade dele para a aba <b>${esc(SH_HIST||'de histórico')}</b>, embaixo dos meses anteriores,
+      com o nome do mês na linha de cima (ex.: <b>NOVEMBRO/2026</b>), e comece a nova na aba <b>${esc(SH_OFF||'do mês')}</b>. Vale para Jogo Aberto, YouTube,
+      Metropolitana e qualquer outro offline. O painel lê todos os meses do histórico sozinho; se uma campanha do mesmo mês ainda estiver na aba do mês,
+      vale a do histórico (nunca soma em dobro).</p></div>
   ${cardEncaixe()}
   ${ks.length?`<div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Meses guardados no serviço</h3>
       <span class="m">${ks.length} ${ks.length===1?'mês':'meses'} fora das abas</span></div>
