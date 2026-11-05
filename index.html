@@ -1314,6 +1314,15 @@ function warnBox(){return `<div class="warn"><div><b>Dados salvos.</b> Os totais
 
 /* ═════════ FATURAMENTO ═════════ */
 const ddiff=(a,b)=>(a&&b)?Math.round((parse(b)-parse(a))/864e5):null;
+/* ── tempo médio até a venda pelas FAIXAS (pedido do Carlos, 05/11/2026) ──
+   Cada venda entra no ponto médio da sua faixa e a média é ponderada pela quantidade de vendas de cada faixa:
+   mesmo dia = 0 · 1 a 3 dias = 2 · 4 a 7 = 5,5 · 8 a 15 = 11,5 · 16 a 30 = 23 · mais de 30 = 45 (faixa de 30 a 60 dias).
+   Assim poucas vendas muito antigas (lead de 200 dias) não puxam a média do mês. Vale no painel inteiro e na reunião;
+   a mediana continua sendo a real. */
+const FAIXAS_T=[{n:'Mesmo dia',a:0,b:0,m:0},{n:'1 a 3 dias',a:1,b:3,m:2},{n:'4 a 7 dias',a:4,b:7,m:5.5},
+  {n:'8 a 15 dias',a:8,b:15,m:11.5},{n:'16 a 30 dias',a:16,b:30,m:23},{n:'Mais de 30 dias',a:31,b:Infinity,m:45}];
+const faixaT=d=>FAIXAS_T.find(f=>d>=f.a&&d<=f.b)||FAIXAS_T[FAIXAS_T.length-1];
+const tpF=d=>faixaT(d).m;
 /* status da parcela (col. V): por padrão só "confirmado"; o seletor do topo troca. Se a planilha não tiver o status, não filtra. */
 const statusLista=()=>[...new Set(FIN_ALL.map(x=>x.st).filter(Boolean))].sort((a,b)=>a==='confirmado'?-1:b==='confirmado'?1:a.localeCompare(b,'pt-BR'));
 function aplicaStatus(){const tem=FIN_ALL.some(x=>x.st);
@@ -1339,7 +1348,7 @@ function finBy(P,S,k){const m={};
   const get=x=>m[x]||(m[x]={fat:0,nv:0,tot:0,dsum:0,dn:0});
   P.forEach(x=>{get(x[k]||'—').fat+=x.v});
   S.forEach(x=>{const o=get(x[k]||'—');o.nv++;o.tot+=x.tot;
-    const d=ddiff(x.ld,x.vc);if(d!=null&&d>=0){o.dsum+=d;o.dn++}});
+    const d=ddiff(x.ld,x.vc);if(d!=null&&d>=0){o.dsum+=tpF(d);o.dn++}});
   return m}
 /* leads do recorte por empresa / por campanha (base comercial) */
 function leadsBy(mode){const m={};
@@ -1823,7 +1832,7 @@ function perfBy(keyC,keyL,keyF){
   lRows().forEach(x=>{get(keyL(x)).leads+=x[4]});
   fParc().forEach(x=>{get(keyF(x)).fat+=x.v});
   fSale().forEach(x=>{const o=get(keyF(x));o.nv++;o.tot+=x.tot;
-    const dd=ddiff(x.ld,x.vc);if(dd!=null&&dd>=0){o.dsum+=dd;o.dn++}});
+    const dd=ddiff(x.ld,x.vc);if(dd!=null&&dd>=0){o.dsum+=tpF(dd);o.dn++}});
   Object.values(m).forEach(o=>{
     o.cpl=o.inv>0?sdiv(o.inv,o.leads):null; o.cac=o.inv>0?sdiv(o.inv,o.nv):null;
     o.ticket=sdiv(o.tot,o.nv); o.conv=o.leads>0?o.nv/o.leads:null;
@@ -2474,7 +2483,7 @@ function dsAgg(a,b,key){
   FIN.forEach(x=>{const d=finDate(x);if(!dentro(d)||!dsOkF(x))return;g(key.f(x)).fat+=x.v});
   SALES.forEach(x=>{const d=finDate(x);if(!dentro(d)||!dsOkF(x))return;const o=g(key.f(x));
     o.nv++;o.tot+=x.tot;if(!(x.ld&&x.ld>=a&&x.ld<=b))o.velho++;
-    const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=t;o.dn++}});
+    const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=tpF(t);o.dn++}});
   Object.values(m).forEach(dsDeriva);
   return m}
 function dsDeriva(o){
@@ -2590,7 +2599,7 @@ function dsVendas(a,b){
     .sort((x,y)=>finDate(y).localeCompare(finDate(x)))}
 function dsGrupo(lista,f){const m={};
   lista.forEach(x=>{const k=f(x)||'—',o=m[k]||(m[k]={nv:0,tot:0,dsum:0,dn:0});o.nv++;o.tot+=x.tot;
-    const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=t;o.dn++}});
+    const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=tpF(t);o.dn++}});
   return Object.entries(m).sort((x,y)=>y[1].tot-x[1].tot)}
 function dsFatPorServ(a,b){const m={};
   FIN.forEach(x=>{const d=finDate(x);if(!d||d<a||d>b||!dsOkF(x))return;m[x.sv]=(m[x.sv]||0)+x.v});return m}
@@ -3980,7 +3989,7 @@ function anunDados(a,b){
     const c=card[x.ck];if(c)g(c).fat+=x.v});
   SALES.forEach(x=>{if(!finOk(x))return;const d=finDate(x);if(!d||d<a||d>b)return;
     const c=card[x.ck];if(!c)return;const o=g(c);o.nv++;o.tot+=x.tot;
-    const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=t;o.dn++}});
+    const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=tpF(t);o.dn++}});
   const dia={};ANUN.forEach(x=>{if(x.d<a||x.d>b)return;(dia[x.d]=dia[x.d]||[]).push(x.cod);g(x.cod).ins++});
   const camp=camp0;let semExtrato=0,custoTot=0;
   CUSTO.forEach(x=>{if(x.src!=='OFFLINE'||x.camp!==camp||x.d<a||x.d>b)return;custoTot+=x.val;
@@ -5237,8 +5246,10 @@ function rnDados(X){
   const dd=VS.map(x=>({d:ddiff(x.ld,x.vc),mi:x.mi})).filter(o=>o.d!=null&&o.d>=0);
   const ds=dd.map(o=>o.d).sort((x,y)=>x-y);
   const porCampT={};dd.forEach(o=>{const k=o.mi||BL;const c=porCampT[k]||(porCampT[k]={n:0,sum:0,d0:0,d7:0,d30:0});
-    c.n++;c.sum+=o.d;if(o.d===0)c.d0++;if(o.d<=7)c.d7++;if(o.d>30)c.d30++});
-  const tempo={n:ds.length,med:ds.length?ds.reduce((q,v)=>q+v,0)/ds.length:null,
+    c.n++;c.sum+=tpF(o.d);if(o.d===0)c.d0++;if(o.d<=7)c.d7++;if(o.d>30)c.d30++});
+  const tempo={n:ds.length,med:ds.length?ds.reduce((q,v)=>q+tpF(v),0)/ds.length:null,
+    real:ds.length?ds.reduce((q,v)=>q+v,0)/ds.length:null,
+    conta:FAIXAS_T.map(f=>({n:f.n,m:f.m,q:ds.filter(d=>d>=f.a&&d<=f.b).length})),
     mediana:ds.length?(ds.length%2?ds[(ds.length-1)/2]:(ds[ds.length/2-1]+ds[ds.length/2])/2):null,
     rapidas:ds.filter(d=>d<=3).length,lentas:ds.filter(d=>d>30).length,
     faixas:[['Mesmo dia',ds.filter(d=>d===0).length,K.gr],['1 a 3 dias',ds.filter(d=>d>=1&&d<=3).length,K.gr],
@@ -5833,7 +5844,7 @@ function rnVendaMes(pres,D){
 /* ═════ Tempo até o fechamento ═════ */
 function rnTempo(pres,D){
   const Z=D.tempo,s=slideBase(pres,'Tempo até a Venda','Velocidade de fechamento',`Quanto tempo o lead leva para virar venda (${D.periodo})`,'GWA CONSULTORIA | CICLO DE VENDA');
-  [['Tempo médio',Z.med==null?'—':R.d1(Z.med)+' d','da entrada do lead à venda',K.bl],
+  [['Tempo médio (por faixas)',Z.med==null?'—':R.d1(Z.med)+' d','média ponderada das faixas · conta abaixo',K.bl],
    ['Mediana',Z.mediana==null?'—':R.d1(Z.mediana)+' d','metade fecha até aqui',K.pu],
    ['Fecham em até 3 dias',R.p1(Z.n?Z.rapidas/Z.n:null),`${R.int(Z.rapidas)} de ${R.int(Z.n)} vendas`,K.gr],
    ['Levam mais de 30 dias',R.p1(Z.n?Z.lentas/Z.n:null),`${R.int(Z.lentas)} vendas`,K.rd]].forEach(([l,v,sub,cor],i)=>{
@@ -5846,12 +5857,22 @@ function rnTempo(pres,D){
   txt(s,'Quando a venda acontece',{x:0.82,y:2.66,w:4,h:0.26,fontSize:10.5,bold:true});
   /* barras desenhadas à mão para mostrar quantidade e % juntos ("59 · 39,1%") — o gráfico nativo só mostra um dos dois */
   const fxT=Z.faixas.reduce((q,f)=>q+(+f[1]||0),0),fxM=Math.max(1,...Z.faixas.map(f=>+f[1]||0));
-  const rhF=Math.min(0.34,1.95/Math.max(1,Z.faixas.length)),bx=2.15,bwM=3.05;
-  Z.faixas.forEach((f,i)=>{const y=3.0+i*rhF,v=+f[1]||0,w=Math.max(0.03,bwM*v/fxM);
-    txt(s,f[0],{x:0.8,y,w:1.27,h:rhF,fontSize:8,color:K.tx2,align:'right',valign:'middle'});
+  const rhF=Math.min(0.27,1.62/Math.max(1,Z.faixas.length)),bx=2.15,bwM=2.9;
+  Z.faixas.forEach((f,i)=>{const y=2.96+i*rhF,v=+f[1]||0,w=Math.max(0.03,bwM*v/fxM);
+    const pm=(Z.conta&&Z.conta[i])?Z.conta[i].m:null;
+    txt(s,[{text:f[0],options:{color:K.tx2}},...(pm==null?[]:[{text:'  ('+R.d1(pm).replace(/,0$/,'')+' d)',options:{color:K.mut,fontSize:6.5}}])],
+      {x:0.66,y,w:1.45,h:rhF,fontSize:8,align:'right',valign:'middle'});
     s.addShape(pres.shapes.RECTANGLE,{x:bx,y:y+rhF*0.16,w,h:rhF*0.68,fill:{color:f[2]},line:{color:f[2]}});
     txt(s,[{text:R.int(v),options:{bold:true,color:K.txt}},{text:'  ·  '+(fxT?R.p1(v/fxT):'—'),options:{color:K.sub}}],
       {x:bx+w+0.07,y,w:1.3,h:rhF,fontSize:8.5,valign:'middle'})});
+  /* como o tempo médio foi calculado: a conta com os números do período */
+  if(Z.conta&&Z.n){const pm=v=>R.d1(v).replace(/,0$/,'');
+    const conta=Z.conta.map(f=>`(${R.int(f.q)} × ${pm(f.m)})`).join(' + ');
+    txt(s,[{text:'Como chegamos no tempo médio: ',options:{bold:true,color:K.or}},
+      {text:`cada venda conta pelo ponto médio da sua faixa (entre parênteses; "mais de 30 dias" = 30 a 60 dias, 45). `,options:{color:K.sub}},
+      {text:`${conta} = ${pm(Z.conta.reduce((q,f)=>q+f.q*f.m,0))} ÷ ${R.int(Z.n)} vendas = `,options:{color:K.tx2}},
+      {text:`${R.d1(Z.med)} dias`,options:{bold:true,color:K.bl}}],
+      {x:0.78,y:4.6,w:5.72,h:0.44,fontSize:6.8,valign:'top',fit:'shrink'})}
   /* origem das vendas */
   card(pres,s,6.82,2.56,5.91,2.5);
   txt(s,'Origem das vendas do período',{x:7.02,y:2.66,w:4,h:0.26,fontSize:10.5,bold:true});
@@ -5867,7 +5888,7 @@ function rnTempo(pres,D){
   /* tempo médio por campanha */
   card(pres,s,0.62,5.22,12.11,1.8);
   txt(s,'Tempo médio por mídia',{x:0.82,y:5.32,w:4,h:0.26,fontSize:10.5,bold:true});
-  txt(s,`Empresa ${fE}: ${Z.med==null?'—':R.d1(Z.med)+' dias'} em média`,{x:9.0,y:5.34,w:3.5,h:0.24,fontSize:8,color:K.or,align:'right'});
+  txt(s,`Empresa ${fE}: ${Z.med==null?'—':R.d1(Z.med)+' dias'} em média · mesma conta por faixas em cada mídia`,{x:6.5,y:5.34,w:6.0,h:0.24,fontSize:8,color:K.or,align:'right'});
   const rows=[['Mídia','Vendas','Tempo médio','Mesmo dia','Até 7 dias','Mais de 30'].map((h,i)=>({text:h,options:{bold:true,fontSize:8,color:i?K.sub:K.or}})),
     ...Z.porCamp.slice(0,5).map(c=>[{text:c.nome,options:{bold:true,color:K.tx2,fit:'shrink'}},R.int(c.n),
       {text:c.med==null?'—':R.d1(c.med)+' d',options:{bold:true,color:c.med!=null&&Z.med!=null&&c.med<=Z.med?K.gr:K.am}},
@@ -6855,7 +6876,7 @@ function numDados(){
   NUM.velhos.forEach(x=>{if(x.ck&&!ckLin[x.ck]&&ok(x))ckLin[x.ck]=linKeyEmp(x.can,x.e)});
   let semNumV=0;
   SALES.forEach(x=>{const d=finDate(x);if(!d||d<a||d>b||!dsOkF(x)||!empPerm(x.e))return;const k=ckLin[x.ck];if(!k){semNumV++;return}const o=g(k);
-    o.nv++;o.tot+=x.tot;if(!(x.ld&&x.ld>=a&&x.ld<=b))o.velho++;const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=t;o.dn++}dia(o,d).nv++});
+    o.nv++;o.tot+=x.tot;if(!(x.ld&&x.ld>=a&&x.ld<=b))o.velho++;const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=tpF(t);o.dn++}dia(o,d).nv++});
   FIN.forEach(x=>{const d=finDate(x);if(!d||d<a||d>b||!dsOkF(x)||!empPerm(x.e))return;const k=ckLin[x.ck];if(!k)return;g(k).fat+=x.v;dia(g(k),d).fat+=x.v});
   const lc={},lt={};Object.values(L).forEach(o=>Object.entries(o.camp).forEach(([c,q])=>{(lc[c]=lc[c]||{})[o.k]=q;lt[c]=(lt[c]||0)+q}));
   let semLead=0;
