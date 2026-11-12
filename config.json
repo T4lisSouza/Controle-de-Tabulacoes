@@ -1,5 +1,5 @@
 {
- "t": "2026-11-12T13:31:47.388Z",
+ "t": "2026-11-12T17:54:37.333Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -176,7 +176,6 @@
     "funil": 1,
     "camp": 1,
     "aprov": 0,
-    "target": 1,
     "linha": 1,
     "balanc": 1,
     "form": 1,
@@ -222,7 +221,7 @@
     "fim"
    ],
    "tema": "escuro",
-   "semFat": 1
+   "semFat": 0
   },
   "empCamp": {
    "JOGO ABERTO-24H": "OFF"
