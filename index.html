@@ -1763,11 +1763,18 @@ function offParseBlocos(off,hojeIso){
     let f2=fim;if(k<hs.length-1){for(let i=hdr+1;i<fim;i++)if(/^TOTAL/i.test(A(i))){f2=i+1;break}}
     return off.slice(ini,f2)});
   const P=fatias.map(f=>offParseD(f,hojeIso));
-  /* acerta o ano dos blocos sem ano, de baixo para cima: cada bloco é anterior ao de baixo */
+  /* acerta o ano dos blocos sem ano, de baixo para cima: cada bloco é do mesmo mês ou anterior ao de baixo.
+     O MESMO mês pode aparecer em mais de um bloco (ex.: OUTUBRO do Jogo Aberto/YouTube e OUTUBRO da Metropolitana) —
+     antes isso jogava o primeiro bloco para o ano anterior e outubro/2026 sumia (12/11/2026). */
   for(let k=P.length-2;k>=0;k--){const a=P[k],b=P[k+1];if(!a||!b||a.anoExp)continue;
-    let y=+a.mes.slice(0,4);while(a.mes>=b.mes&&y>2000){y--;P[k]=offParseD(fatias[k],hojeIso,y);if(!P[k])break;
-      if(P[k].mes<b.mes)break}}
-  return P.filter(Boolean)}
+    let y=+a.mes.slice(0,4);while(P[k]&&P[k].mes>b.mes&&y>2000){y--;P[k]=offParseD(fatias[k],hojeIso,y)}}
+  /* blocos do mesmo mês viram um só (as campanhas de cada bloco somam) */
+  const por={},ord=[];
+  P.filter(Boolean).forEach(x=>{const o=por[x.mes];if(!o){por[x.mes]=x;ord.push(x.mes);return}
+    Object.keys(x.c).forEach(cp=>{const m=o.c[cp]||(o.c[cp]={});Object.keys(x.c[cp]).forEach(d=>{const s=m[d]||(m[d]={v:0,q:0});s.v+=x.c[cp][d].v;s.q+=x.c[cp][d].q})});
+    o.tot+=x.tot;o.prog+=x.prog;Object.keys(x.vc).forEach(cp=>o.vc[cp]=(o.vc[cp]||0)+x.vc[cp]);Object.keys(x.pc).forEach(cp=>o.pc[cp]=(o.pc[cp]||0)+x.pc[cp]);
+    if(x.corte>o.corte)o.corte=x.corte});
+  return ord.map(m=>por[m])}
 function offLinhasD(pular){const out=[],M=(OFFH&&OFFH.meses)||{};
   const fora=Array.isArray(pular)?pular:(pular?[pular]:[]);
   Object.keys(M).forEach(mes=>{if(fora.indexOf(mes)>=0)return;const o=M[mes],man=(o.manual&&o.manual.c)||{},pl=(o.planilha&&o.planilha.c)||{};
