@@ -4012,12 +4012,20 @@ function anunDados(a,b){
   SALES.forEach(x=>{if(!finOk(x))return;const d=finDate(x);if(!d||d<a||d>b)return;
     const c=card[x.ck];if(!c)return;const o=g(c);o.nv++;o.tot+=x.tot;
     const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=tpF(t);o.dn++}});
-  const dia={};ANUN.forEach(x=>{if(x.d<a||x.d>b)return;(dia[x.d]=dia[x.d]||[]).push(x.cod);g(x.cod).ins++});
+  /* custo por anúncio (corrigido em 12/11/2026): o custo realizado do MÊS da campanha é dividido pelas inserções que
+     realmente foram ao ar naquele mês (extrato da emissora) — cada inserção vale custo do mês ÷ inserções do mês.
+     Antes o custo de cada dia da GRADE (programação) era rateado pelas inserções do MESMO dia do extrato; como os dias
+     programados não batem com os dias em que o anúncio foi ao ar, o custo dos dias sem inserção sobrava numa linha
+     "JOGO ABERTO-OFF (sem anúncio)" (ex.: outubro, 23 inserções e 23 pagas, mas ~R$ 26 mil "sem anúncio").
+     Mês sem extrato continua inteiro na campanha (linha "sem anúncio"). */
   const camp=camp0;let semExtrato=0,custoTot=0;
+  const custoMes={},insMes={};
+  CUSTO.forEach(x=>{if(x.src!=='OFFLINE'||x.camp!==camp)return;const k=x.d.slice(0,7);custoMes[k]=(custoMes[k]||0)+x.val});
+  ANUN.forEach(x=>{const k=String(x.d||'').slice(0,7);if(k)insMes[k]=(insMes[k]||0)+1});
+  ANUN.forEach(x=>{if(x.d<a||x.d>b)return;const o=g(x.cod);o.ins++;const k=x.d.slice(0,7);
+    if(custoMes[k]&&insMes[k])o.inv+=custoMes[k]/insMes[k]});
   CUSTO.forEach(x=>{if(x.src!=='OFFLINE'||x.camp!==camp||x.d<a||x.d>b)return;custoTot+=x.val;
-    const L=dia[x.d];
-    if(!L||!L.length){semExtrato+=x.val;g(camp0).inv+=x.val;return}   /* dia sem extrato fica na campanha */
-    const q=x.val/L.length;L.forEach(c=>{g(c).inv+=q})});
+    if(!insMes[x.d.slice(0,7)]){semExtrato+=x.val;g(camp0).inv+=x.val}});   /* mês sem extrato fica na campanha */
   /* conferência: quantos leads dessa campanha o resto do painel conta no mesmo período */
   const noPainel=SER.reduce((q,r)=>(r[0]>=a&&r[0]<=b&&r[1]===camp0?q+r[3]:q),0);
   const mesesSem={};LEADH.forEach(x=>{if(x.d<a||x.d>b)return;const k=x.d.slice(0,7);
@@ -4201,7 +4209,7 @@ function aAnuncios(){
     ${Object.keys(D.mesesSem).length?`<p class="warn" style="margin:10px 0 0"><span>Sem extrato ${Object.entries(D.mesesSem).sort().map(([k,v])=>`em <b>${esc(mesBR(k))}</b> (${n(v)} leads)`).join(' e ')}.
       Cole o extrato desse período na aba para esses leads saírem da linha ${esc(D.camp)} e entrarem nos anúncios.</span></p>`:''}
     ${D.semExtrato>0?`<p class="${ANUN.length?'warn':'info'}" style="margin:10px 0 0"><span>${ANUN.length
-      ?`${mo2(D.semExtrato)} de custo caiu em dias sem nenhuma inserção no extrato. Esse valor e os leads desses dias ficaram na linha <b>${esc(D.camp)}</b> da tabela abaixo — confira se o extrato desses dias foi colado.`
+      ?`${mo2(D.semExtrato)} de custo é de mês sem extrato da emissora na aba de anúncios. Esse valor e os leads desses dias ficaram na linha <b>${esc(D.camp)}</b> da tabela abaixo — confira se o extrato desses dias foi colado.`
       :`Enquanto o extrato não for lido, tudo aparece numa linha só, como <b>${esc(D.camp)}</b> mesmo: ${mo2(D.semExtrato)} de custo e os leads do período. Nada se perde.`}</span></p>`:''}</div>
   <div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Desempenho por anúncio</h3>
       <span class="m">${dc(d1)} a ${dc(d2)} · custo rateado pelas inserções de cada dia</span></div>
@@ -6130,7 +6138,7 @@ function rnAnun(pres,D){
   if(maisLeads)L.push(`${anunNome(maisLeads.cod)} puxou o volume: ${R.int(maisLeads.leads)} leads em ${R.int(maisLeads.ins)} ${maisLeads.ins===1?'inserção':'inserções'} (${T.leads?R.p1(maisLeads.leads/T.leads):'—'} do total).`);
   if(cpl)L.push(`Menor CPL: ${anunNome(cpl.cod)}, a ${R.m2(cpl.cpl)} por lead.`);
   if(melhor)L.push(`Melhor retorno: ${anunNome(melhor.cod)}, com ROAS de ${R.x2(melhor.roas)}x${pior?` contra ${R.x2(pior.roas)}x de ${anunNome(pior.cod)}`:''}.`);
-  if(A.semExtrato>0)L.push(`${R.m0(A.semExtrato)} de custo caiu em dias sem inserção no extrato e ficou na linha ${A.camp}.`);
+  if(A.semExtrato>0)L.push(`${R.m0(A.semExtrato)} de custo é de mês sem extrato da emissora e ficou na linha ${A.camp}.`);
   const tx=L.join(' ');
   caixaTexto(pres,s,0.62,2.62+hT+0.2,12.09,Math.min(6.95-(2.62+hT+0.2),Math.max(0.85,0.6+0.2*Math.ceil(tx.length/150))),'Leitura do período',tx,K.or);
 }
