@@ -3448,15 +3448,17 @@ function bmMotor(meta,atv){
   Object.entries(votos).forEach(([a,o])=>{const k=Object.keys(o);if(!acc[a]&&k.length===1){acc[a]=k[0];src[a]='campanhas'}});
   /* contas que só aparecem nas campanhas ativas (ainda sem gasto no relatório) */
   Object.keys(plBM).forEach(a=>{if(acc[a])return;acc[a]=man[a]||plBM[a];src[a]=man[a]?'manual':'planilha'});
-  const camp={},cv={},linha={},contas={};
+  const camp={},cv={},linha={},contas={},campMes={},cmv={};
   (meta||[]).forEach(r=>{const a=String(r[6]==null?'':r[6]).trim(),v=+r[1]||0,mes=mesTxt(r[0]);if(!a)return;
     const bm=acc[a]||'';const o=contas[a]||(contas[a]={bm,v:0});o.v+=v;
     if(!bm||!v||!mes)return;
     const nm=normT(r[7]);if(nm&&(!cv[nm]||v>cv[nm])){camp[nm]=bm;cv[nm]=v}
+    /* campanha → BM no MÊS em que ela gastou (12/11/2026): formulário com nome de campanha antiga não puxa lead para BM parado */
+    if(nm){const km=mes+'|'+nm;if(!cmv[km]||v>cmv[km]){campMes[km]=bm;cmv[km]=v}}
     for(const x of String(r[7]||'').toUpperCase().matchAll(RX_LIN)){const k=mes+'|'+x[1];const q=linha[k]||(linha[k]={});q[bm]=(q[bm]||0)+v}});
-  return{acc,src,plBM,camp,linha,contas}}
+  return{acc,src,plBM,camp,campMes,linha,contas}}
 function bmLead(M,form,canal,mes){
-  const f=normT(form);if(f&&M.camp[f])return[[M.camp[f],1,'form']];
+  const f=normT(form);if(f&&M.campMes&&M.campMes[mes+'|'+f])return[[M.campMes[mes+'|'+f],1,'form']];
   const ls=[];for(const x of f.matchAll(RX_LIN))ls.push(x[1]);
   ls.push(linKeyEmp(canal));
   /* número vinculado à mão na Administração vale antes do que as campanhas citam */
@@ -3471,18 +3473,23 @@ function bmCalc(M,leads,velhos,a,b){
   const RD=CFG.bmRedir||{},mp=bmEmpMapa(M),foraBM={};
   /* a reunião de uma empresa só mostra os BMs dela: BM de outra empresa cai em "sem vínculo", a não ser que o admin mande somar em um BM daqui */
   const temProprio=Object.values(mp).some(e=>e===fE);
+  /* BM DESCONTINUADO (12/11/2026): sem gasto do Meta da empresa no período e sem número vinculado à mão na Administração.
+     Lead ou venda que cairia nele fica na EMPRESA (bloco SEM VÍNCULO) — ou no BM escolhido em Administração → BM por empresa. */
+  const ativos=bmAtivos(M,a,b),desc={};
   const rd=k=>{const t=RD[fE+'|'+k];if(t&&t!==k)return t;
-    if(k!==SEMBM&&temProprio&&mp[k]&&mp[k]!==fE){foraBM[k]=mp[k];return SEMBM}return k};
+    if(k!==SEMBM&&temProprio&&mp[k]&&mp[k]!==fE){foraBM[k]=mp[k];return SEMBM}
+    if(k!==SEMBM&&!ativos.has(k))return SEMBM;return k};
+  const marcaDesc=(k,campo,w)=>{if(k===SEMBM||ativos.has(k)||RD[fE+'|'+k])return;const o=desc[k]||(desc[k]={leads:0,nv:0});o[campo]+=w};
   const g=k=>{k=rd(k);return R[k]||(R[k]={bm:k,inv:0,leads:0,nv:0,fat:0})};
   const card=new Map();
   leads.forEach(x=>card.set(x.ck,x));(velhos||[]).forEach(x=>{if(!card.has(x.ck))card.set(x.ck,x)});
   const atr=x=>x._bm||(x._bm=bmLead(M,x.form,x.canal,mesIso(x.d)));
-  leads.forEach(x=>{if(x.d<a||x.d>b||!campMeta(x.camp))return;atr(x).forEach(([k,w,h])=>{g(k).leads+=w;how[h]+=w;
+  leads.forEach(x=>{if(x.d<a||x.d>b||!campMeta(x.camp))return;atr(x).forEach(([k,w,h])=>{marcaDesc(k,'leads',w);g(k).leads+=w;how[h]+=w;
     if(h==='sem'){const l=linKeyEmp(x.canal,fE);linSem[l]=(linSem[l]||0)+w}})});
   let semLead=0;
   const vend=SALES.filter(x=>finOk(x)&&x.e===fE&&campMeta(x.mi)&&finDate(x)&&finDate(x)>=a&&finDate(x)<=b);
   const qual=new Map();
-  vend.forEach(s=>{const l=s.ck&&card.get(s.ck);const at=l?atr(l):[[SEMBM,1,'sem']];if(!l)semLead++;qual.set(s.id,at);at.forEach(([k,w])=>g(k).nv+=w)});
+  vend.forEach(s=>{const l=s.ck&&card.get(s.ck);const at=l?atr(l):[[SEMBM,1,'sem']];if(!l)semLead++;qual.set(s.id,at);at.forEach(([k,w])=>{marcaDesc(k,'nv',w);g(k).nv+=w})});
   FIN.forEach(p=>{if(!finOk(p)||p.e!==fE||!campMeta(p.mi))return;const d=finDate(p);if(!d||d<a||d>b)return;
     let at=qual.get(p.id);if(!at){const l=p.ck&&card.get(p.ck);at=l?atr(l):[[SEMBM,1,'sem']]}
     at.forEach(([k,w])=>g(k).fat+=p.v*w)});
@@ -3492,7 +3499,11 @@ function bmCalc(M,leads,velhos,a,b){
   const sem=R[SEMBM]||{bm:SEMBM,inv:0,leads:0,nv:0,fat:0};delete R[SEMBM];sem.inv=invSem;
   const lista=Object.values(R).filter(x=>x.inv>0||x.leads>=1||x.nv>0).sort((x,y)=>y.inv-x.inv||y.leads-x.leads);
   lista.forEach(x=>{const c=x.inv>0;x.cpl=c&&x.leads?x.inv/x.leads:null;x.cpa=c&&x.nv?x.inv/x.nv:null;x.roas=c?x.fat/x.inv:null;x.margem=c&&x.fat?(x.fat-x.inv)/x.fat:null});
-  return{lista,sem,how,linSem,semLead,nVend:vend.length,foraBM}}
+  return{lista,sem,how,linSem,semLead,nVend:vend.length,foraBM,desc}}
+/* BMs ativos da empresa fE no período: têm gasto do Meta (pela conta de anúncio) ou número vinculado à mão na Administração */
+function bmAtivos(M,a,b){const s=new Set();
+  CUSTO.forEach(x=>{if(x.src!=='META'||x.emp!==fE||x.d<a||x.d>b||!(x.val>0))return;const k=M.acc[x.conta];if(k)s.add(k)});
+  Object.values(CFG.bmLinhas||{}).forEach(k=>k&&s.add(k));return s}
 
 
 /* ── vincular número de WhatsApp ao BM de destino (vale antes do que as campanhas citam) ── */
@@ -3673,10 +3684,12 @@ function vBmEmp(){
   const linhasEmp={};Object.entries(CFG.bmLinhas||{}).forEach(([l,b])=>{if(!b)return;(linhasEmp[b]=linhasEmp[b]||[]).push(l)});
   const todos=[...BM_LISTA(),SEMBM];
   const optE=cur=>`<option value="">— pela planilha</option>`+EMPS.map(e=>`<option value="${esc(e)}"${cur===e?' selected':''}>${esc(e)}</option>`).join('');
-  const optR=(bm,cur)=>`<option value="">— manter separado</option>`+daEmp.filter(b=>b!==bm).map(b=>`<option value="${esc(b)}"${cur===b?' selected':''}>somar em ${esc(b)}</option>`).join('');
+  const manLig=new Set(Object.values(CFG.bmLinhas||{}).filter(Boolean));
+  const parado=bm=>bm!==SEMBM&&temEmp&&!(gasto[bm]>0)&&!manLig.has(bm);
+  const optR=(bm,cur)=>`<option value="">${parado(bm)?'— fica na empresa':'— manter separado'}</option>`+daEmp.filter(b=>b!==bm&&!parado(b)).map(b=>`<option value="${esc(b)}"${cur===b?' selected':''}>somar em ${esc(b)}</option>`).join('');
   const linha=bm=>{const sv=bm===SEMBM,dono=sv?'':(mapa[bm]||''),man=sv?'':(MAN[bm]||'');
     const red=RD[emp+'|'+bm]||'',g=gasto[bm]||0,fora=temEmp&&!sv&&dono&&dono!==emp;
-    const sit=sv?['o','fora de qualquer BM']:fora?['r','é da '+dono]:dono===emp?['g','é da '+emp]:dono?['s','é da '+dono]:['o','sem empresa definida'];
+    const sit=sv?['o','fora de qualquer BM']:fora?['r','é da '+dono]:parado(bm)?['r','descontinuado no período (sem gasto)']:dono===emp?['g','é da '+emp]:dono?['s','é da '+dono]:['o','sem empresa definida'];
     return `<tr class="${red?'vin-al':''}"><td class="lft"><b>${esc(sv?'SEM VÍNCULO':bm)}</b>
       <div class="kp-h">${sv?'Google, site, VOIP, TV e números sem campanha':(BE[bm]?'gasta: '+Object.keys(BE[bm]).join(', '):'sem gasto na planilha')}${linhasEmp[bm]?' · números '+linhasEmp[bm].join(', '):''}</div></td>
       <td>${g?mo2(g):'—'}</td>
@@ -3688,6 +3701,8 @@ function vBmEmp(){
     <p class="info" style="margin:0 16px 10px">Diga de qual empresa é cada BM. No slide "Performance por BM" podem aparecer BMs de outra empresa (ou o bloco <b>SEM VÍNCULO</b>)
       quando o lead veio de um número ou formulário que o painel não conseguiu ligar. Use a última coluna para <b>somar esses leads, vendas e custo dentro de um BM da própria empresa</b> —
       a lista só mostra os BMs ${temEmp?'da '+esc(emp):'da empresa escolhida'}.</p>
+    <p class="info" style="margin:0 16px 10px"><b>BM descontinuado</b> = sem gasto do Meta no período e sem número vinculado à mão. Nenhum lead novo vai para ele:
+      o que cairia lá (formulário antigo, venda de lead antigo) <b>fica na empresa (sem vínculo)</b>. Se quiser, escolha na última coluna um BM ativo para receber esses leads e vendas.</p>
     ${temEmp&&!daEmp.length?`<p class="warn" style="margin:0 16px 10px">Nenhum BM está marcado como da ${esc(emp)}. Defina a empresa na coluna "Empresa dona" e salve — depois escolha para onde somar.</p>`:''}
     <div class="tw"><table class="xl"><thead><tr><th>BM</th><th>Gasto no período</th><th>Empresa dona</th><th>Situação</th><th>Na reunião da ${esc(temEmp?emp:'empresa')}</th></tr></thead>
       <tbody>${todos.map(linha).join('')}</tbody></table></div>
@@ -5737,7 +5752,10 @@ function rnBM(pres,D){
   card(pres,s,0.62,6.33,12.11,0.68);
   txt(s,[{text:'Como foi atribuído: ',options:{bold:true,color:K.or}},
     {text:`custo pela conta de anúncio de cada BM · leads pelo formulário (${pc(H.form)}) ou pela linha de WhatsApp anunciada no mês (${pc((H.linha||0)+(H.rateio||0))})${H.manual?` ou pelo número vinculado na Administração (${pc(H.manual)})`:''} · vendas pela chave do card do lead.`+
-      (resto>0?` Mais ${resto} BM${resto===1?'':'s'} com volume menor não aparece${resto===1?'':'m'} aqui.`:'')}],
+      (resto>0?` Mais ${resto} BM${resto===1?'':'s'} com volume menor não aparece${resto===1?'':'m'} aqui.`:'')+
+      (()=>{const dk=Object.entries((X&&X.desc)||{}).filter(([,o])=>o.leads>=0.5||o.nv>=0.5);if(!dk.length)return '';
+        const tl2=dk.reduce((q,[,o])=>q+o.leads,0),tv=dk.reduce((q,[,o])=>q+o.nv,0);
+        return ` ${dk.map(([k])=>k).join(', ')} sem custo no período (descontinuado${dk.length>1?'s':''}): ${R.int(Math.round(tl2))} lead${Math.round(tl2)===1?'':'s'} e ${R.int(Math.round(tv))} venda${Math.round(tv)===1?'':'s'} que cairiam neles ficaram na empresa (sem vínculo).`})()}],
     {x:0.8,y:6.37,w:11.8,h:0.6,fontSize:8.5,valign:'middle'})}
 /* ═════ Comparativo geral: mesmo trecho do mês passado × este mês ═════ */
 function rnMes(pres,D){
