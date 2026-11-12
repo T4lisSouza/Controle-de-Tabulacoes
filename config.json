@@ -1,5 +1,5 @@
 {
- "t": "2026-11-12T18:19:07.460Z",
+ "t": "2026-11-12T18:20:05.912Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -290,6 +290,14 @@
    }
   ],
   "rnLinks": [
+   {
+    "id": "6k66tfhrdr",
+    "e": "OFF",
+    "a": "2026-10-01",
+    "b": "2026-10-31",
+    "t": 1794507601887,
+    "url": "https://controle-de-tabulacoes.talisprojetos.workers.dev/#reuniao=zjVdbc5tGFP4rzJk-tB00BSR04Q3dSSShIGzH9Xg8a7HI1FwUQBo3sh46_SX9LfljnXN2QVKcZPLG7rl_57KHA-zB0lWIArCg_dxul-FTHuSgAgcL3PEYVGBggaEZ7YauNTQdVHg8u2jixTrcgHWAmLOgwA_Sprtrp_fS3XRL372xWzzbl0EzZ_P26nq08Hqt0bDnNz5Oxy9JdotWHtFOnxVcCbgSsCArlEGW8HwdsRhtZHGtug8qBKxEAXQwy6MNT8CCd8jHUhaDBQv6TrYsfUK-AdJK9riL2ZplePEeVAizHOXmoMJTlhPfBPmichcj0xB5WIFYjECFPU8DHmQ5WDAh6RQpHqiQZgmfcYbO-fIIFlyjD9sQLPiIiCYsQs_sFRyPKoRResJqtyvcaSPNnRbfRbfDwGbvuh9ubgctL7xqmf609d4MDOd28OfHLqiwISHthErM0jVqBhUKnu-jdSbR2LOY3J2BCluWr3nMJDZ7TiJLCaV0fgUqJFEQIdef5PM25wWebJvMpWFEkA3FqdjFJRnwCO4cdQzQi5KVu0JCINEYnyCb1MBMz4BxsLbyXYnOV9lhMj17_pmjPpewW--KMjsrtYcPmtH7tFg6o3Z7f_1SbCYDu_M8DZ_Nvnabaw-dMTP-jj5-_jRai1Kbc6oebzSzfddz3IeBPV_ai6m9esDKFkw2VjMM0JZSlVKh4C2R3TCsye54PHMWIylXRntGorVS23eu7VVtO6cKvFr5rjIf-Z67dGeOby9sZWU7w4pvGhWlaEJUrSC7vVIaytRZoc8DV1pLdynmZ3G1GDjuSnnnTlzF7o88XzK4W56yCDVteWo7D3ZQKA0F_WYYSSbJBxBpxzzXXXbeQSBxp1QeVUgIwwMklBgU2zBBdi4lZxeFNBenQZbWDczKHYujzzLta0kZnkoHXXlMqHKPyC7wPdSs9nnJjS7MzSpRl0TFgDpFeiFVzY7xWajvacCsWcJTOi8vY_twYcyj6sx5mPPiCay2huMjehHO5hkr-lkCVlOlb_eZRm_C8g1P-hkT_OKItKamQrTOScQw6RuvWxqKR3Stm5pMRAXHntSXCacQdbNSCFZHqBN60T5YLRyJ-YaXgnP9tMtTsLomArXlcRRQjx1FJy4ySvQB7ua6ca_cDeyhvfI9917pz3VlNfKNNpW8uG305_gyfJ9XuTZ-gv3uxl4ulWZP66KoqbhXb8yYoMKvBU8UdHIXf_kvj7Lf3rJ8R7XR6erCq2-oRpcmN7byqlSXyqvie449Gc2VwWKqvCpj15tfzb784zlI834xtT-GDkpopmkqr6j1D5ooZ4onN7Z4SN_oXrqeb3uOvVKGI9-zF9JApexM_Q_1_hyMbzJgYoc8JtSZMvGPySzCqYd513tGD3txrjgLf-QtXEUzQAWj2-x8dY0-tIxOm67xYLa6LXk4Ur-80Tq5wW40TN3EEaGfKRYU9L2mSN3yYHY69a4iDQmK2W2dDm1Tb9aHjqb1TodmG9mcBQ6cTo9khDatTUYFBXMg3SFgRskW_b-Mu3L3EqTTrV5b7c-Ns-_m2Xfr7LtCgyx6PIhytDnXjVchL-AV5-ZX5zPE4yit2veIK0IyEJPuQI5ZIjaSA0vAJiqBiRgnS79BNJw2Oa0tBSfxNdsymmL8ha_BwvmFVnS1WgZ1FcJdis-7LuYmfbBtnu2JPY5ojuoqPDKxxejVWqar8GnHhOS-UlvyZJuJlTXdc3wgdRVylj5H6UY4IoZxQdqrPQEFo_UzF-x8j1uTRkAIHHQVtnn2l_BDmGb0rOr4PmZ5SexhhKQjvgcBTtQ7Eb4MXoReBV6FLYOWMdVRytBkYFVYdVCnkM4CqsOpg5GhnAKRYVAQMoQqAOH-PZnCp4oX612eCdkxK0Vu8V2WOT9bIxpGayp74iji-z7T1zfHCsmDzP4Fh2iztHpZNA3r3WuMR55jD3F90bQWrWk4GEceXWALrdyJZ9MJC1awf_lX7IZin6k8_B2bT5YvEsNwzraiDbIwtB9pg_nBJmbBxXVDgnCqsjvZ26JjRUA4MO5VeN7SWhVHBS4pd5Duz8ojiQOx6-AlvtdIC2kvjkUhQP12i4ebnn2QbzfyYemVz2ip3gB-f7MG_NQSsPl6AxC2LEPTyITV07A8aAYcvkGqVnJsinv660CI8RoVd3otU-u0Nb3b7Rz_Bw"
+   },
    {
     "id": "s30s916zrg",
     "e": "M12",
