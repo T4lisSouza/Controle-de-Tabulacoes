@@ -4550,7 +4550,7 @@ function vKpis(){const K=kpiCfg(),N=kpiNiveis();
       <p class="info">Campanha usa a própria meta; se estiver vazia, usa a da empresa e depois a geral. Meta em branco fica <b>em aberto</b> no slide.${eCamp?' KPIs próprios recebem o valor deste período aqui.':''}</p></div>
     <div class="tw"><table class="xl kp-t"><thead><tr><th>KPI</th><th>Melhor quando</th><th>Meta</th>${eCamp?`<th>Valor ${esc(dc(d1))}–${esc(dc(d2))}</th><th>Valor anterior</th>`:''}<th></th></tr></thead>
       <tbody>${K.lista.map(linha).join('')}
-      ${['tgt','churn'].filter(k=>K.lista.indexOf(k)<0).map(k=>{const d=kpiDef(k),h=herda(k),v=M[k];return `<tr class="kp-x"><td class="lft"><b>${esc(d.n)}</b><div class="kp-h">só no slide Target e Churn</div></td>
+      ${['tgt','churn'].filter(k=>K.lista.indexOf(k)<0).map(k=>{const d=kpiDef(k),h=herda(k),v=M[k];return `<tr class="kp-x"><td class="lft"><b>${esc(d.n)}</b><div class="kp-h">aparece no slide Tabulações e Funil</div></td>
         <td>${d.up?'<span class="tg g">↑ maior</span>':'<span class="tg o">↓ menor</span>'}</td>
         <td><input class="kp-in" data-km="${k}" value="${metaVazia(v)?'':esc(String(v).replace('.',','))}" inputmode="decimal" placeholder="${h!=null?'herda '+esc(kpiMetaTxt(d.f,h)):'em aberto'}" aria-label="Meta de ${esc(d.n)}"></td>
         ${eCamp?'<td></td><td></td>':''}<td></td></tr>`}).join('')}</tbody></table></div>
@@ -5114,7 +5114,6 @@ async function gerarReuniao(modo,soSec){
     D.camps.forEach((c,i)=>{
       add('camp','camp',p=>rnKpis(p,D,c));add('camp','camp',p=>rnTabs(p,D,c));
       if(i===0)add('camp','aprov',p=>rnAprov(p,D,c));
-      if(c.o.leads>=50)add('camp','target',p=>rnTarget(p,D,c));
       if(i===0&&(D.linhasTop||D.linhas).length>=1)add('camp','linha',p=>rnLinha(p,D,c))});
     add('balanc','balanc',rnBalanc);
     D.forms.forEach(f=>add('form','form',p=>rnForm(p,D,f)));
@@ -5357,6 +5356,25 @@ function rnTabs(pres,D,c){
         {text:dv==null?'- (novo)':`${sv.t} ${R.sg(dv)}${R.d2(Math.abs(dv*100))}pp`,options:{bold:true,color:dv==null?K.mut:sv.c,align:'right'}}]})];
   s.addTable(rows,{x:4.15,y:1.62,w:3.75,colW:[1.55,1.25,0.95],rowH:0.24,fontFace:FT,fontSize:8,color:K.txt,
     border:{type:'solid',pt:0.5,color:K.ln},valign:'middle',margin:[0,0.05,0,0.05]});
+  /* Target e Churn em % (12/11/2026: substitui o slide "Target e Churn", que ocupava uma página só para isso).
+     Target = Negociando + Pré-venda + Venda; Churn = o restante dos leads tabulados. */
+  {const t=c.tb.t?c.tgt/c.tb.t:null,tp=c.tbp.t?c.tgtP/c.tbp.t:null,ch=t==null?null:1-t,chp=tp==null?null:1-tp;
+    const mtg=kpiMeta(c.k,'tgt'),mch=kpiMeta(c.k,'churn'),mm=v=>R.d1(v).replace(/,0$/,'');
+    const y0=Math.min(4.45,1.62+0.24*rows.length+0.22);
+    const mini=(x,tit,val,ant,bom,ok,metaTxt,linha)=>{
+      const cor=ok==null?K.tx2:ok?K.gr:K.rd,dv=val!=null&&ant!=null?val-ant:null;
+      card(pres,s,x,y0,1.83,1.1,K.card,K.ln);s.addShape(pres.shapes.RECTANGLE,{x,y:y0,w:1.83,h:0.04,fill:{color:cor},line:{color:cor}});
+      txt(s,tit,{x:x+0.1,y:y0+0.08,w:1.65,h:0.2,fontSize:8,bold:true,color:K.sub});
+      txt(s,[{text:R.p1(val),options:{fontSize:16,bold:true,color:cor}},
+        ...(dv==null?[]:[{text:`  ${dv>0?'↑':'↓'} ${R.sg(dv)}${R.d1(Math.abs(dv*100))}pp`,options:{fontSize:7.5,bold:true,color:(dv>0)===bom?K.gr:K.rd}}])],
+        {x:x+0.1,y:y0+0.28,w:1.7,h:0.36,valign:'middle'});
+      txt(s,linha,{x:x+0.1,y:y0+0.64,w:1.68,h:0.18,fontSize:7,color:K.mut});
+      txt(s,metaTxt,{x:x+0.1,y:y0+0.83,w:1.68,h:0.18,fontSize:7,bold:true,color:ok==null?K.mut:cor})};
+    mini(4.15,'TARGET',t,tp,true,mtg==null||t==null?null:t*100>=mtg,mtg==null?'sem meta':`meta > ${mm(mtg)}% · ${t!=null&&t*100>=mtg?'acima':'abaixo'}`,
+      `${R.int(c.tgt)} leads · vs período ant.`);
+    mini(6.07,'CHURN',ch,chp,false,mch==null||ch==null?null:ch*100<mch,mch==null?'sem teto':`teto < ${mm(mch)}% · ${ch!=null&&ch*100<mch?'dentro':'acima'}`,
+      `${R.int(c.tb.t-c.tgt)} leads · vs período ant.`);
+    txt(s,'Target = Negociando + Pré-venda + Venda · Churn = restante tabulado',{x:4.15,y:y0+1.14,w:3.75,h:0.18,fontSize:6.5,color:K.mut,align:'center'})}
   /* funil */
   const nAt=Object.entries(c.tb.m).filter(([t])=>ehNaoAt(t)).reduce((q,[,v])=>q+v,0);
   const neg=Object.entries(c.tb.m).filter(([t])=>/negocia/i.test(t)).reduce((q,[,v])=>q+v,0);
@@ -6496,9 +6514,8 @@ const RN_CAT=[
   {k:'mes',     n:'Comparativo Mensal',     d:'Mesmo trecho do mês passado contra o atual, 12 indicadores'},
   {k:'leads',   n:'Leads do Mês',           d:'Volume por mídia, formulário e semana'},
   {k:'funil',   n:'Funil de Conversão',     d:'Do lead recebido ao contrato, com a perda de cada etapa',novo:1},
-  {k:'camp',    n:'Por campanha',           d:'KPIs vs meta e Tabulações e Funil de cada mídia'},
+  {k:'camp',    n:'Por campanha',           d:'KPIs vs meta e Tabulações e Funil de cada mídia (com Target e Churn em %)'},
   {k:'aprov',   n:'Indicadores de Aproveitamento', d:'Eficiência operacional da campanha principal',pai:'camp'},
-  {k:'target',  n:'Target e Churn',         d:'Qualidade da audiência (campanhas com 50+ leads)',pai:'camp'},
   {k:'linha',   n:'Performance por Linha',  d:'Linhas de WhatsApp da campanha principal',pai:'camp'},
   {k:'balanc',  n:'Balanceador de contratos',d:'Peso de cada campanha nos contratos do período'},
   {k:'form',    n:'Análise de Formulário',  d:'Um slide por formulário de cadastro com volume relevante'},
