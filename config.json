@@ -1,5 +1,5 @@
 {
- "t": "2026-11-12T13:30:28.937Z",
+ "t": "2026-11-12T13:31:40.055Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -145,8 +145,20 @@
    "0608": "IND",
    "0555": "GWA"
   },
-  "bmEmp": {},
-  "bmRedir": {},
+  "bmEmp": {
+   "BM INTERNO 01": "GWA",
+   "BM INTERNO 02": "GWA",
+   "BM1": "M12",
+   "BM2": "M12",
+   "BM3": "M12",
+   "BM4": "M12",
+   "BM5": "M12"
+  },
+  "bmRedir": {
+   "M12|BM2": "BM1",
+   "M12|BM3": "BM1",
+   "M12|BM4": "BM1"
+  },
   "linNomes": {},
   "semCanal": {
    "GWA": "0555",
