@@ -1,5 +1,5 @@
 {
- "t": "2026-11-12T13:31:40.055Z",
+ "t": "2026-11-12T13:31:47.388Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -290,7 +290,16 @@
     "h": "9bba2e18c7aa1c4b8ccd359d32f84f11c9e88ae39988232ad0ee36747ba3a1f9"
    }
   ],
-  "rnLinks": [],
+  "rnLinks": [
+   {
+    "id": "s30s916zrg",
+    "e": "M12",
+    "a": "2026-11-01",
+    "b": "2026-11-11",
+    "t": 1794490303372,
+    "url": "https://controle-de-tabulacoes.talisprojetos.workers.dev/#reuniao=zjVfbbttGEP0VYtCHtqBQkhJ14Rt1ZyKJCiXbcQ3DWJNLmTUvCkkJbmQ9FP2Sfkt-rJjZJSXFSZA37tzn7Mzs8AB7sHQVogAsKJpa0dPbn_MNqMDBgrlugAoMLDA0o93Q9YamgwqPZwQdCX64AesAMWdBgR9kTXd9p_fS3XTLtXtjt3i2L4Nmzubt1fVo4fVao2Fv3fg4Hb8k2S16eUQ_fVZwJeBKwIKsUAZZwnM_YjH6yOLadB9UCFiJCmNQIcujDU_Agncox1IWgwUL-k62LH1CuQHySva4i5nPMiS8BxXCLEe9OajwlOUkN0G5qNzFKDREGVYgFiNQYc_TgAdZDhZMSDtFjgcqpFnCZ5xhcGt5BAuuMYZtCBZ8REQTFmFk9gqORxXCKD1htdsV7rSR5k6L76LbYWCzd90PN7eDlhdetcz1tPXeDAzndvDnxy6osCEl7YRKzFIfLYMKBc_3kZ9JNPYspnBnoMKW5T6PmcRmz0llKaGUwa9AhSQKIpT6k2Le5rzAk22TuzSMCLKhOBW7uCQHHsGdo40BRlGycldICCQa4xNkkxqY6RkwDtZWvisx-Op2mLyePf_M0Z5L2Pm7oszOSu3hg2b0Pi2Wzqjd3l-_FJvJwO48T8Nns6_d5tpDZ8yMv6OPnz-NfFFqc07V441m9tr1HPdhYM-X9mJqrx6wsoWQjdUMA_SlVKVUKEglthuGNdsdj2fOYiT1ymjPSLU2aq-da3tV-86pAq9Wa1eZj9aeu3Rnztpe2MrKdoaV3DQqSsxYmFZQ3F4pDWXqrDDmgSu9pbsU72dxtRg47kp5505cxe6PvLUUcLc8ZRFa2vLUdh7soFAaCsbNMJNMsg8grh3vue6y8w4CiTtd5VGFhDA8QEIXg2obJtjOpebsopDm4jTI0rqBWbljcfRZXrsvOcNT6WAojwlV7hHFBb6HWtQ-L7nRhbtZpeqSqhhQp0wvtKrZMT5L9T0NGJ8lPKXz8jK3DxfOPKrOnIc5L57Aams4PqIXEWyesaKfJWA1Vfp2n2n0Jizf8KSfMSEvjshraipEfk4qhknfSG5pqB4RWTc1eREVHHsyXyacUtTNyiBYHWFO2EX_YLVwJOYbXgpJ_2mXp2B1TQRqy-MooB47ik5cZHTRB7ib68a9cjewh_Zq7bn3Sn-uK6vR2mhTyQtqoz_Hl-H7ssq18RPidzf2cqk0e1oXVU3FvXrjxgQVfi14omCQu_jLf3mU_fZW5DumjU5XF1F9wzSGNLmxlVelIiqvytpz7MlorgwWU-VVGbve_Gr25R_PQZ73i6n9MXRQQzNNU3lFq3_QRDkzPLmxxUP6xvbS9da259grZThae_ZCOqiMnZn_od2fg_HNDZjYIY8Jdaa8-MdkFuHUw3vXe0YPe3GuOIv1yFu4iobrgdFtdr4iYwwto9MmMh7MVrclD0fqlzdWJzfYjYapm_XeIQ0LDsZec6RteTA7HTEmT44Ex-y2Toe2qTfrQ0fTeqdDs41izgIHTqdHOsKa1iangoN3IMMhYEbJFuO_zLsK9xKkE1Wvvfbnxtl38-y7dfZdoUEePR5EOfqc68ar0BfwinPzq_MZ4nGUVu17xBUhGYhJd6DALJEb6YElYBOVwESOk-W6QTycNjmtLQUndZ9tGU0x_sJ9sHB-oRddrZZBXYVwl-Lzrou5SR9sm2d7Eq_nDwX5JIw9MrHQ6NWGpqvwaceEkX3loeTJNhPba7rnhTCSs_Q5SjciJjGXC3JUrQyoGPnP0iff4wKlESYCEl2FbZ79JeIQrhm9sBo-lVle0lcYIeuIT0OAw_VOICFxEChUGFQIyPxlTnWWMjWZWJVWndQppbOE6nTqZGQqp0RkGpSETKFKQIR_T67w1eKFv8szoTtmpUgMn2h5_WcbRcNoTWV7HEV-3xf6mnKskDzIQriQEB2XVo-MpmHpe43xyHPsIW4ymtaijQ1n5MgjAnbTyp14Np2wdoX4l3_FmihWmyrC37EPZSUjMwznbCs6IgtD-5GWmR8sZRZckBsShFOV3ck2F80rEsLZca_C85Y2rDgqcF-5g3R_Vh5JHIi1B4n4dCMvpBU5FoUA9TMu3nDaAEA-4yiHpVc-o6d6Gfj9zUbwU_vA5utlQPiyDE0jF1ZPwylA4-DwDVa1nWNT3NMPCEKMZDSM47WnNbVms2Mc_wc"
+   }
+  ],
   "rnLinksExcl": [
    "xd5q9cv3x1",
    "rg3nww8ieo",
