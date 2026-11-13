@@ -1,5 +1,5 @@
 {
- "t": "2026-11-12T18:20:05.912Z",
+ "t": "2026-11-13T19:26:05.185Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -274,8 +274,8 @@
     "papel": "equipe",
     "emps": [],
     "valores": true,
-    "sal": "b8507db19799ab6a",
-    "h": "cfbe063a366f48e612598a9b418dca209485466a4bfcbc6cd541762b74387e9e"
+    "sal": "560b621a3bfa67da",
+    "h": "f4b8ee140c6244d843f4553737a7285dc1e79376dd349afe61ff7d426675be3a"
    },
    {
     "u": "william",
