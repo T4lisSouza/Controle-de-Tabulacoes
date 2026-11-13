@@ -1289,7 +1289,75 @@ function vTab(){
     <div class="dw">${donut(slices,A.tot)}
     <div class="lgd">${slices.map(s=>`<span><i style="background:${s.c}"></i>${esc(s.k)}</span>`).join('')}</div></div></div>
   <div class="card"><div class="ch"><h3>Por tabulação</h3></div>
-    ${listRows(T,A.tot,null,true)}</div>`}
+    ${listRows(T,A.tot,null,true)}</div>
+  ${consCard()}`}
+
+/* ═════ Leads por consultor (13/11/2026) ═════
+   Consulta própria por lead (data, hora, consultor = coluna VENDEDOR, nome, telefone, campanha, tabulação…), só quando a aba
+   Tabulações é aberta, guardada 10 minutos. Respeita período, empresa, campanha, origem e canal do topo.
+   Tabela consultor × tabulação + botão para baixar o Excel com os leads atribuídos. */
+const CONS={k:'',t:0,p:null,rows:[],err:''};
+const consVenda=t=>/^\s*venda/i.test(String(t||''));
+function consLoad(forca){
+  const a=d1,b=d2,k=[a,b,fO,fC].join('|');
+  if(!forca&&CONS.k===k&&Date.now()-CONS.t<600000)return Promise.resolve();
+  if(CONS.p)return CONS.p;
+  const c=CFG.leads.col||{},V=c.vendedor||'G',TT=c.titulo||'D',FN=c.fone||'R',FA=c.fase||'E',FM=c.form||'M',HR=c.hora||'CG';
+  CONS.err='';
+  CONS.p=(async()=>{
+    try{const r=await gviz(`select ${ID}, ${DAT}, ${HR}, ${V}, ${TT}, ${FN}, ${CAMP}, ${TAB}, ${ORI}, ${CAN}, ${FA}, ${FM} where ${DAT} >= date '${a}' and ${DAT} <= date '${b}'${filtroOC()}`,90000);
+      const s=v=>v==null?'':String(v).trim();
+      CONS.rows=r.map(x=>{const ori=s(x[8]),can=s(x[9]),camp=reCamp(nc(s(x[6])),ori,can);
+        const fone=typeof x[5]==='number'?String(Math.round(x[5])):s(x[5]);
+        return {ck:s(x[0]),d:gdate(x[1]),h:hhmm(x[2])||'',cons:s(x[3])||'Sem consultor',nome:s(x[4]),fone,camp,e:empOf(camp),
+          tb:s(x[7])&&s(x[7])!=='-'?s(x[7]):'Sem tabulação',ori,can,fase:s(x[10]),form:s(x[11])}}).filter(x=>x.d);
+      CONS.k=k;CONS.t=Date.now();logEv('Tabulações','leads por consultor',true,CONS.rows.length)}
+    catch(e){CONS.err=(e&&e.message)||'erro na consulta';CONS.k=k;CONS.t=Date.now()-540000;logEv('Tabulações','leads por consultor',false,0,0,CONS.err)}
+    finally{CONS.p=null;if(tab==='tab')renderAuto()}})();
+  return CONS.p}
+/* leads do recorte atual (empresa, campanha e acesso do parceiro) */
+function consSel(){return CONS.rows.filter(x=>(fE==='TODAS'||x.e===fE)&&(!fCamp||x.camp===fCamp)&&empPerm(x.e))}
+function consAgg(L){const m={},tbT={};
+  L.forEach(x=>{const o=m[x.cons]||(m[x.cons]={cons:x.cons,n:0,tb:{},v:0});o.n++;o.tb[x.tb]=(o.tb[x.tb]||0)+1;if(consVenda(x.tb))o.v++;tbT[x.tb]=(tbT[x.tb]||0)+1});
+  const cols=Object.entries(tbT).sort((a,b)=>b[1]-a[1]).map(([t])=>t);
+  const lista=Object.values(m).sort((a,b)=>(a.cons==='Sem consultor')-(b.cons==='Sem consultor')||b.n-a.n);
+  return {lista,cols,tbT,tot:L.length}}
+function consCard(){
+  const k=[d1,d2,fO,fC].join('|');
+  if(CONS.k!==k&&!CONS.p)setTimeout(()=>consLoad(),0);
+  const carregando=CONS.p||CONS.k!==k;
+  const ch=`<div class="ch"><h3>Leads por consultor</h3><span class="m">${carregando?'<span class="em-spin"></span> carregando…':`${n(consSel().length)} leads`}
+    ${!carregando&&!(SESS&&SESS.papel==='parceiro')&&consSel().length?` · <button class="lnk" id="btConsXls">Baixar Excel com os leads</button>`:''}</span></div>`;
+  if(carregando&&!CONS.rows.length)return `<div class="card wide">${ch}<p class="info" style="margin:0 16px 14px">Buscando os leads do período com o consultor atribuído…</p></div>`;
+  if(CONS.err&&!CONS.rows.length)return `<div class="card wide">${ch}<p class="warn" style="margin:0 16px 14px">Não consegui ler os leads por consultor (${esc(CONS.err)}). <button class="lnk" id="btConsDe">tentar de novo</button></p></div>`;
+  const G=consAgg(consSel());
+  if(!G.tot)return `<div class="card wide">${ch}<p class="info" style="margin:0 16px 14px">Nenhum lead no recorte.</p></div>`;
+  const top=G.cols.slice(0,7),resto=G.cols.slice(7);
+  const cel=(v,t)=>v?`<td>${n(v)}<small class="pct"> ${pc(v,t)}</small></td>`:'<td class="pct">—</td>';
+  const linha=o=>`<tr><td class="lft"><b>${esc(o.cons)}</b></td><td><b>${n(o.n)}</b><small class="pct"> ${pc(o.n,G.tot)}</small></td>
+    ${top.map(t=>cel(o.tb[t]||0,o.n)).join('')}${resto.length?cel(resto.reduce((q,t)=>q+(o.tb[t]||0),0),o.n):''}
+    <td><b>${o.n?pctN(o.v/o.n):'—'}</b></td></tr>`;
+  const T={cons:'Total',n:G.tot,tb:G.tbT,v:G.lista.reduce((q,o)=>q+o.v,0)};
+  return `<div class="card wide t">${ch.replace('<div class="ch">','<div class="ch" style="padding:15px 16px 8px">')}
+    <div class="tw"><table class="xl"><thead><tr><th>Consultor</th><th>Leads</th>${top.map(t=>`<th>${esc(t)}</th>`).join('')}${resto.length?'<th>Outras</th>':''}<th>Conversão</th></tr></thead>
+      <tbody>${G.lista.map(linha).join('')}</tbody>
+      <tfoot><tr class="tt">${linha(T).replace(/^<tr>/,'').replace(/<\/tr>$/,'')}</tr></tfoot></table></div>
+    <p class="info" style="margin:6px 16px 12px">Consultor = coluna VENDEDOR da base comercial. % de cada tabulação sobre os leads do consultor · Conversão = leads tabulados como Venda ÷ leads do consultor.</p></div>`}
+function consXls(){
+  const L=consSel().slice().sort((a,b)=>(a.d+a.h).localeCompare(b.d+b.h)),G=consAgg(L);
+  const h=t=>({v:t,s:S.hdr}),tx=v=>({v:v==null||v===''?'—':v,s:S.txt}),it=v=>({v,s:S.int});
+  const s1=[['Data','Hora','Consultor','Lead','Telefone','Card','Campanha','Empresa','Tabulação','Fase','Origem','Canal (número)','Formulário'].map(h),
+    ...L.map(x=>[tx(dc(x.d)),tx(x.h),tx(x.cons),tx(x.nome),tx(x.fone),tx(x.ck),tx(nomeCamp(x.camp)),tx(x.e),tx(x.tb),tx(x.fase),tx(x.ori),tx(x.can),tx(x.form)])];
+  const s2=[['Consultor','Leads',...G.cols,'Conversão'].map(h),
+    ...G.lista.map(o=>[{v:o.cons,s:S.bold},it(o.n),...G.cols.map(t=>it(o.tb[t]||0)),{v:o.n?o.v/o.n:0,s:S.pct}]),
+    [{v:'Total',s:S.tot},{v:G.tot,s:S.totInt},...G.cols.map(t=>({v:G.tbT[t]||0,s:S.totInt})),
+      {v:G.tot?G.lista.reduce((q,o)=>q+o.v,0)/G.tot:0,s:S.totPct}]];
+  baixaBin(`leads_por_consultor_${sufixo()}.xlsx`,xlsx([
+    {nome:'Leads',rows:s1,w:[11,8,22,30,15,14,22,9,16,16,22,18,26]},
+    {nome:'Por consultor',rows:s2,w:[24,9,...G.cols.map(()=>13),11]}]));
+  logEv('Tabulações','Excel de leads por consultor',true,L.length)}
+function bindTabCons(){const b=document.getElementById('btConsXls');if(b)b.onclick=consXls;
+  const r=document.getElementById('btConsDe');if(r)r.onclick=()=>{consLoad(true);render()}}
 
 function listRows(list,total,tagFn,useKind,click){
   if(!list.length)return '<div class="info">Sem dados no recorte.</div>';
@@ -7104,6 +7172,7 @@ function head(k){
 
 function bind(){
   if(tab==='cli')bindCli();
+  if(tab==='tab')bindTabCons();
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{tab=b.dataset.go;render();window.scrollTo({top:0,behavior:RM?'auto':'smooth'})});
   document.querySelectorAll('[data-goemp]').forEach(b=>b.onclick=()=>{fE=b.dataset.goemp;fCamp=null;tab='relat';render();window.scrollTo({top:0,behavior:RM?'auto':'smooth'})});
   document.querySelectorAll('[data-gocamp]').forEach(b=>b.onclick=()=>{const c=b.dataset.gocamp;fE=empOf(c)!=='—'?empOf(c):fE;fCamp=c;tab='relat';render();window.scrollTo({top:0,behavior:RM?'auto':'smooth'})});
