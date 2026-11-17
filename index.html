@@ -1477,7 +1477,7 @@ function vFat(){
   const tk=nv?somaV/nv:0;
   const nE=new Set(S.map(x=>x.e)).size, nC=new Set(S.map(x=>x.mi)).size;
   const dias=S.map(x=>ddiff(x.ld,x.vc)).filter(d=>d!=null&&d>=0);
-  const tmed=dias.length?dias.reduce((a,b)=>a+b,0)/dias.length:0;
+  const tmed=dias.length?dias.reduce((a,b)=>a+tpF(b),0)/dias.length:0;
   const A=agg(sel()), leads=A.tot;
   const doMes=S.filter(x=>x.ld&&inRange(x.ld)), antigos=S.filter(x=>!(x.ld&&inRange(x.ld)));
   const convMes=leads?doMes.length/leads*100:0, convGlob=leads?nv/leads*100:0;
@@ -1568,7 +1568,7 @@ function vFat(){
   <div class="card"><div class="ch"><h3>Campanha × Serviço</h3><span class="m">top 10</span></div>
     ${finRows(xCS.map(([k,o])=>[k,o.fat]),fat,moS,null,'g')}</div>
 
-  <div class="card wide"><div class="ch"><h3>Tempo até a venda</h3><span class="m">média ${dd1(tmed)} dias</span></div>
+  <div class="card wide"><div class="ch"><h3>Tempo até a venda</h3><span class="m" title="média ponderada pelos pontos médios das faixas: 0 · 2 · 5,5 · 11,5 · 23 · 45 dias">média por faixas ${dd1(tmed)} dias</span></div>
     ${finRows(buck.filter(b=>b[1]>0),dias.length,n,null,'g')}</div>
   <div class="card"><div class="ch"><h3>Tempo médio por empresa</h3></div>
     ${finRows(tE,tE.length?Math.max(...tE.map(x=>x[1])):1,v=>dd1(v)+' d',null,'')}</div>
@@ -1597,7 +1597,7 @@ function vVendas(){
   const fat=P.reduce((a,x)=>a+x.v,0), nv=S.length;
   const tk=nv?S.reduce((a,x)=>a+x.tot,0)/nv:0;
   const dias=S.map(x=>ddiff(x.ld,x.vc)).filter(d=>d!=null&&d>=0);
-  const tmed=dias.length?dias.reduce((a,b)=>a+b,0)/dias.length:0;
+  const tmed=dias.length?dias.reduce((a,b)=>a+tpF(b),0)/dias.length:0;
   const A=agg(sel()), leads=A.tot;
 
   /* evolucao: valor por parcela vencida + qtd de vendas */
@@ -2864,8 +2864,9 @@ function vRelEmp(){
   <div class="card rp"><div class="ch"><h3>Origem das vendas</h3></div>
     ${statRow([['Leads que entraram no período',n(novos)+' · '+pc(novos,T.nv)],['Leads de meses anteriores',n(T.velho)+' · '+pc(T.velho,T.nv)],
       ['Conversão dentro do período',T.leads?pctN(novos/T.leads):'—',1],['Conversão global',pctN(T.conv),1]])}</div>
-  <div class="card rp"><div class="ch"><h3>Tempo até a venda</h3><span class="m">${tempos.length?'média '+dd1(tempos.reduce((a,b)=>a+b,0)/tempos.length)+' dias':''}</span></div>
-    ${hbar(buck.filter(b=>b[1]>0),tempos.length,n,'g')}</div>
+  <div class="card rp"><div class="ch"><h3>Tempo até a venda</h3><span class="m" title="média ponderada pelos pontos médios das faixas: 0 · 2 · 5,5 · 11,5 · 23 · 45 dias">${tempos.length?'média por faixas '+dd1(tempos.reduce((a,b)=>a+tpF(b),0)/tempos.length)+' dias · '+n(tempos.length)+' vendas':''}</span></div>
+    ${hbar(buck.filter(b=>b[1]>0),tempos.length,n,'g')}
+    ${tempos.length?`<p class="info" style="margin:6px 16px 12px">Inclui todas as vendas do período — as de leads que entraram no período e as de leads de meses anteriores (quadro "Origem das vendas").</p>`:''}</div>
 
   <div class="card t wide rp"><div class="ch" style="padding:15px 16px 8px"><h3>Vendas do período</h3>
     <span class="m">${dsMostrarTodas||V.length<=25?n(V.length):'25 de '+n(V.length)}</span></div>
@@ -6985,7 +6986,7 @@ const numNome=o=>{const n0=((CFG.linNomes||{})[o.k]||'').trim();if(n0)return n0;
 function numDados(){
   const a=d1,b=d2,ok=x=>(fE==='TODAS'||x.e===fE)&&empPerm(x.e)&&(!fCamp||x.camp===fCamp)&&onOk(x.camp);
   const L={},dz=()=>({leads:0,nv:0,fat:0,inv:0});
-  const g=k=>L[k]||(L[k]={k,leads:0,nv:0,fat:0,tot:0,inv:0,dsum:0,dn:0,velho:0,tb:{},camp:{},emp:{},tels:{},dia:{}});
+  const g=k=>L[k]||(L[k]={k,leads:0,nv:0,fat:0,tot:0,inv:0,dsum:0,dn:0,velho:0,tb:{},camp:{},emp:{},tels:{},dia:{},fx:FAIXAS_T.map(()=>0)});
   const dia=(o,s)=>{const bk=bucket(s);return o.dia[bk]||(o.dia[bk]=dz())};
   const ckLin={};
   NUM.rows.forEach(x=>{if(!ok(x))return;const k=linKeyEmp(x.can,x.e),o=g(k);o.leads++;
@@ -6994,7 +6995,7 @@ function numDados(){
   NUM.velhos.forEach(x=>{if(x.ck&&!ckLin[x.ck]&&ok(x))ckLin[x.ck]=linKeyEmp(x.can,x.e)});
   let semNumV=0;
   SALES.forEach(x=>{const d=finDate(x);if(!d||d<a||d>b||!dsOkF(x)||!empPerm(x.e))return;const k=ckLin[x.ck];if(!k){semNumV++;return}const o=g(k);
-    o.nv++;o.tot+=x.tot;if(!(x.ld&&x.ld>=a&&x.ld<=b))o.velho++;const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=tpF(t);o.dn++}dia(o,d).nv++});
+    o.nv++;o.tot+=x.tot;if(!(x.ld&&x.ld>=a&&x.ld<=b))o.velho++;const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){o.dsum+=tpF(t);o.dn++;o.fx[FAIXAS_T.indexOf(faixaT(t))]++}dia(o,d).nv++});
   FIN.forEach(x=>{const d=finDate(x);if(!d||d<a||d>b||!dsOkF(x)||!empPerm(x.e))return;const k=ckLin[x.ck];if(!k)return;g(k).fat+=x.v;dia(g(k),d).fat+=x.v});
   const lc={},lt={};Object.values(L).forEach(o=>Object.entries(o.camp).forEach(([c,q])=>{(lc[c]=lc[c]||{})[o.k]=q;lt[c]=(lt[c]||0)+q}));
   let semLead=0;
@@ -7051,7 +7052,7 @@ function vNumeros(){
   const graf=multiLinha(bks,S.map(o=>({nome:o.nome,cor:cor[o.k],vals:bks.map(b=>val(o,b))})),met[2]);
   /* tabelas */
   const linhaT=(o,tt)=>`<tr${tt?' class="tt"':''}><td class="lft">${tt?'<b>Seleção</b>':`<i class="nm-dot" style="background:${cor[o.k]}"></i><b>${esc(o.nome)}</b>`}</td>${fE==='TODAS'?`<td>${tt?'':esc(o.empL)}</td>`:''}
-    <td>${n(o.leads)}</td><td class="pct">${pc(o.leads,totL)}</td><td>${n(o.nv)}</td><td>${pctN(o.conv)}</td><td>${o.tempo==null?'—':dd1(o.tempo)}</td>
+    <td>${n(o.leads)}</td><td class="pct">${pc(o.leads,totL)}</td><td>${n(o.nv)}${o.velho?`<small class="pct" title="vendas de leads que entraram antes do período"> ${n(o.velho)} antigas</small>`:''}</td><td>${pctN(o.conv)}</td><td>${o.tempo==null?'—':dd1(o.tempo)}</td>
     ${OCULTA_RS?'':`<td>${mc2(o.inv)}</td><td>${fmtOr(o.cpl,mc2)}</td><td>${fmtOr(o.cac,mc2)}</td><td>${mo2(o.fat)}</td>`}
     <td class="h-${FX.roas(o.roas)}">${xN(o.roas)}</td><td class="h-${FX.margem(o.margem)}">${pctN(o.margem)}</td>
     <td class="lft">${tt?'':(()=>{const t=Object.entries(o.tb).sort((p,q)=>q[1]-p[1])[0];return t?`${esc(t[0])} <span class="m">${pc(t[1],o.leads)}</span>`:'—'})()}</td></tr>`;
@@ -7070,6 +7071,16 @@ function vNumeros(){
   const camps=[...new Set(S.flatMap(o=>Object.keys(o.camp)))].map(c=>[c,S.reduce((q,o)=>q+(o.camp[c]||0),0)]).sort((p,q)=>q[1]-p[1]).slice(0,10);
   const tabCp=`<table class="xl"><thead><tr><th class="lft">Campanha</th>${S.map(o=>`<th colspan="2"><i class="nm-dot" style="background:${cor[o.k]}"></i>${esc(o.nome)}</th>`).join('')}</tr></thead>
     <tbody>${camps.map(([c])=>`<tr><td class="lft"><b>${esc(nomeCamp(c))}</b></td>${S.map(o=>`<td>${n(o.camp[c]||0)}</td><td class="pct">${pc(o.camp[c]||0,o.leads)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  /* tempo até a venda por número (17/11/2026): vendas do período por faixa e a média por faixas, como no slide da reunião */
+  const fxS=FAIXAS_T.map((f,i)=>S.reduce((q,o)=>q+o.fx[i],0)),fxN=fxS.reduce((q,v)=>q+v,0);
+  const celF=(v,t)=>v?`<td>${n(v)}<small class="pct"> ${pc(v,t)}</small></td>`:'<td class="pct">—</td>';
+  const linhaF=(nome,dot,fx,dn,tm,velho,tt)=>`<tr${tt?' class="tt"':''}><td class="lft">${dot}<b>${esc(nome)}</b></td><td><b>${n(dn)}</b>${velho?`<small class="pct"> ${n(velho)} antigas</small>`:''}</td>
+    ${fx.map(v=>celF(v,dn)).join('')}<td><b>${tm==null?'—':dd1(tm)+' d'}</b></td></tr>`;
+  const tabF=`<table class="xl"><thead><tr><th class="lft">Número</th><th>Vendas</th>${FAIXAS_T.map(f=>`<th>${esc(f.n)}<small class="pct"> (${String(f.m).replace('.',',')} d)</small></th>`).join('')}<th>Tempo médio</th></tr></thead>
+    <tbody>${S.map(o=>linhaF(o.nome,`<i class="nm-dot" style="background:${cor[o.k]}"></i>`,o.fx,o.dn,o.dn?o.dsum/o.dn:null,o.velho)).join('')}</tbody>
+    <tfoot>${S.length>1?linhaF('Seleção','',fxS,fxN,fxN?FAIXAS_T.reduce((q,f,i)=>q+fxS[i]*f.m,0)/fxN:null,T.velho,true):''}</tfoot></table>
+    <p class="info" style="margin:6px 16px 12px">Conta todas as vendas do período, inclusive de leads que entraram antes dele ("antigas"). Tempo médio por faixas:
+      cada venda vale o ponto médio da sua faixa (entre parênteses; "mais de 30 dias" = 30 a 60 dias, 45) e a média é ponderada pela quantidade de cada faixa.</p>`;
   /* leitura */
   const LT=[],base=S.filter(o=>o.leads>=20);
   if(S.length>1){const v=S[0];LT.push(`<b>${esc(v.nome)}</b> recebe mais leads na seleção: ${n(v.leads)} (${pc(v.leads,T.leads)}).`)}
@@ -7083,8 +7094,13 @@ function vNumeros(){
       <p class="info" style="margin:0 16px 8px">Escolha um, dois ou mais números para comparar. As cores seguem cada número em todos os quadros.</p>${chips}${kg}</div>
     ${ab('nmT','Linha do tempo',`<div class="chips nm-met" role="group" aria-label="Indicador da linha do tempo">${MET.map(([m,l])=>`<button type="button" data-nmm="${m}" aria-pressed="${NUM.met===m}">${l}</button>`).join('')}</div>${graf}`,
       gran==='dia'?'por dia':gran==='semana'?'por semana':'por mês')}
-    ${ab('nmC','Comparativo por número',`<div class="tw">${tabC}</div>`,'')}
-    ${ab('nmTb','Tabulações por número',`<div class="tw">${tabT}</div>`,`${n(T.leads)} leads · cor = maior concentração na linha`)}
+    ${ab('nmC','Comparativo por número',`<div class="tw">${tabC}</div>
+      <p class="info" style="margin:6px 16px 12px">Vendas = contratos do faturamento no período, pela chave do card do lead — inclui vendas de leads que entraram antes do período ("antigas").
+        T. média = tempo até a venda por faixas. Por isso as vendas daqui podem ser mais que a tabulação "Venda" do quadro abaixo.</p>`,'')}
+    ${ab('nmTb','Tabulações por número',`<div class="tw">${tabT}</div>
+      <p class="info" style="margin:6px 16px 12px">Tabulação dos leads que <b>entraram no período</b>. "Venda" aqui é a tabulação do lead (venda nova); as vendas do quadro de cima vêm do faturamento e
+        também contam leads de meses anteriores e clientes que voltaram ("Fechado").</p>`,`${n(T.leads)} leads · cor = maior concentração na linha`)}
+    ${ab('nmTv','Tempo até a venda por número',`<div class="tw">${tabF}</div>`,`${n(fxN)} vendas com data do lead`)}
     ${ab('nmCp','Campanhas que alimentam cada número',`<div class="tw">${tabCp}</div>`,'leads e % do número')}
     ${LT.length?ab('nmL','Leitura',`<ul class="nm-lt">${LT.map(x=>`<li>${x}</li>`).join('')}</ul>`,''):''}
     <p class="leg" style="margin:4px 4px 18px">Número = 4 últimos dígitos do canal do lead; leads sem canal entram no número definido para a empresa em Administração.
