@@ -547,7 +547,7 @@ td.z{opacity:.35}
   .nav ul{max-width:1160px;padding-inline:24px}
   .nav li{flex:none}
   .nav ul{overflow-x:auto;scrollbar-width:none}
-  .nav button{height:52px;flex-direction:row;gap:8px;padding-inline:9px}
+  .nav button{height:52px;flex-direction:row;gap:6px;padding-inline:7px}
   .nav span{font-size:13px;letter-spacing:-.01em}
   .nav svg{width:17px;height:17px}
 }
@@ -780,6 +780,20 @@ body.lg-on{overflow:hidden}
 .chips.nm-met{margin:0 16px 8px;display:flex;flex-wrap:wrap;max-width:calc(100% - 32px);box-sizing:border-box}
 .nm-leg{display:flex;flex-wrap:wrap;gap:12px;padding:4px 16px 14px;font-size:12px;color:var(--ink2)}.nm-leg span{display:inline-flex;align-items:center;gap:6px}
 .nm-lt{margin:0 16px 16px;padding-left:18px;display:grid;gap:6px;font-size:13.5px;color:var(--ink2)}
+.pf-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:2px 2px 14px;flex-wrap:wrap}
+.pf-t{margin:0;font-size:22px;letter-spacing:-.02em}
+.pf-s{margin:4px 0 0;color:var(--ink2);font-size:13px}
+.pf-load{font-size:12px;color:var(--ink2);display:inline-flex;gap:6px;align-items:center}
+.pf-kg{grid-template-columns:repeat(2,1fr)}
+@media(min-width:760px){.pf-kg{grid-template-columns:repeat(4,1fr)}}
+.pf-kg .kv{font-size:24px}
+.pf-hero{background:linear-gradient(120deg,var(--accent-s),rgba(248,192,0,.10) 60%,var(--card));border:1px solid var(--accent-s)}
+.pf-hl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-d);margin-bottom:10px}
+.pf-chips{display:flex;flex-wrap:wrap;gap:8px}
+.pf-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border-radius:99px;font-size:13.5px;font-weight:600;background:var(--card);border:1px solid var(--line);box-shadow:var(--sh1)}
+.pf-chip.b{color:var(--blue)}.pf-chip.o{color:var(--accent-d)}.pf-chip.p{color:#8B5CF6}.pf-chip.g{color:var(--green)}.pf-chip.y{color:var(--yel-ink)}.pf-chip.r{color:var(--rose)}
+.pf-chip::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.85}
+.pf-sep{height:1px;background:var(--line2);margin:8px 0}
 </style></head><body>
 
 <header class="top">
@@ -822,6 +836,7 @@ body.lg-on{overflow:hidden}
   <section class="view" id="v-vendas"></section>
   <section class="view" id="v-perf"></section>
   <section class="view" id="v-relat"></section>
+  <section class="view" id="v-perfil"></section>
   <section class="view" id="v-cli"></section>
   <section class="view" id="v-admin"></section>
 </main>
@@ -831,7 +846,8 @@ body.lg-on{overflow:hidden}
 const CFG_PADRAO={
   leads:{id:"1OcI9x8g8tTOWA4eovtd3raM6SVENR94ED9T-XHFxmoY",aba:"Base de dados Comercial",
     col:{id:"B",data:"F",origem:"J",canal:"N",campanha:"CJ",tabulacao:"CK",form:"M",hora:"CG",
-      titulo:"D",fase:"E",vendedor:"G",fone:"R",nomeLead:"T",nome:"V",cpf:"X",email:"AS"}},
+      titulo:"D",fase:"E",vendedor:"G",fone:"R",nomeLead:"T",nome:"V",cpf:"X",email:"AS",
+      nasc:"AI",estCivil:"AF",tipoProc:"AT",habil:"AW",bafo:"BC",cidade:"AP",uf:"AQ",cep:"AK"}},
   fin:{id:"1uusOH-nrI4euiYDdAaJ8QWYC4RfU45TH4K5d2IYCZX8",gid:"0",
     col:{lanc:"A",servico:"J",valor:"L",parcela:"N",venc:"P",dataLead:"S",midia:"Z",empresa:"AA",confirm:"D",consultor:"R",card:"C",status:"V",
       nome:"F",fone:"G",cpf:"H",email:"I",bruto:"K",forma:"M",vezes:"O"}},
@@ -1125,7 +1141,7 @@ function bars(pts,color,h){
     <text class="ax" x="${w-pr}" y="${(ay-4).toFixed(1)}" text-anchor="end" fill="${color}">média ${n(avg)}</text>
     ${lbl}</svg></div>`}
 
-function donut(slices,total){
+function donut(slices,total,rot){
   const R=52,C=2*Math.PI*R,w=150;let off=0;
   const arcs=slices.map((s,i)=>{const frac=total?s.v/total:0,len=C*frac;
     const el=`<circle class="arc" cx="75" cy="75" r="${R}" fill="none" stroke="${s.c}" stroke-width="18"
@@ -1135,7 +1151,7 @@ function donut(slices,total){
   return `<div class="cw" style="max-width:${w}px;margin:0 auto"><svg class="chart" viewBox="0 0 150 150">
     <circle cx="75" cy="75" r="${R}" fill="none" stroke="var(--line2)" stroke-width="18"/>${arcs}
     <text x="75" y="72" text-anchor="middle" style="font-size:19px;font-weight:650;fill:var(--ink)" class="num">${n(total)}</text>
-    <text x="75" y="88" text-anchor="middle" style="font-size:9.5px;fill:var(--ink3)">leads</text></svg></div>`}
+    <text x="75" y="88" text-anchor="middle" style="font-size:9.5px;fill:var(--ink3)">${rot||'leads'}</text></svg></div>`}
 
 function spark(vals,color){
   if(vals.length<2)return'';
@@ -1399,8 +1415,8 @@ function aplicaStatus(){const tem=FIN_ALL.some(x=>x.st);
   buildSales()}
 function buildSales(){const m={};
   FIN.forEach(f=>{let o=m[f.id];
-    if(!o)o=m[f.id]={id:f.id,e:f.e,mi:f.mi,sv:f.sv,ld:f.ld,vc:f.vc,cs:f.cs,dc:f.dc,ck:f.ck,tot:0,np:0};
-    if(!o.ck&&f.ck)o.ck=f.ck;
+    if(!o)o=m[f.id]={id:f.id,e:f.e,mi:f.mi,sv:f.sv,ld:f.ld,vc:f.vc,cs:f.cs,dc:f.dc,ck:f.ck,tot:0,np:0,fp:f.fp||'',vz:f.vz||0};
+    if(!o.ck&&f.ck)o.ck=f.ck;if(!o.fp&&f.fp)o.fp=f.fp;if(f.vz>o.vz)o.vz=f.vz;
     o.tot+=f.v;o.np++;
     if(f.vc&&(!o.vc||f.vc<o.vc))o.vc=f.vc;
     if(f.ld&&!o.ld)o.ld=f.ld});
@@ -5205,13 +5221,14 @@ async function gerarReuniao(modo,soSec){
     const pres=apresentar?new PresHTML():new window.PptxGenJS();pres.layout='LAYOUT_WIDE';
     pres.author='GWA Consultoria';pres.company='GWA Consultoria';
     pres.title=`Reunião Online - ${fE} - ${dc(d1)} a ${dc(d2)}`;
-    const D=rnDados(extra);
+    const D=rnDados(extra);D.perfilCk=extra.perfil||{};
     /* cada item sabe a que bloco pertence (g, o que se reordena) e qual chave liga/desliga (sec) */
     const itens=[],add=(g,sec,fn)=>itens.push({g,sec,fn});
     add('capa','capa',rnCapa);add('exec','exec',rnExec);add('mes','mes',rnMes);add('leads','leads',rnLeads);
     add('funil','funil',rnFunil);
     D.camps.forEach((c,i)=>{
       add('camp','camp',p=>rnKpis(p,D,c));add('camp','camp',p=>rnTabs(p,D,c));
+      if(perfilDados(D,c).n>=3)add('camp','perfil',p=>rnPerfil(p,D,c));
       if(i===0)add('camp','aprov',p=>rnAprov(p,D,c));
       if(i===0&&(D.linhasTop||D.linhas).length>=1)add('camp','linha',p=>rnLinha(p,D,c))});
     add('balanc','balanc',rnBalanc);
@@ -5264,7 +5281,86 @@ async function rnExtras(){
     if(lotes.length){rnMsg=`Ligando ${falta.length} vendas aos leads de meses anteriores…`;render()}
     const res=await Promise.all(lotes.map(l=>gviz(`select ${ID}, ${DAT}, ${fcol}, ${CAN}, ${CAMP} where ${l.map(k=>`${ID} = '${k}'`).join(' or ')}`,90000).catch(()=>[])));
     out.velhos=res.flat().map(lin).filter(x=>x.ck)}
+  out.perfil=await perfilBusca().catch(e=>{logEv('Reunião','perfil do cliente',false,0,0,e.message);return {}});
   return out}
+/* ═════ Perfil do cliente (19/11/2026) ═════
+   Dados da base comercial (planilha rotativa) dos clientes que COMPRARAM no período: nascimento, nome, estado civil,
+   tipo do processo, tipo de habilitação, multa de bafômetro, cidade, UF e CEP — buscados pela chave do card da venda. */
+/* cache das fichas (painel e reunião usam o mesmo): chave do card → ficha; 'sem' guarda as chaves já procuradas sem ficha */
+const PERF={map:{},sem:new Set(),p:null,err:''};
+async function perfilFetch(cks){
+  const c=CFG.leads.col||{},col=k=>c[k]||{nasc:'AI',estCivil:'AF',tipoProc:'AT',habil:'AW',bafo:'BC',cidade:'AP',uf:'AQ',cep:'AK',nome:'V',nomeLead:'T',titulo:'D'}[k];
+  const falta=[...new Set(cks)].filter(k=>k&&/^[\w.-]+$/.test(k)&&!PERF.map[k]&&!PERF.sem.has(k));
+  if(!falta.length)return PERF.map;
+  const cols=[ID,col('nasc'),col('nome'),col('nomeLead'),col('titulo'),col('estCivil'),col('tipoProc'),col('habil'),col('bafo'),col('cidade'),col('uf'),col('cep')];
+  const lotes=[];for(let i=0;i<falta.length;i+=50)lotes.push(falta.slice(i,i+50));
+  const s=v=>v==null?'':String(v).trim();let ok=0;
+  /* texto formatado (c.f): datas e CEP chegam como aparecem na planilha, sem o gviz anular tipos misturados.
+     Até 6 consultas ao mesmo tempo para não sobrecarregar a planilha. */
+  for(let g=0;g<lotes.length;g+=6){
+    const res=await Promise.all(lotes.slice(g,g+6).map(l=>jp(SID,"&sheet="+encodeURIComponent(SNAME),`select ${cols.join(', ')} where ${l.map(k=>`${ID} = '${k}'`).join(' or ')}`,90000,'Leads · perfil',true)
+      .then(r=>{l.forEach(k=>PERF.sem.add(k));return r}).catch(()=>[])));
+    res.flat().forEach(r=>{const k=s(r[0]);if(!k)return;PERF.sem.delete(k);ok++;
+      PERF.map[k]={nasc:s(r[1]),nome:s(r[2])||s(r[3])||s(r[4]),ec:s(r[5]),tipo:s(r[6]),hab:s(r[7]),bafo:s(r[8]),cid:s(r[9]),uf:s(r[10]),cep:s(r[11])}})}
+  logEv('Perfil do cliente','fichas dos clientes',true,ok);
+  return PERF.map}
+async function perfilBusca(){
+  const cks=SALES.filter(x=>x.e===fE&&finDate(x)&&finDate(x)>=d1&&finDate(x)<=d2&&x.ck).map(x=>x.ck);
+  if(!cks.length)return {};
+  rnMsg=`Buscando o perfil de ${new Set(cks).size} clientes…`;render();
+  return await perfilFetch(cks)}
+/* sexo ESTIMADO pelo primeiro nome (a planilha não tem a coluna): terminação + listas de exceções comuns no Brasil */
+const NOME_F=new Set(['RAQUEL','RACHEL','ISABEL','ISABELLE','BEATRIZ','RUTH','RUTE','INES','INÊS','ESTER','ESTHER','LOURDES','MIRIAN','MIRIAM','CARMEN','LILIAN','LILIAN','THAIS','TAIS','LAIS','ISIS','IRIS','INGRID','NATHALIE','LEONOR','ELIZABETH','ELISABETH','MARY','KELLY','SHIRLEY','SUELI','SUELY','NEIDE','CLEIDE','IRENE','JANE','JOYCE','NICOLE','YASMIN','JASMIN','CAROL','CAROLINE','KAREN','KAREM','HELEN','ELLEN','SOLANGE','IVONE','DENISE','ALICE','CLARICE','JUDITE','JUDITH','EDITE','EDITH','MARLI','MARLY','NOEMI','NOEMIA','DAIANE','DAYANE','LUZ','MERCEDES','DOLORES','ROSE','ROSEMARY','ROSIMEIRE','ROSEMEIRE','LUCIMAR','DEISE','DAISY','ELIS','GLEICE','KETLIN','KETLYN','EVELYN','EVELIN','JOCELI','NAIR','CLAIR','DALVA','ZILDA']);
+const NOME_M=new Set(['LUCA','LUKA','NICOLA','JOSHUA','ISAIA','GARCIA','BATISTA','JOSUA','ANDREA','MOISA','ELIA','JONAS','DOUGLAS']);
+function sexoNome(n){const p=String(n||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().split(/\s+/)[0].toUpperCase().replace(/[^A-Z]/g,'');
+  if(!p||p.length<2)return '';
+  if(NOME_F.has(p))return 'F';if(NOME_M.has(p))return 'M';
+  if(/A$/.test(p))return 'F';
+  if(/(ANE|IANE|ENE|INE|YNE|ELLE|ELE|ISE|ICE|ISSE|LLY|LY|AINE|EIDE|ILDE|ETE|ETH|IETE)$/.test(p)&&!/(JOSE|RENE|IRINEU|EUGENE|GENE|DIONE|AIRTON)$/.test(p))return 'F';
+  return 'M'}
+/* CEP → UF e região (faixas oficiais dos Correios); em SP separa Capital, Grande SP, Litoral e Interior */
+const CEP_UF=[[1000,19999,'SP'],[20000,28999,'RJ'],[29000,29999,'ES'],[30000,39999,'MG'],[40000,48999,'BA'],[49000,49999,'SE'],[50000,56999,'PE'],[57000,57999,'AL'],
+  [58000,58999,'PB'],[59000,59999,'RN'],[60000,63999,'CE'],[64000,64999,'PI'],[65000,65999,'MA'],[66000,68899,'PA'],[68900,68999,'AP'],[69000,69299,'AM'],[69300,69399,'RR'],
+  [69400,69899,'AM'],[69900,69999,'AC'],[70000,72799,'DF'],[72800,72999,'GO'],[73000,73699,'DF'],[73700,76799,'GO'],[76800,76999,'RO'],[77000,77999,'TO'],[78000,78899,'MT'],
+  [79000,79999,'MS'],[80000,87999,'PR'],[88000,89999,'SC'],[90000,99999,'RS']];
+const UF_REG={SP:'Sudeste',RJ:'Sudeste',ES:'Sudeste',MG:'Sudeste',PR:'Sul',SC:'Sul',RS:'Sul',DF:'Centro-Oeste',GO:'Centro-Oeste',MT:'Centro-Oeste',MS:'Centro-Oeste',
+  BA:'Nordeste',SE:'Nordeste',AL:'Nordeste',PE:'Nordeste',PB:'Nordeste',RN:'Nordeste',CE:'Nordeste',PI:'Nordeste',MA:'Nordeste',PA:'Norte',AP:'Norte',AM:'Norte',RR:'Norte',AC:'Norte',RO:'Norte',TO:'Norte'};
+function regiaoDe(p){const d=String(p.cep||'').replace(/\D/g,'');let uf='',sp='';
+  if(d.length>=7&&d.length<=8){const c=+d.padStart(8,'0').slice(0,5);const f=CEP_UF.find(([a,b])=>c>=a&&c<=b);if(f)uf=f[2];
+    if(uf==='SP')sp=(c<=5999||(c>=8000&&c<=8499))?'Capital SP':c<=9999?'Grande SP':c<=11999?'Litoral SP':'Interior SP'}
+  if(!uf){const u=String(p.uf||'').toUpperCase().replace(/[^A-Z]/g,'');if(UF_REG[u])uf=u}
+  if(!uf)return '';
+  if(uf==='SP'){if(sp)return sp;const ci=String(p.cid||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();return ci==='SAO PAULO'?'Capital SP':'SP (sem CEP)'}
+  return uf+' · '+UF_REG[uf]}
+const cidNome=c=>{const s=String(c||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+  return s?s.toLowerCase().replace(/(^|\s)([a-z])/g,(m,a,b)=>a+b.toUpperCase()).replace(/\b(De|Da|Do|Das|Dos|E)\b/g,w=>w.toLowerCase()):''};
+function idadeEm(nasc,ref){const n=gdate(nasc);if(!n||!ref)return null;const a=parse(n),b=parse(ref);
+  let i=b.getFullYear()-a.getFullYear();if(b.getMonth()<a.getMonth()||(b.getMonth()===a.getMonth()&&b.getDate()<a.getDate()))i--;return i>=16&&i<=95?i:null}
+const formaPag=f=>{const s=String(f||'').toLowerCase();if(!s)return '';if(/pix/.test(s))return 'Pix';if(/d[eé]bito/.test(s))return 'Cartão de débito';if(/link|cart|cr[eé]d/.test(s))return 'Cartão / link';
+  if(/boleto/.test(s))return 'Boleto';if(/dinheiro|esp[eé]cie/.test(s))return 'Dinheiro';if(/transf|ted|doc/.test(s))return 'Transferência';return String(f).trim()};
+const FX_IDADE=[['Até 24',0,24],['25–34',25,34],['35–44',35,44],['45–54',45,54],['55–64',55,64],['65+',65,200]];
+/* números do perfil de uma campanha: só vendas do período cujo lead foi achado na base */
+function perfilDados(D,c){
+  return perfilAgg(SALES.filter(x=>x.e===fE&&x.mi===c.k&&finDate(x)&&finDate(x)>=D.a&&finDate(x)<=D.b),D.perfilCk||{})}
+function perfilAgg(V,P){
+  const cnt=()=>({}),inc=(o,k)=>{if(k)o[k]=(o[k]||0)+1};
+  const Z={n:V.length,comP:0,idade:FX_IDADE.map(()=>0),idSoma:0,idN:0,sexo:cnt(),pag:{vista:0,parc:0},vezSoma:0,vezN:0,forma:cnt(),
+    reg:cnt(),cid:cnt(),cidNm:{},tipo:cnt(),hab:cnt(),bafoSim:0,bafoN:0,ec:cnt(),serv:cnt(),fx:FAIXAS_T.map(()=>0),tN:0,tSoma:0,tot:0,vezes:[0,0,0,0,0]};
+  V.forEach(x=>{Z.tot+=x.tot||0;inc(Z.serv,x.sv&&x.sv!=='—'?x.sv:'');
+    const vista=x.vz<=1||/vista/i.test(x.fp||'');if(x.fp||x.vz){vista?Z.pag.vista++:(Z.pag.parc++,Z.vezSoma+=x.vz,Z.vezN++);Z.vezes[vista?0:x.vz<=3?1:x.vz<=6?2:x.vz<=10?3:4]++}
+    inc(Z.forma,formaPag(x.fp));
+    const t=ddiff(x.ld,x.vc);if(t!=null&&t>=0){Z.fx[FAIXAS_T.indexOf(faixaT(t))]++;Z.tSoma+=tpF(t);Z.tN++}
+    const p=x.ck&&P[x.ck];if(!p)return;Z.comP++;
+    const i=idadeEm(p.nasc,x.vc||finDate(x));if(i!=null){Z.idade[FX_IDADE.findIndex(([,a,b])=>i>=a&&i<=b)]++;Z.idSoma+=i;Z.idN++}
+    const sx=sexoNome(p.nome);inc(Z.sexo,sx);
+    inc(Z.reg,regiaoDe(p));const ck2=cidNome(p.cid);inc(Z.cid,ck2);
+    /* nome da cidade para exibir: o que veio com acento na planilha, se houver */
+    if(ck2){const orig=String(p.cid).trim().toLowerCase().replace(/(^|\s)(\S)/g,(m,a,b)=>a+b.toUpperCase()).replace(/\b(De|Da|Do|Das|Dos|E)\b/g,w=>w.toLowerCase());
+      if(!Z.cidNm[ck2]||(/[^\x00-\x7f]/.test(orig)&&!/[^\x00-\x7f]/.test(Z.cidNm[ck2])))Z.cidNm[ck2]=orig}inc(Z.tipo,p.tipo);inc(Z.hab,p.hab);inc(Z.ec,p.ec);
+    if(p.bafo){Z.bafoN++;if(/^tenho|^sim/i.test(p.bafo))Z.bafoSim++}});
+  const top=(o,n)=>Object.entries(o).filter(([k])=>k).sort((a,b)=>b[1]-a[1]).slice(0,n);
+  Object.assign(Z,{top,ticket:Z.n?Z.tot/Z.n:null,tMed:Z.tN?Z.tSoma/Z.tN:null,idMed:Z.idN?Z.idSoma/Z.idN:null});
+  return Z}
 
 function rnDados(X){
   const a=d1,b=d2,[pa,pb]=prevRange();
@@ -5497,6 +5593,171 @@ function rnTabs(pres,D,c){
     pequeno?`Campanha com baixo volume amostral (${R.int(c.o.leads)} leads). São necessários mais dados para consolidar a previsibilidade.`
       :`${R.p2(shN)} da base. O volume total nesta etapa é de ${R.int(nAt)} oportunidades não contatadas${shNp==null?'.':`, com ${shN<=shNp?'melhora':'piora'} de ${R.sg(shN-shNp)}${R.d2(Math.abs((shN-shNp)*100))}pp em share vs período anterior.`}`,
     shNp!=null&&shN>shNp?K.am:K.gr)}
+
+/* ═════ slide: Perfil do Cliente (por campanha) ═════ */
+function rnPerfil(pres,D,c){
+  const Z=perfilDados(D,c);if(!Z.n)return;
+  const s=slideBase(pres,c.nome,'Perfil do Cliente',`Quem comprou pela campanha no período (${D.periodo})`);
+  const pc=(v,t)=>t?Math.round(v/t*100)+'%':'—',CORES=[K.or,K.bl,K.pu,K.gr,K.am,K.sl];
+  /* resumo no canto */
+  card(pres,s,10.22,0.42,2.5,0.88,K.bx2,'1E293B');
+  txt(s,'Clientes no período',{x:10.22,y:0.5,w:2.5,h:0.2,fontSize:8,color:K.mut,align:'center'});
+  txt(s,[{text:R.int(Z.n),options:{fontSize:17,bold:true}},{text:RN_SF||Z.ticket==null?'':`  ticket ${R.m0(Z.ticket)}`,options:{fontSize:8.5,bold:true,color:K.gr}}],{x:10.3,y:0.74,w:2.35,h:0.4,align:'center'});
+  const caixa=(x,y,w,h,tit,cor,nota)=>{card(pres,s,x,y,w,h,K.card2,K.ln);
+    s.addShape(pres.shapes.OVAL,{x:x+0.18,y:y+0.2,w:0.11,h:0.11,fill:{color:cor},line:{color:cor}});
+    txt(s,tit,{x:x+0.36,y:y+0.13,w:w-0.5,h:0.25,fontSize:10.5,bold:true,color:K.tx2});
+    if(nota)txt(s,nota,{x:x+0.18,y:y+h-0.27,w:w-0.36,h:0.18,fontSize:6.8,color:K.mut})};
+  /* barras: [rótulo, valor] com % sobre o total */
+  const barras=(x,y,w,linhas,tot,cor,rh,lw)=>{const mx=Math.max(1,...linhas.map(l=>l[1]));
+    linhas.forEach(([l,v],i)=>{const yy=y+i*rh,bw=Math.max(0.03,(w-lw-0.55)*v/mx),cc=Array.isArray(cor)?cor[i%cor.length]:cor;
+      txt(s,l,{x,y:yy,w:lw-0.06,h:rh,fontSize:7.8,color:K.tx2,valign:'middle',fit:'shrink'});
+      s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:x+lw,y:yy+rh*0.24,w:w-lw-0.55,h:rh*0.52,rectRadius:0.04,fill:{color:K.ln},line:{color:K.ln}});
+      s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:x+lw,y:yy+rh*0.24,w:bw,h:rh*0.52,rectRadius:0.04,fill:{color:cc},line:{color:cc}});
+      txt(s,pc(v,tot),{x:x+w-0.5,y:yy,w:0.5,h:rh,fontSize:8,bold:true,color:K.txt,align:'right',valign:'middle'})})};
+  const y1=1.45,h1=2.55,w1=2.9,xs=[0.62,3.69,6.76,9.83];
+  /* 1. idade */
+  const idT=Z.idade.reduce((q,v)=>q+v,0);
+  caixa(xs[0],y1,w1,h1,'Faixa etária',K.or,`${R.int(idT)} de ${R.int(Z.n)} com data de nascimento`);
+  txt(s,[{text:Z.idMed==null?'—':Math.round(Z.idMed)+' anos',options:{fontSize:20,bold:true,color:K.or}},{text:'  idade média',options:{fontSize:8,color:K.mut}}],{x:xs[0]+0.18,y:y1+0.42,w:w1-0.36,h:0.42,valign:'middle'});
+  if(idT)barras(xs[0]+0.18,y1+0.9,w1-0.36,FX_IDADE.map(([l],i)=>[l,Z.idade[i]]),idT,K.or,0.235,0.62);
+  else txt(s,'Sem data de nascimento preenchida.',{x:xs[0]+0.18,y:y1+1.0,w:w1-0.36,h:0.3,fontSize:8.5,color:K.mut});
+  /* 2. sexo */
+  const sxM=Z.sexo.M||0,sxF=Z.sexo.F||0,sxT=sxM+sxF;
+  caixa(xs[1],y1,w1,h1,'Sexo',K.bl,'estimado pelo primeiro nome do cliente');
+  if(sxT){s.addChart(pres.charts.DOUGHNUT,[{name:'Sexo',labels:['Masculino','Feminino'],values:[sxM,sxF]}],
+      {x:xs[1]+0.1,y:y1+0.5,w:1.6,h:1.6,holeSize:64,chartColors:[K.bl,K.pu],showLegend:false,showPercent:false,showValue:false,dataBorder:{pt:1,color:K.card2}});
+    [['Masculino',sxM,K.bl],['Feminino',sxF,K.pu]].forEach(([l,v,cc],i)=>{const yy=y1+0.72+i*0.62;
+      txt(s,l,{x:xs[1]+1.78,y:yy,w:1.05,h:0.2,fontSize:8,color:K.sub});
+      txt(s,pc(v,sxT),{x:xs[1]+1.78,y:yy+0.19,w:1.05,h:0.34,fontSize:17,bold:true,color:cc})})}
+  else txt(s,'Sem nome dos clientes para estimar.',{x:xs[1]+0.18,y:y1+1.0,w:w1-0.36,h:0.3,fontSize:8.5,color:K.mut});
+  /* 3. pagamento */
+  const pgT=Z.pag.vista+Z.pag.parc;
+  caixa(xs[2],y1,w1,h1,'Forma de pagamento',K.gr,pgT?`${R.int(pgT)} vendas com forma de pagamento`:'');
+  if(pgT){const fv=Z.pag.vista/pgT,bx=xs[2]+0.18,bw=w1-0.36;
+    txt(s,[{text:pc(Z.pag.vista,pgT),options:{fontSize:17,bold:true,color:K.gr}},{text:' à vista',options:{fontSize:8.5,color:K.sub}}],{x:bx,y:y1+0.42,w:bw/2,h:0.4,valign:'middle'});
+    txt(s,[{text:pc(Z.pag.parc,pgT),options:{fontSize:17,bold:true,color:K.or}},{text:' parcelado',options:{fontSize:8.5,color:K.sub}}],{x:bx+bw/2,y:y1+0.42,w:bw/2,h:0.4,valign:'middle',align:'right'});
+    s.addShape(pres.shapes.RECTANGLE,{x:bx,y:y1+0.88,w:bw,h:0.13,fill:{color:K.or},line:{color:K.or}});
+    if(fv>0)s.addShape(pres.shapes.RECTANGLE,{x:bx,y:y1+0.88,w:Math.max(0.03,bw*fv),h:0.13,fill:{color:K.gr},line:{color:K.gr}});
+    txt(s,Z.vezN?`Parcelados: média de ${R.d1(Z.vezSoma/Z.vezN).replace(/,0$/,'')}x`:'',{x:bx,y:y1+1.06,w:bw,h:0.2,fontSize:8,color:K.tx2});
+    barras(bx,y1+1.34,bw,Z.top(Z.forma,4),pgT,[K.gr,K.or,K.bl,K.pu],0.235,0.95)}
+  else txt(s,'Sem forma de pagamento no faturamento.',{x:xs[2]+0.18,y:y1+1.0,w:w1-0.36,h:0.3,fontSize:8.5,color:K.mut});
+  /* 4. região */
+  const rgT=Object.values(Z.reg).reduce((q,v)=>q+v,0);
+  caixa(xs[3],y1,w1,h1,'Região',K.pu,`${R.int(rgT)} de ${R.int(Z.n)} com CEP ou estado`);
+  if(rgT){const tr=Z.top(Z.reg,6);txt(s,[{text:tr[0][0],options:{fontSize:13,bold:true,color:K.pu}},{text:'  '+pc(tr[0][1],rgT),options:{fontSize:9,bold:true,color:K.tx2}}],{x:xs[3]+0.18,y:y1+0.42,w:w1-0.36,h:0.4,valign:'middle',fit:'shrink'});
+    barras(xs[3]+0.18,y1+0.9,w1-0.36,tr,rgT,[K.pu,K.bl,K.or,K.gr,K.am,K.sl],0.235,1.05)}
+  else txt(s,'Sem CEP/estado preenchido.',{x:xs[3]+0.18,y:y1+1.0,w:w1-0.36,h:0.3,fontSize:8.5,color:K.mut});
+  /* linha 2 */
+  const y2=4.14,h2=2.02,w2=3.92,xs2=[0.62,4.715,8.81];
+  /* 5. fechamento */
+  caixa(xs2[0],y2,w2,h2,'Perfil de fechamento',K.am,'tempo médio por faixas (0 · 2 · 5,5 · 11,5 · 23 · 45 dias)');
+  const rap=Z.fx[0]+Z.fx[1];
+  txt(s,Z.tMed==null?'—':R.d1(Z.tMed)+' d',{x:xs2[0]+0.18,y:y2+0.42,w:1.3,h:0.42,fontSize:20,bold:true,color:K.am});
+  txt(s,'até a venda',{x:xs2[0]+0.18,y:y2+0.84,w:1.3,h:0.18,fontSize:7.5,color:K.mut});
+  txt(s,Z.tN?pc(rap,Z.tN):'—',{x:xs2[0]+0.18,y:y2+1.08,w:1.3,h:0.36,fontSize:15,bold:true,color:K.gr});
+  txt(s,'fecham em até 3 dias',{x:xs2[0]+0.18,y:y2+1.44,w:1.3,h:0.18,fontSize:7.5,color:K.mut});
+  txt(s,'Serviços mais vendidos',{x:xs2[0]+1.55,y:y2+0.44,w:2.2,h:0.2,fontSize:8,bold:true,color:K.sub});
+  barras(xs2[0]+1.55,y2+0.66,w2-1.73,Z.top(Z.serv,4),Z.n,[K.am,K.or,K.bl,K.pu],0.26,1.0);
+  /* 6. qualificação */
+  const tpT=Object.values(Z.tipo).reduce((q,v)=>q+v,0);
+  caixa(xs2[1],y2,w2,h2,'Qualificação',K.rd,`${R.int(Z.comP)} de ${R.int(Z.n)} clientes com ficha na base`);
+  txt(s,'Tipo do processo',{x:xs2[1]+0.18,y:y2+0.44,w:2,h:0.2,fontSize:8,bold:true,color:K.sub});
+  if(tpT)barras(xs2[1]+0.18,y2+0.66,2.25,Z.top(Z.tipo,4),tpT,[K.rd,K.or,K.am,K.sl],0.26,0.95);
+  else txt(s,'—',{x:xs2[1]+0.18,y:y2+0.7,w:2,h:0.2,fontSize:9,color:K.mut});
+  const habT=Object.values(Z.hab).reduce((q,v)=>q+v,0),def=Object.entries(Z.hab).filter(([k])=>/defin/i.test(k)).reduce((q,[,v])=>q+v,0);
+  const ecT=Object.values(Z.ec).reduce((q,v)=>q+v,0),ec1=Z.top(Z.ec,1)[0];
+  [['Multa de bafômetro',Z.bafoN?pc(Z.bafoSim,Z.bafoN):'—'],['Habilitação definitiva',habT?pc(def,habT):'—'],['Estado civil',ec1?`${ec1[0]} ${pc(ec1[1],ecT)}`:'—']].forEach(([l,v],i)=>{
+    const yy=y2+0.5+i*0.43;txt(s,l,{x:xs2[1]+2.55,y:yy,w:1.25,h:0.17,fontSize:7,color:K.mut});
+    txt(s,v,{x:xs2[1]+2.55,y:yy+0.16,w:1.25,h:0.24,fontSize:10.5,bold:true,color:K.txt,fit:'shrink'})});
+  /* 7. cidades */
+  const ciT=Object.values(Z.cid).reduce((q,v)=>q+v,0);
+  caixa(xs2[2],y2,w2,h2,'Principais cidades',K.bl,`${R.int(ciT)} de ${R.int(Z.n)} com cidade preenchida`);
+  if(ciT)barras(xs2[2]+0.18,y2+0.45,w2-0.36,Z.top(Z.cid,5).map(([k,v])=>[Z.cidNm[k]||k,v]),ciT,[K.bl,K.bl,K.bl,K.bl,K.bl],0.25,1.6);
+  else txt(s,'Sem cidade preenchida.',{x:xs2[2]+0.18,y:y2+0.7,w:w2-0.36,h:0.3,fontSize:8.5,color:K.mut});
+  /* retrato do cliente */
+  const F=[];const ia=Z.idade.indexOf(Math.max(...Z.idade));
+  if(sxT)F.push(`${sxM>=sxF?'homem':'mulher'} (${pc(Math.max(sxM,sxF),sxT)})`);
+  const IDF={'Até 24':'até 24 anos','25–34':'de 25 a 34 anos','35–44':'de 35 a 44 anos','45–54':'de 45 a 54 anos','55–64':'de 55 a 64 anos','65+':'com 65 anos ou mais'};
+  if(idT)F.push(`${IDF[FX_IDADE[ia][0]]} (${pc(Z.idade[ia],idT)})`);
+  if(rgT){const r0=Z.top(Z.reg,1)[0];F.push(`da região ${r0[0]} (${pc(r0[1],rgT)})`)}
+  const P2=[];
+  if(pgT)P2.push(Z.pag.parc>=Z.pag.vista?`paga parcelado (${pc(Z.pag.parc,pgT)}${Z.vezN?`, em média ${R.d1(Z.vezSoma/Z.vezN).replace(/,0$/,'')}x`:''})`:`paga à vista (${pc(Z.pag.vista,pgT)})`);
+  if(Z.tN)P2.push(`fecha em ${R.d1(Z.tMed)} dias em média (${pc(rap,Z.tN)} em até 3 dias)`);
+  const tp1=Z.top(Z.tipo,1)[0];if(tp1)P2.push(`processo mais comum: ${tp1[0]} (${pc(tp1[1],tpT)})`);
+  card(pres,s,0.62,6.3,12.11,0.7,K.bx,K.bx);s.addShape(pres.shapes.RECTANGLE,{x:0.62,y:6.3,w:0.06,h:0.7,fill:{color:K.or},line:{color:K.or}});
+  txt(s,[{text:'Retrato do cliente: ',options:{bold:true,color:K.or}},
+    {text:F.length||P2.length?`o cliente típico de ${c.nome} é ${F.join(', ')||'—'}; ${P2.join('; ')}.`:'dados insuficientes no período.',options:{color:K.tx2}},
+    {text:Z.comP<Z.n?`  Perfil encontrado na base para ${R.int(Z.comP)} de ${R.int(Z.n)} clientes.`:'',options:{color:K.mut,fontSize:7.5}}],
+    {x:0.85,y:6.33,w:11.75,h:0.64,fontSize:9.5,valign:'middle',fit:'shrink'})}
+
+/* ═════ Aba "Perfil do cliente" (19/11/2026) ═════
+   Quem comprou no recorte do topo (período, empresa, campanha, serviço): fichas buscadas pela chave do card, sob demanda. */
+const VEZES_L=['À vista','2 a 3x','4 a 6x','7 a 10x','11x ou mais'];
+function perfilVendas(){return SALES.filter(x=>finDate(x)&&inRange(finDate(x))&&dsOkF(x)&&empPerm(x.e))}
+function perfilRetratoHtml(Z){
+  const pc0=(v,t)=>t?Math.round(v/t*100)+'%':'—',ch=(t,c)=>`<span class="pf-chip ${c||''}">${t}</span>`,out=[];
+  const sxM=Z.sexo.M||0,sxF=Z.sexo.F||0,sxT=sxM+sxF,idT=Z.idade.reduce((q,v)=>q+v,0),rgT=Object.values(Z.reg).reduce((q,v)=>q+v,0);
+  const pgT=Z.pag.vista+Z.pag.parc,tpT=Object.values(Z.tipo).reduce((q,v)=>q+v,0);
+  const IDF={'Até 24':'até 24 anos','25–34':'25 a 34 anos','35–44':'35 a 44 anos','45–54':'45 a 54 anos','55–64':'55 a 64 anos','65+':'65 anos ou mais'};
+  if(sxT)out.push(ch(`${sxM>=sxF?'Homem':'Mulher'} · ${pc0(Math.max(sxM,sxF),sxT)}`,'b'));
+  if(idT){const ia=Z.idade.indexOf(Math.max(...Z.idade));out.push(ch(`${IDF[FX_IDADE[ia][0]]} · ${pc0(Z.idade[ia],idT)}`,'o'))}
+  if(rgT){const r0=Z.top(Z.reg,1)[0];out.push(ch(`${esc(r0[0])} · ${pc0(r0[1],rgT)}`,'p'))}
+  if(pgT)out.push(ch(Z.pag.parc>=Z.pag.vista?`Parcela · ${pc0(Z.pag.parc,pgT)}${Z.vezN?` · ${dd1(Z.vezSoma/Z.vezN).replace(/,0$/,'')}x`:''}`:`Paga à vista · ${pc0(Z.pag.vista,pgT)}`,'g'));
+  if(Z.tN)out.push(ch(`Fecha em ${dd1(Z.tMed)} dias`,'y'));
+  const tp1=Z.top(Z.tipo,1)[0];if(tp1)out.push(ch(`Processo: ${esc(tp1[0])} · ${pc0(tp1[1],tpT)}`,'r'));
+  return out.join('')}
+function vPerfilCli(){
+  const V=perfilVendas(),cks=[...new Set(V.map(x=>x.ck).filter(Boolean))];
+  const falta=cks.filter(k=>/^[\w.-]+$/.test(k)&&!PERF.map[k]&&!PERF.sem.has(k));
+  if(falta.length&&!PERF.p){PERF.err='';PERF.p=perfilFetch(falta).catch(e=>{PERF.err=e.message}).finally(()=>{PERF.p=null;if(tab==='perfil')renderAuto()})}
+  const cab=PERF.p?`<div class="pf-head"><span class="pf-load"><span class="em-spin"></span> buscando ${n(falta.length)} fichas na planilha rotativa…</span></div>`:'';
+  if(!V.length)return cab+`<div class="card wide"><p class="info">Nenhuma venda no recorte escolhido.</p></div>`;
+  const Z=perfilAgg(V,PERF.map);
+  if(PERF.p&&!Z.comP)return cab+`<div class="card wide"><p class="info" style="margin:6px 0">Buscando idade, cidade, CEP e qualificação de ${n(cks.length)} clientes na planilha rotativa. Leva alguns segundos na primeira vez.</p></div>`;
+  const sxM=Z.sexo.M||0,sxF=Z.sexo.F||0,sxT=sxM+sxF,pgT=Z.pag.vista+Z.pag.parc,idT=Z.idade.reduce((q,v)=>q+v,0);
+  const rgT=Object.values(Z.reg).reduce((q,v)=>q+v,0),ciT=Object.values(Z.cid).reduce((q,v)=>q+v,0),tpT=Object.values(Z.tipo).reduce((q,v)=>q+v,0);
+  const habT=Object.values(Z.hab).reduce((q,v)=>q+v,0),def=Object.entries(Z.hab).filter(([k])=>/defin/i.test(k)).reduce((q,[,v])=>q+v,0),ecT=Object.values(Z.ec).reduce((q,v)=>q+v,0);
+  const kp=[kpi('Clientes',Z.n,null,'','',0,`${n(Z.comP)} com ficha na base`),
+    kpi('Idade média',Z.idMed==null?'—':Math.round(Z.idMed)+' anos',null,'','',1,idT?`${n(idT)} com nascimento`:''),
+    kpi('Homens',sxT?pc(sxM,sxT):'—',null,'','',2,'estimado pelo nome'),
+    kpi('Pagam à vista',pgT?pc(Z.pag.vista,pgT):'—',null,'','',3,Z.vezN?`parcelados: ${dd1(Z.vezSoma/Z.vezN).replace(/,0$/,'')}x em média`:''),
+    kpi('Até a venda',Z.tMed==null?'—':dd1(Z.tMed)+' d',null,'','',4,Z.tN?`${pc(Z.fx[0]+Z.fx[1],Z.tN)} em até 3 dias`:''),
+    kpi('Ticket médio',Z.ticket==null?'—':mo2(Z.ticket),null,'','',5,'valor contratado'),
+    kpi('Região principal',rgT?esc(Z.top(Z.reg,1)[0][0]):'—',null,'','',6,rgT?pc(Z.top(Z.reg,1)[0][1],rgT)+' dos clientes':''),
+    kpi('Processo principal',tpT?esc(Z.top(Z.tipo,1)[0][0]):'—',null,'','',7,tpT?pc(Z.top(Z.tipo,1)[0][1],tpT)+' dos clientes':'')].join('');
+  const dn=(sl,tot,lab)=>`<div class="dw">${donut(sl,tot,lab||'clientes')}<div class="lgd">${sl.map(s=>`<span><i style="background:${s.c}"></i>${esc(s.k)} <b>${pc(s.v,tot)}</b></span>`).join('')}</div></div>`;
+  /* perfil por campanha */
+  const porC={};V.forEach(x=>{(porC[x.mi]=porC[x.mi]||[]).push(x)});
+  const linhasC=Object.entries(porC).sort((a,b)=>b[1].length-a[1].length).map(([k,L])=>{const z=perfilAgg(L,PERF.map),m=z.sexo.M||0,f=z.sexo.F||0,pg=z.pag.vista+z.pag.parc,rg=z.top(z.reg,1)[0],tp=z.top(z.tipo,1)[0],rgS=Object.values(z.reg).reduce((q,v)=>q+v,0),tpS=Object.values(z.tipo).reduce((q,v)=>q+v,0);
+    return `<tr><td class="lft"><b>${esc(nomeCamp(k))}</b><div class="kp-h">${esc(empOf(k))}</div></td><td><b>${n(z.n)}</b></td><td>${z.idMed==null?'—':Math.round(z.idMed)}</td><td>${m+f?pc(m,m+f):'—'}</td>
+      <td>${pg?pc(z.pag.vista,pg):'—'}</td><td>${z.vezN?dd1(z.vezSoma/z.vezN).replace(/,0$/,'')+'x':'—'}</td><td class="lft">${rg?esc(rg[0])+` <span class="m">${pc(rg[1],rgS)}</span>`:'—'}</td>
+      <td class="lft">${tp?esc(tp[0])+` <span class="m">${pc(tp[1],tpS)}</span>`:'—'}</td><td>${z.tMed==null?'—':dd1(z.tMed)+' d'}</td><td>${z.ticket==null?'—':mo2(z.ticket)}</td></tr>`}).join('');
+  return cab+`<div class="kg pf-kg">${kp}</div>
+  <div class="card wide pf-hero"><div class="pf-hl">Retrato do cliente típico</div><div class="pf-chips">${perfilRetratoHtml(Z)||'<span class="info">Dados insuficientes no recorte.</span>'}</div></div>
+  <div class="card"><div class="ch"><h3>Sexo</h3><span class="m">estimado pelo primeiro nome</span></div>
+    ${sxT?dn([{k:'Masculino',v:sxM,c:'var(--blue)'},{k:'Feminino',v:sxF,c:'#8B5CF6'}],sxT):'<p class="info">Sem nomes para estimar.</p>'}</div>
+  <div class="card"><div class="ch"><h3>À vista × parcelado</h3><span class="m">${n(pgT)} vendas</span></div>
+    ${pgT?dn([{k:'À vista',v:Z.pag.vista,c:'var(--green)'},{k:'Parcelado',v:Z.pag.parc,c:'var(--accent)'}],pgT):'<p class="info">Sem forma de pagamento.</p>'}</div>
+  <div class="card"><div class="ch"><h3>Faixa etária</h3><span class="m">${Z.idMed==null?'':'média '+Math.round(Z.idMed)+' anos'}</span></div>
+    ${hbar(FX_IDADE.map(([l],i)=>[l,Z.idade[i]]),idT,n,'')}</div>
+  <div class="card"><div class="ch"><h3>Parcelas e forma de pagamento</h3></div>
+    ${hbar(VEZES_L.map((l,i)=>[l,Z.vezes[i]]).filter(x=>x[1]),pgT,n,'g')}
+    <div class="pf-sep"></div>${hbar(Z.top(Z.forma,5),Object.values(Z.forma).reduce((q,v)=>q+v,0),n,'b')}</div>
+  <div class="card"><div class="ch"><h3>Região</h3><span class="m">pelo CEP</span></div>${hbar(Z.top(Z.reg,8),rgT,n,'b')}</div>
+  <div class="card"><div class="ch"><h3>Principais cidades</h3><span class="m">${n(ciT)} com cidade</span></div>${hbar(Z.top(Z.cid,8).map(([k,v])=>[Z.cidNm[k]||k,v]),ciT,n,'')}</div>
+  <div class="card"><div class="ch"><h3>Tipo do processo</h3></div>${hbar(Z.top(Z.tipo,7),tpT,n,'r')}</div>
+  <div class="card"><div class="ch"><h3>Serviços contratados</h3></div>${hbar(Z.top(Z.serv,7),Z.n,n,'g')}</div>
+  <div class="card"><div class="ch"><h3>Tempo até a venda</h3><span class="m">${Z.tMed==null?'':'média por faixas '+dd1(Z.tMed)+' dias'}</span></div>
+    ${hbar(FAIXAS_T.map((f,i)=>[f.n,Z.fx[i]]).filter(x=>x[1]),Z.tN,n,'g')}</div>
+  <div class="card"><div class="ch"><h3>Qualificação</h3></div>
+    ${statRow([['Multa de bafômetro',Z.bafoN?pc(Z.bafoSim,Z.bafoN)+` <span class="m">de ${n(Z.bafoN)}</span>`:'—',1],
+      ['Habilitação definitiva',habT?pc(def,habT):'—',1],
+      ...Z.top(Z.ec,4).map(([k,v])=>[esc(k),pc(v,ecT)])])}</div>
+  <div class="card wide t"><div class="ch" style="padding:15px 16px 8px"><h3>Perfil por campanha</h3><span class="m">${Object.keys(porC).length} campanhas</span></div>
+    <div class="tw"><table class="xl"><thead><tr><th class="lft">Campanha</th><th>Clientes</th><th>Idade média</th><th>Homens</th><th>À vista</th><th>Parcelas</th><th class="lft">Região principal</th><th class="lft">Processo principal</th><th>Até a venda</th><th>Ticket</th></tr></thead>
+      <tbody>${linhasC}</tbody></table></div></div>
+  <p class="leg" style="margin:4px 4px 18px">Clientes = vendas do faturamento no período, ligadas à ficha da planilha rotativa pela chave do card. Idade na data da venda; sexo estimado pelo primeiro nome
+    (a planilha não tem essa coluna); região pelo CEP (em SP: Capital, Grande SP, Litoral e Interior); tempo até a venda pela média das faixas.</p>`}
 
 function rnAprov(pres,D,c){
   const o=c.o,p=c.p,mt=kpiMeta(c.k,'tmed'),s=slideBase(pres,c.nome,'Indicadores de Aproveitamento',`Eficiência operacional e desempenho - ${D.mes} ${D.periodoC.split(' ')[0]}`);
@@ -6617,6 +6878,7 @@ const RN_CAT=[
   {k:'leads',   n:'Leads do Mês',           d:'Volume por mídia, formulário e semana'},
   {k:'funil',   n:'Funil de Conversão',     d:'Do lead recebido ao contrato, com a perda de cada etapa',novo:1},
   {k:'camp',    n:'Por campanha',           d:'KPIs vs meta e Tabulações e Funil de cada mídia (com Target e Churn em %)'},
+  {k:'perfil',  n:'Perfil do Cliente',      d:'Idade, sexo, região, cidades, pagamento, fechamento e qualificação de quem comprou (campanhas com 3+ vendas)',pai:'camp'},
   {k:'aprov',   n:'Indicadores de Aproveitamento', d:'Eficiência operacional da campanha principal',pai:'camp'},
   {k:'linha',   n:'Performance por Linha',  d:'Linhas de WhatsApp da campanha principal',pai:'camp'},
   {k:'balanc',  n:'Balanceador de contratos',d:'Peso de cada campanha nos contratos do período'},
@@ -7113,7 +7375,7 @@ function bindNumeros(){const ctx=fE+'|'+(fCamp||'');
   document.querySelectorAll('[data-nmm]').forEach(b=>b.onclick=()=>{NUM.met=b.dataset.nmm;render()});
   document.querySelectorAll('[data-relmodo]').forEach(b=>b.onclick=()=>{REL_MODO=b.dataset.relmodo;render();window.scrollTo({top:0,behavior:RM?'auto':'smooth'})})}
 
-const VIEWS={cli:vCli,resumo:vInicio,leads:vLeads,camp:vCamp,emp:vEmp,tab:vTab,fat:vFat,vendas:vVendas,perf:vPerf,relat:vRel,admin:vAdmin};
+const VIEWS={cli:vCli,perfil:vPerfilCli,resumo:vInicio,leads:vLeads,camp:vCamp,emp:vEmp,tab:vTab,fat:vFat,vendas:vVendas,perf:vPerf,relat:vRel,admin:vAdmin};
 const TABS=[['resumo','Início','M3 11l9-8 9 8M5 10v10h14V10'],
   ['leads','Leads','M3 3v18h18M7 15l3-4 3 3 4-7'],
   ['camp','Campanhas','M3 11v3l14 5V6L3 11zM8 13v6M18 9a3 3 0 0 1 0 6'],
@@ -7123,6 +7385,7 @@ const TABS=[['resumo','Início','M3 11l9-8 9 8M5 10v10h14V10'],
   ['vendas','Vendas','M3 6h2l2.2 10.2a2 2 0 0 0 2 1.6h7.5a2 2 0 0 0 2-1.6L20 9H6M9 21a1 1 0 1 0 0-.01M18 21a1 1 0 1 0 0-.01'],
   ['perf','Performance','M21 12a9 9 0 1 1-9-9M21 12h-9V3M15.5 8.5L12 12'],
   ['relat','Relatórios','M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5zM14 3v5h5M9 13h6M9 17h4'],
+  ['perfil','Perfil do cliente','M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zM3.5 21a8.5 8.5 0 0 1 17 0'],
   ['cli','Clientes','M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21a8 8 0 0 1 12.5-6.6M17.5 20a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM21 22l-1.4-1.4']];
 
 function render(){
@@ -7181,7 +7444,8 @@ function head(k){
     vendas:['Vendas gerais','Todas as vendas registradas no fechamento financeiro.'],
     perf:['Performance das campanhas','Custo, lead, venda, faturamento e rentabilidade — do investimento ao retorno.'],
     relat:['Relatórios','Escolha o período e a empresa: o relatório sai pronto para a reunião.'],
-    cli:['Clientes','Busque pelo nome, celular, CPF ou card e abra o perfil: pagamentos, tabulação e responsável.']}[k];
+    cli:['Clientes','Busque pelo nome, celular, CPF ou card e abra o perfil: pagamentos, tabulação e responsável.'],
+    perfil:['Perfil do cliente',`Quem compra: idade, sexo, região, forma de pagamento, fechamento e qualificação — ${empNome()}${fCamp?' · '+nomeCamp(fCamp):''}.`]}[k];
   const b='',g='';
   if(k==='relat'||k==='resumo'||k==='admin'||k==='reuniao')return '';
   return `<div class="h"><h2>${H[0]}</h2><p>${H[1]}</p></div>`}
@@ -7313,7 +7577,8 @@ function ingFin(r){
     vc:gdate(x[4]), ld:gdate(x[5]),
     mi:nc(x[6])||'—', e:String(x[7]||'—').trim().toUpperCase()||'—',
     dc:gdate(x[8]), cs:String(x[9]||'').trim()||'Sem consultor', ck:x[10]==null?'':String(x[10]).trim(),
-    st:x[11]==null?'':String(x[11]).trim().toLowerCase()}));
+    st:x[11]==null?'':String(x[11]).trim().toLowerCase(),
+    fp:x[12]==null?'':String(x[12]).trim(), vz:+x[13]||0}));
   if(!rows.length)return false;
   FIN_ALL=rows;aplicaStatus();finLive=true;finErr='';
   FRESH.fin=rows.reduce((a,x)=>x.dc&&x.dc>a?x.dc:a,'');return true}
@@ -7404,7 +7669,7 @@ async function load(auto){
 async function loadFin(){
   if(finBusy)return;finBusy=true;
   try{const c=CFG.fin.col;
-    const r=await gvizF(`select ${c.lanc}, ${c.servico}, ${c.valor}, ${c.parcela}, ${c.venc}, ${c.dataLead}, ${c.midia}, ${c.empresa}, ${c.confirm}, ${c.consultor}, ${c.card||'C'}, ${c.status||'V'}`);
+    const r=await gvizF(`select ${c.lanc}, ${c.servico}, ${c.valor}, ${c.parcela}, ${c.venc}, ${c.dataLead}, ${c.midia}, ${c.empresa}, ${c.confirm}, ${c.consultor}, ${c.card||'C'}, ${c.status||'V'}, ${c.forma||'M'}, ${c.vezes||'O'}`);
     if(ingFin(r)){RAW.fin=r;salvaCache();renderAuto()}
   }catch(e){finErr=e&&e.message?e.message:'erro';if(!FIN.length)renderAuto()}
   finally{finBusy=false}}
