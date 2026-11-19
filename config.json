@@ -1,5 +1,5 @@
 {
- "t": "2026-11-19T12:32:42.521Z",
+ "t": "2026-11-19T13:04:36.271Z",
  "quem": "painel GWA",
  "cfg": {
   "leads": {
@@ -21,7 +21,15 @@
     "nomeLead": "T",
     "nome": "V",
     "cpf": "X",
-    "email": "AS"
+    "email": "AS",
+    "nasc": "AI",
+    "estCivil": "AF",
+    "tipoProc": "AT",
+    "habil": "AW",
+    "bafo": "BC",
+    "cidade": "AP",
+    "uf": "AQ",
+    "cep": "AK"
    }
   },
   "fin": {
@@ -177,6 +185,7 @@
     "leads": 1,
     "funil": 1,
     "camp": 1,
+    "perfil": 1,
     "aprov": 0,
     "linha": 1,
     "balanc": 1,
@@ -218,12 +227,12 @@
     "semanal",
     "proj",
     "bm",
-    "anun",
+    "fim",
     "oport",
-    "fim"
+    "anun"
    ],
    "tema": "escuro",
-   "semFat": 0
+   "semFat": 1
   },
   "empCamp": {
    "JOGO ABERTO-24H": "OFF"
